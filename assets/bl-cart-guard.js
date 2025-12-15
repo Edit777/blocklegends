@@ -108,7 +108,19 @@
         cart.items.forEach(function (it) {
           if (!it || isAddonLine(it)) return;
           var uid = getProp(it, G.CFG.propParentUid);
-          if (uid) parentsByUid[uid] = { item: it, qty: Number(it.quantity || 0) };
+          if (!uid) return;
+
+          var existing = parentsByUid[uid];
+          var qty = Number(it.quantity || 0);
+
+          if (!existing) {
+            parentsByUid[uid] = { item: it, qty: qty };
+          } else {
+            // Sum quantities when multiple parent lines share the same uid so
+            // add-on enforcement uses the full parent count.
+            existing.qty += qty;
+            existing.item = existing.item || it;
+          }
         });
 
         var addonMetaByUid = {};
