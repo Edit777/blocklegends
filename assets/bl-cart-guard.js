@@ -349,20 +349,45 @@
   };
 
   G.guardCheckout = function () {
-    var btns = document.querySelectorAll('button[name="checkout"], input[name="checkout"], [href^="/checkout"]');
-    if (!btns.length) return;
+    if (G.__checkoutBound) return;
+    G.__checkoutBound = true;
 
-    btns.forEach(function (b) {
-      b.addEventListener('click', function (e) {
-        G.cleanup('checkout').then(function (didChange) {
-          if (didChange) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            try { alert('We removed invalid Mystery Add-Ons that were not attached to their parent item.'); } catch (e2) {}
+    var selector = 'button[name="checkout"], input[name="checkout"], [href^="/checkout"]';
+
+    document.addEventListener('click', function (e) {
+      var target = e.target ? e.target.closest(selector) : null;
+      if (!target) return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      function proceedToCheckout() {
+        try {
+          if (target.tagName === 'A' && target.href) {
+            window.location.href = target.href;
+            return;
           }
-        });
-      }, true);
-    });
+
+          var form = target.closest('form');
+          if (form) {
+            form.submit();
+            return;
+          }
+
+          window.location.href = '/checkout';
+        } catch (err) {
+          window.location.href = '/checkout';
+        }
+      }
+
+      G.cleanup('checkout').then(function (didChange) {
+        if (didChange) {
+          try { alert('We removed invalid Mystery Add-Ons that were not attached to their parent item.'); } catch (e2) {}
+        }
+      }).finally(function () {
+        proceedToCheckout();
+      });
+    }, true);
   };
 
   G.init = function () {
