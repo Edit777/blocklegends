@@ -42,18 +42,11 @@
   }
 
   function deriveStableParentUid(parentHandle, variantId, lockedCollection) {
-    // Deterministic UID so Shopify will stack the parent line (same variant + same lock)
-    // and add-ons can attach to the same parent group.
-    var key = [
-      'p',
-      String(parentHandle || '').trim(),
-      String(variantId || '').trim(),
-      String(lockedCollection || '').trim()
-    ].join('|');
-
-    // If we cannot build a stable key, fall back to a random uid.
-    if (!parentHandle || !variantId) return newUid();
-    return 'blp_' + stableHash(key);
+    // Use a truly unique UID per parent line so quantities never stack silently.
+    // The add-on binder will reuse this UID for the selected add-on on the same submit,
+    // and add-ons added later will pick an eligible UID via `findEligibleParentUid`.
+    // (Keeping the function name for compatibility even though the value is now random.)
+    return newUid();
   }
 
   function cartJson() {
