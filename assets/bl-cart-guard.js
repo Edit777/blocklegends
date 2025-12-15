@@ -2,8 +2,8 @@
    BLOCK LEGENDS — CART GUARD
    Enforce:
    - Add-on cannot exist without its parent (shared uid)
-   - Max 1 add-on per parent uid
-   - Add-on quantity forced to 1
+   - Add-on handle must match parent handle when provided
+   - Add-on quantities cannot exceed parent quantity (optionally capped)
    Notes:
    - We only touch items that are explicitly marked as add-ons.
    ======================================================= */
@@ -20,7 +20,8 @@
     propIsAddon: '_bl_is_addon',
     propParentHandle: '_bl_parent_handle',
     propParentUid: '_bl_parent_uid',
-    maxAddonsPerParent: 1,
+    // 0/null means unlimited, otherwise cap addons per uid to this AND parent quantity
+    maxAddonsPerParent: 0,
 
     // throttling
     mutationDebounceMs: 250,
@@ -92,44 +93,79 @@
         cart.items.forEach(function (it) {
           if (!it || isAddonLine(it)) return;
           var uid = getProp(it, G.CFG.propParentUid);
-          if (uid) parentsByUid[uid] = it;
+          if (uid) {
+            if (!parentsByUid[uid]) parentsByUid[uid] = { item: it, qty: 0 };
+            parentsByUid[uid].qty += Number(it.quantity || 0);
+          }
         });
 
-        var addonCountByUid = {};
+        var addonsByUid = {};
         var changes = [];
 
         cart.items.forEach(function (it) {
           if (!it || !isAddonLine(it)) return;
-
           var uid = getProp(it, G.CFG.propParentUid);
           var parentHandle = getProp(it, G.CFG.propParentHandle);
-          var parent = uid ? parentsByUid[uid] : null;
+          var parentInfo = uid ? parentsByUid[uid] : null;
 
-          // missing uid OR missing parent => remove
-          if (!uid || !parent) {
-            changes.push({ key: it.key, qty: 0 });
-            return;
-          }
+          if (!addonsByUid[uid || '__missing__']) addonsByUid[uid || '__missing__'] = [];
 
-          // enforce matching handle if provided
-          if (parentHandle) {
-            var ph = maybeStr(parent.handle || parent.product_handle);
-            if (ph && ph !== parentHandle) {
+          addonsByUid[uid || '__missing__'].push({
+            item: it,
+            uid: uid,
+            parentHandle: parentHandle,
+            parentInfo: parentInfo
+          });
+        });
+
+        Object.keys(addonsByUid).forEach(function (uid) {
+          var items = addonsByUid[uid];
+          var parentInfo = items[0] ? items[0].parentInfo : null;
+          items.forEach(function (entry) {
+            var it = entry.item;
+
+            // missing uid OR missing parent => remove
+            if (!entry.uid || !parentInfo) {
               changes.push({ key: it.key, qty: 0 });
               return;
             }
+
+            // enforce matching handle if provided
+            if (entry.parentHandle) {
+              var ph = maybeStr(parentInfo.item.handle || parentInfo.item.product_handle);
+              if (ph && ph !== entry.parentHandle) {
+                changes.push({ key: it.key, qty: 0 });
+                return;
+              }
+            }
+          });
+
+          // enforce addon quantity does not exceed parent quantity (and optional cap)
+          var parentQty = parentInfo ? Number(parentInfo.qty || 0) : 0;
+          var limit = parentQty;
+          if (G.CFG.maxAddonsPerParent && G.CFG.maxAddonsPerParent > 0) {
+            limit = Math.min(limit, G.CFG.maxAddonsPerParent);
           }
 
-          addonCountByUid[uid] = (addonCountByUid[uid] || 0) + 1;
-          if (addonCountByUid[uid] > G.CFG.maxAddonsPerParent) {
-            changes.push({ key: it.key, qty: 0 });
-            return;
-          }
+          var used = 0;
+          items.forEach(function (entry) {
+            var it = entry.item;
+            var qty = Number(it.quantity || 0);
+            if (qty < 0) qty = 0;
 
-          // keep qty = 1
-          if (Number(it.quantity || 0) > 1) {
-            changes.push({ key: it.key, qty: 1 });
-          }
+            var remaining = limit - used;
+            if (remaining <= 0) {
+              changes.push({ key: it.key, qty: 0 });
+              return;
+            }
+
+            var desired = Math.min(qty, remaining);
+            if (desired !== qty) {
+              changes.push({ key: it.key, qty: desired });
+            }
+
+            used += desired;
+          });
         });
 
         if (!changes.length) return false;
