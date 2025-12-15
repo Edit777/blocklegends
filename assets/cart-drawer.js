@@ -42,6 +42,12 @@ if (!window.CartDrawer) {
 
   bindHandlers() {
     this.onOverlayClick = () => this.close();
+    this.onCloseButtonClick = (event) => {
+      if (event.target.closest('[data-cart-close]')) {
+        event.preventDefault();
+        this.close();
+      }
+    };
     this.onKeyUp = (event) => {
       if (event.key === 'Escape' && this.root?.classList?.contains('active')) {
         this.close();
@@ -102,6 +108,7 @@ if (!window.CartDrawer) {
   attachEvents() {
     this.overlay?.addEventListener('click', this.onOverlayClick);
     this.closeButtons.forEach((btn) => btn.addEventListener('click', this.onOverlayClick));
+    this.panel?.addEventListener('click', this.onCloseButtonClick);
     document.addEventListener('keyup', this.onKeyUp);
     this.toggleElements.forEach((toggle) => toggle.addEventListener('click', this.onToggleClick));
     this.itemsContainer?.addEventListener('click', this.onItemClick);
@@ -114,6 +121,7 @@ if (!window.CartDrawer) {
   detachEvents() {
     this.overlay?.removeEventListener('click', this.onOverlayClick);
     this.closeButtons.forEach((btn) => btn.removeEventListener('click', this.onOverlayClick));
+    this.panel?.removeEventListener('click', this.onCloseButtonClick);
     document.removeEventListener('keyup', this.onKeyUp);
     this.toggleElements.forEach((toggle) => toggle.removeEventListener('click', this.onToggleClick));
     this.itemsContainer?.removeEventListener('click', this.onItemClick);
