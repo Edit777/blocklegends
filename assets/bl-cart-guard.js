@@ -147,6 +147,10 @@
             existing.qty += qty;
             existing.item = existing.item || it;
           }
+
+          if (handle) {
+            parentsByHandle[handle] = (parentsByHandle[handle] || 0) + qty;
+          }
         });
 
         var addonMetaByKey = {};
