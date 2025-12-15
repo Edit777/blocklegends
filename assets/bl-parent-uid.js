@@ -52,14 +52,10 @@
     }
   }
 
-  function deriveUid(parentForm, addonForm) {
-    var parentVariantId = getVariantId(parentForm);
-    var addonVariantId = getVariantId(addonForm);
-
-    if (parentVariantId && addonVariantId) {
-      return 'bl_' + parentVariantId + '_' + addonVariantId;
-    }
-
+  function deriveUid() {
+    // Always create a fresh uid per submission to avoid collisions when the
+    // same parent/add-on combo is added multiple times (we want the combo to
+    // be stackable instead of treated as the exact same line item).
     return newUid();
   }
 
@@ -90,7 +86,7 @@
       if (!addonCard || !isSelected(addonCard)) return;
 
       var addonForm = addonCard.querySelector('form[data-type="add-to-cart-form"]');
-      var uid = deriveUid(form, addonForm);
+      var uid = deriveUid();
 
       // parent gets uid
       ensureHidden(form, 'properties[' + P.CFG.propParentUid + ']', uid);
