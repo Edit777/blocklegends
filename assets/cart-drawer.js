@@ -107,7 +107,7 @@ if (!window.CartDrawer) {
 
   attachEvents() {
     this.overlay?.addEventListener('click', this.onOverlayClick);
-    this.closeButtons.forEach((btn) => btn.addEventListener('click', this.onOverlayClick));
+    this.closeButtons.forEach((btn) => btn.addEventListener('click', this.onCloseButtonClick));
     this.panel?.addEventListener('click', this.onCloseButtonClick);
     document.addEventListener('keyup', this.onKeyUp);
     this.toggleElements.forEach((toggle) => toggle.addEventListener('click', this.onToggleClick));
@@ -120,7 +120,7 @@ if (!window.CartDrawer) {
 
   detachEvents() {
     this.overlay?.removeEventListener('click', this.onOverlayClick);
-    this.closeButtons.forEach((btn) => btn.removeEventListener('click', this.onOverlayClick));
+    this.closeButtons.forEach((btn) => btn.removeEventListener('click', this.onCloseButtonClick));
     this.panel?.removeEventListener('click', this.onCloseButtonClick);
     document.removeEventListener('keyup', this.onKeyUp);
     this.toggleElements.forEach((toggle) => toggle.removeEventListener('click', this.onToggleClick));
@@ -176,6 +176,7 @@ if (!window.CartDrawer) {
       this.root = null;
       CartDrawer.init(newDrawer, { skipInitialRefresh: true });
       if (shouldStayOpen && CartDrawer.instance) CartDrawer.instance.open();
+      this.dispatchCartEvent('cart-drawer:rendered', { reason: 'refresh' });
     } catch (error) {
       console.error(error);
       this.showError(quantityError);
@@ -298,6 +299,14 @@ if (!window.CartDrawer) {
     }
     const amount = Number(value || 0) / 100;
     return showCurrency ? `$${amount.toFixed(2)}` : amount.toFixed(2);
+  }
+
+  dispatchCartEvent(name, detail = {}) {
+    try {
+      document.dispatchEvent(new CustomEvent(name, { detail }));
+    } catch (error) {
+      console.error(error);
+    }
   }
   }
 
