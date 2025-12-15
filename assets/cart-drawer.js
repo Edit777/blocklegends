@@ -1,4 +1,5 @@
-class CartDrawer {
+if (!window.CartDrawer) {
+  class CartDrawer {
   static init(root, options = {}) {
     if (!root) return null;
     if (CartDrawer.instance) CartDrawer.instance.destroy();
@@ -11,6 +12,7 @@ class CartDrawer {
     this.mapElements();
     this.bindHandlers();
     this.attachEvents();
+    this.bindAddToCartForms();
     this.root.style.visibility = 'visible';
     this.renderInitialSkeleton();
     if (!skipInitialRefresh) this.refreshCart();
@@ -85,6 +87,16 @@ class CartDrawer {
       event.preventDefault();
       window.location.href = '/checkout';
     };
+    this.onAddToCartSubmit = (event) => {
+      const form = event.target.closest('form');
+      if (!form) return;
+      const shouldBypass = form.dataset.cartRedirect === 'true' || form.dataset.preventDrawer === 'true';
+      if (shouldBypass) return;
+      event.preventDefault();
+      const formData = new FormData(form);
+      if (event.submitter?.name) formData.append(event.submitter.name, event.submitter.value);
+      this.addItem(formData, form);
+    };
   }
 
   attachEvents() {
@@ -109,6 +121,16 @@ class CartDrawer {
     this.noteField?.removeEventListener('change', this.onNoteChange);
     this.updateButton?.removeEventListener('click', this.onUpdateClick);
     this.checkoutButton?.removeEventListener('click', this.onCheckoutClick);
+    this.addToCartForms?.forEach((form) => form.removeEventListener('submit', this.onAddToCartSubmit));
+  }
+
+  bindAddToCartForms() {
+    this.addToCartForms = Array.from(document.querySelectorAll('form[action*="/cart/add"]'));
+    this.addToCartForms.forEach((form) => {
+      if (form.dataset.cartDrawerBound === 'true') return;
+      form.dataset.cartDrawerBound = 'true';
+      form.addEventListener('submit', this.onAddToCartSubmit);
+    });
   }
 
   destroy() {
@@ -171,6 +193,36 @@ class CartDrawer {
     }
   }
 
+  async addItem(formData, form) {
+    const errorMessage = this.root?.dataset.quantityError || 'Error updating cart';
+    try {
+      this.setLoading(true);
+      const response = await fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const description = data?.description || data?.message;
+        throw new Error(description || errorMessage);
+      }
+
+      await this.refreshCart();
+      this.open();
+    } catch (error) {
+      console.error(error);
+      this.showError(error?.message || errorMessage);
+      if (form) {
+        const errorSummary = form.querySelector('[data-form-error]');
+        if (errorSummary) errorSummary.textContent = error?.message || errorMessage;
+      }
+    } finally {
+      this.setLoading(false);
+    }
+  }
+
   async updateNote() {
     try {
       this.setLoading(true);
@@ -214,13 +266,9 @@ class CartDrawer {
 
   runInlineScripts(container) {
     container?.querySelectorAll('script')?.forEach((oldScript) => {
+      if (oldScript.src) return;
       const newScript = document.createElement('script');
-      if (oldScript.src) {
-        newScript.src = oldScript.src;
-        newScript.async = oldScript.async;
-      } else {
-        newScript.textContent = oldScript.textContent;
-      }
+      newScript.textContent = oldScript.textContent;
       oldScript.replaceWith(newScript);
     });
   }
@@ -243,9 +291,14 @@ class CartDrawer {
     const amount = Number(value || 0) / 100;
     return showCurrency ? `$${amount.toFixed(2)}` : amount.toFixed(2);
   }
-}
+  }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const drawer = document.querySelector('[data-cart-drawer]');
-  if (drawer) CartDrawer.init(drawer, { skipInitialRefresh: true });
-});
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.__cartDrawerBootstrapped) return;
+    window.__cartDrawerBootstrapped = true;
+    const drawer = document.querySelector('[data-cart-drawer]');
+    if (drawer) CartDrawer.init(drawer, { skipInitialRefresh: true });
+  });
+
+  window.CartDrawer = CartDrawer;
+}

@@ -31,7 +31,7 @@
   data-type='modal'
   data-cart-drawer
   data-cart-heading-template="{{ section.settings.heading_text | escape }}"
-  data-empty-state-initial="{{ cart == empty }}"
+  data-empty-state-initial="{% if cart == empty %}true{% else %}false{% endif %}"
   data-quantity-error="{{ 'sections.cart.cart_error' | t }}"
   data-close-label="{{ 'accessibility.close' | t }}"
   data-continue-shopping="{% if settings.continue_shopping_url == blank %}{{ routes.all_products_collection_url }}{% else %}{{ settings.continue_shopping_url }}{% endif %}"
