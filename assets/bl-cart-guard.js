@@ -15,6 +15,22 @@
   var U = window.BL.utils;
   var G = window.BL.cartGuard;
 
+  function isDebug() {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('bl_mystery_debug') === '1') return true;
+    } catch (e) {}
+    try {
+      if (typeof window !== 'undefined' && window.location && window.location.search.indexOf('mystery_debug=1') !== -1) return true;
+    } catch (e2) {}
+    return false;
+  }
+
+  function debugLog() {
+    if (!isDebug()) return;
+    var args = Array.prototype.slice.call(arguments);
+    try { console.log.apply(console, ['[BL CartGuard][debug]'].concat(args)); } catch (e) {}
+  }
+
   G.CFG = G.CFG || {
     addonHandle: 'mystery-add-on',
     propIsAddon: '_bl_is_addon',
@@ -92,7 +108,7 @@
         cart.items.forEach(function (it) {
           if (!it || isAddonLine(it)) return;
           var uid = getProp(it, G.CFG.propParentUid);
-          if (uid) parentsByUid[uid] = it;
+          if (uid) parentsByUid[uid] = { item: it, qty: Number(it.quantity || 0) };
         });
 
         var addonCountByUid = {};
@@ -120,15 +136,29 @@
             }
           }
 
-          addonCountByUid[uid] = (addonCountByUid[uid] || 0) + 1;
-          if (addonCountByUid[uid] > G.CFG.maxAddonsPerParent) {
+          var parentQty = Number(parentsByUid[uid].qty || 0);
+          var allowed = Math.max(0, parentQty * Number(G.CFG.maxAddonsPerParent || 1));
+
+          addonCountByUid[uid] = (addonCountByUid[uid] || 0) + Number(it.quantity || 0);
+
+          if (allowed <= 0) {
             changes.push({ key: it.key, qty: 0 });
+            debugLog('remove-addon-no-parent', { uid: uid, line: it.key });
             return;
           }
 
-          // keep qty = 1
-          if (Number(it.quantity || 0) > 1) {
-            changes.push({ key: it.key, qty: 1 });
+          if (addonCountByUid[uid] > allowed) {
+            var overflow = addonCountByUid[uid] - allowed;
+            var newQty = Math.max(0, Number(it.quantity || 0) - overflow);
+            changes.push({ key: it.key, qty: newQty });
+            debugLog('trim-addon-qty', { uid: uid, allowed: allowed, overflow: overflow, newQty: newQty });
+            return;
+          }
+
+          // keep qty within allowed but never above 1 per line if theme misfires
+          if (Number(it.quantity || 0) > allowed) {
+            changes.push({ key: it.key, qty: allowed });
+            debugLog('cap-addon-qty', { uid: uid, allowed: allowed });
           }
         });
 
@@ -137,6 +167,7 @@
         // apply sequentially
         var p = Promise.resolve();
         changes.forEach(function (c) { p = p.then(function () { return changeLine(c.key, c.qty); }); });
+        debugLog('changes-applied', changes);
         return p.then(function () { return true; });
       })
       .catch(function () { return false; })
