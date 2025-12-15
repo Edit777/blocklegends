@@ -111,7 +111,7 @@
           if (uid) parentsByUid[uid] = { item: it, qty: Number(it.quantity || 0) };
         });
 
-        var addonCountByUid = {};
+        var addonMetaByUid = {};
         var changes = [];
 
         cart.items.forEach(function (it) {
@@ -129,7 +129,7 @@
 
           // enforce matching handle if provided
           if (parentHandle) {
-            var ph = maybeStr(parent.handle || parent.product_handle);
+            var ph = maybeStr(parent.item.handle || parent.item.product_handle);
             if (ph && ph !== parentHandle) {
               changes.push({ key: it.key, qty: 0 });
               return;
@@ -139,26 +139,53 @@
           var parentQty = Number(parentsByUid[uid].qty || 0);
           var allowed = Math.max(0, parentQty * Number(G.CFG.maxAddonsPerParent || 1));
 
-          addonCountByUid[uid] = (addonCountByUid[uid] || 0) + Number(it.quantity || 0);
+          var meta = addonMetaByUid[uid];
+          if (!meta) {
+            meta = { allowed: allowed, lines: [], count: 0 };
+            addonMetaByUid[uid] = meta;
+          } else {
+            meta.allowed = allowed;
+          }
+
+          meta.lines.push(it);
+          meta.count += Number(it.quantity || 0);
+        });
+
+        Object.keys(addonMetaByUid).forEach(function (uid) {
+          var meta = addonMetaByUid[uid];
+          var allowed = meta.allowed;
 
           if (allowed <= 0) {
-            changes.push({ key: it.key, qty: 0 });
-            debugLog('remove-addon-no-parent', { uid: uid, line: it.key });
+            meta.lines.forEach(function (line) {
+              changes.push({ key: line.key, qty: 0 });
+            });
+            debugLog('remove-addon-no-parent', { uid: uid });
             return;
           }
 
-          if (addonCountByUid[uid] > allowed) {
-            var overflow = addonCountByUid[uid] - allowed;
-            var newQty = Math.max(0, Number(it.quantity || 0) - overflow);
-            changes.push({ key: it.key, qty: newQty });
-            debugLog('trim-addon-qty', { uid: uid, allowed: allowed, overflow: overflow, newQty: newQty });
+          if (meta.count > allowed) {
+            var remaining = allowed;
+            meta.lines.forEach(function (line) {
+              var cur = Number(line.quantity || 0);
+              var desired = Math.min(cur, Math.max(0, remaining));
+              remaining -= desired;
+
+              if (desired !== cur) {
+                changes.push({ key: line.key, qty: desired });
+              }
+            });
+            debugLog('trim-addon-qty', { uid: uid, allowed: allowed, count: meta.count });
             return;
           }
 
-          // keep qty within allowed but never above 1 per line if theme misfires
-          if (Number(it.quantity || 0) > allowed) {
-            changes.push({ key: it.key, qty: allowed });
-            debugLog('cap-addon-qty', { uid: uid, allowed: allowed });
+          if (meta.count < allowed) {
+            var diff = allowed - meta.count;
+            var firstLine = meta.lines[0];
+            if (firstLine) {
+              var targetQty = Number(firstLine.quantity || 0) + diff;
+              changes.push({ key: firstLine.key, qty: targetQty });
+              debugLog('raise-addon-qty', { uid: uid, target: targetQty, allowed: allowed });
+            }
           }
         });
 

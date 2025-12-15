@@ -42,6 +42,27 @@
     return el;
   }
 
+  function getVariantId(form) {
+    if (!form) return '';
+    try {
+      var input = form.querySelector('input[name="id"]') || form.querySelector('select[name="id"]');
+      return input ? String(input.value || '').trim() : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function deriveUid(parentForm, addonForm) {
+    var parentVariantId = getVariantId(parentForm);
+    var addonVariantId = getVariantId(addonForm);
+
+    if (parentVariantId && addonVariantId) {
+      return 'bl_' + parentVariantId + '_' + addonVariantId;
+    }
+
+    return newUid();
+  }
+
   function isSelected(card) {
     return card && String(card.getAttribute('data-selected')) === 'true';
   }
@@ -68,13 +89,13 @@
       var addonCard = scope.querySelector('.upsell[data-upsell-addon="true"]');
       if (!addonCard || !isSelected(addonCard)) return;
 
-      var uid = newUid();
+      var addonForm = addonCard.querySelector('form[data-type="add-to-cart-form"]');
+      var uid = deriveUid(form, addonForm);
 
       // parent gets uid
       ensureHidden(form, 'properties[' + P.CFG.propParentUid + ']', uid);
 
       // addon gets same uid + defensive sync
-      var addonForm = addonCard.querySelector('form[data-type="add-to-cart-form"]');
       if (addonForm) {
         ensureHidden(addonForm, 'properties[' + P.CFG.propParentUid + ']', uid);
 
