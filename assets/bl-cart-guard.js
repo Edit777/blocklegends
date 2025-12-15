@@ -120,13 +120,24 @@
 
         // index parents by uid (only lines that have uid property are eligible parents)
         var parentsByUid = {};
+        var parentsByHandle = {};
         cart.items.forEach(function (it, idx) {
           if (!it || isAddonLine(it)) return;
           var uid = getProp(it, G.CFG.propParentUid);
+          var qty = Number(it.quantity || 0);
+          var handle = maybeStr(it.handle || it.product_handle);
+
+          // Track handle totals for every non-add-on line so add-ons that only
+          // know their parent handle can follow quantity updates even when the
+          // parent lacks the uid property.
+          if (handle) {
+            parentsByHandle[handle] = (parentsByHandle[handle] || 0) + qty;
+          }
+
+          // Only uid-backed parents participate in uid-based grouping.
           if (!uid) return;
 
           var existing = parentsByUid[uid];
-          var qty = Number(it.quantity || 0);
 
           if (!existing) {
             parentsByUid[uid] = { item: it, qty: qty };
@@ -138,7 +149,7 @@
           }
         });
 
-        var addonMetaByUid = {};
+        var addonMetaByKey = {};
         var changes = [];
 
         cart.items.forEach(function (it, idx) {
@@ -151,15 +162,17 @@
           var uid = getProp(it, G.CFG.propParentUid);
           var parentHandle = getProp(it, G.CFG.propParentHandle);
           var parent = uid ? parentsByUid[uid] : null;
+          var handleQty = parentHandle ? Number(parentsByHandle[parentHandle] || 0) : 0;
 
-          // missing uid OR missing parent => remove
-          if (!uid || !parent) {
+          // If the parent is missing and there is no matching handle quantity,
+          // the add-on is orphaned.
+          if (!uid && !handleQty) {
             changes.push({ key: it.key, line: lineNumber, qty: 0 });
             return;
           }
 
-          // enforce matching handle if provided
-          if (parentHandle) {
+          // enforce matching handle if provided and parent exists
+          if (parent && parentHandle) {
             var ph = maybeStr(parent.item.handle || parent.item.product_handle);
             if (ph && ph !== parentHandle) {
               changes.push({ key: it.key, line: lineNumber, qty: 0 });
@@ -167,15 +180,26 @@
             }
           }
 
-          var parentQty = Number(parentsByUid[uid].qty || 0);
-          var allowed = Math.max(0, parentQty * Number(G.CFG.maxAddonsPerParent || 1));
+          var parentQty = parent ? Number(parent.qty || 0) : 0;
+          var perParent = Number(G.CFG.maxAddonsPerParent || 1);
+          var allowed = Math.max(0, Math.max(parentQty * perParent, handleQty * perParent));
 
-          var meta = addonMetaByUid[uid];
+          // Group add-ons by uid when available; otherwise fall back to the
+          // parent handle to allow multiple add-ons to track the combined
+          // parent quantity even when parent uid differs (e.g., stacked
+          // purchases).
+          var metaKey = uid || (parentHandle ? 'handle:' + parentHandle : '');
+          if (!metaKey) {
+            changes.push({ key: it.key, line: lineNumber, qty: 0 });
+            return;
+          }
+
+          var meta = addonMetaByKey[metaKey];
           if (!meta) {
             meta = { allowed: allowed, lines: [], count: 0 };
-            addonMetaByUid[uid] = meta;
+            addonMetaByKey[metaKey] = meta;
           } else {
-            meta.allowed = allowed;
+            meta.allowed = Math.max(meta.allowed, allowed);
           }
 
           meta.lines.push(it);
@@ -183,8 +207,8 @@
           it.__bl_line_number = lineNumber;
         });
 
-        Object.keys(addonMetaByUid).forEach(function (uid) {
-          var meta = addonMetaByUid[uid];
+        Object.keys(addonMetaByKey).forEach(function (uid) {
+          var meta = addonMetaByKey[uid];
           var allowed = meta.allowed;
 
           if (allowed <= 0) {
