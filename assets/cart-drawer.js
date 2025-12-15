@@ -13,7 +13,8 @@ if (!window.CartDrawer) {
     this.bindHandlers();
     this.attachEvents();
     this.bindAddToCartForms();
-    this.root.style.visibility = 'visible';
+    this.closeTimeout = null;
+    this.setVisibility(this.root.classList.contains('active'));
     this.renderInitialSkeleton();
     if (!skipInitialRefresh) this.refreshCart();
   }
@@ -260,6 +261,24 @@ if (!window.CartDrawer) {
     this.root?.classList?.toggle('is-loading', Boolean(isLoading));
   }
 
+  getTransitionDuration() {
+    try {
+      const value = getComputedStyle(this.root).getPropertyValue('--duration-default').trim();
+      if (!value) return 200;
+      const numeric = Number.parseFloat(value);
+      if (Number.isNaN(numeric)) return 200;
+      return value.endsWith('ms') ? numeric : numeric * 1000;
+    } catch (error) {
+      console.error(error);
+      return 200;
+    }
+  }
+
+  setVisibility(isVisible) {
+    if (!this.root) return;
+    this.root.style.visibility = isVisible ? 'visible' : 'hidden';
+  }
+
   showError(message) {
     if (!this.errors) return;
     this.errors.textContent = message;
@@ -291,14 +310,18 @@ if (!window.CartDrawer) {
   }
 
   open() {
+    clearTimeout(this.closeTimeout);
+    this.setVisibility(true);
     this.root?.classList?.add('active');
     document.body.classList.add('overflow-hidden');
     this.panel?.focus();
   }
 
   close() {
+    clearTimeout(this.closeTimeout);
     this.root?.classList?.remove('active');
     document.body.classList.remove('overflow-hidden');
+    this.closeTimeout = setTimeout(() => this.setVisibility(false), this.getTransitionDuration());
   }
 
   formatMoney(value, showCurrency = false) {
