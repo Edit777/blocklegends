@@ -345,8 +345,37 @@ if (!window.CartDrawer) {
     if (window.__cartDrawerBootstrapped) return;
     window.__cartDrawerBootstrapped = true;
     const drawer = document.querySelector('[data-cart-drawer]');
+    const toggles = document.querySelectorAll('[data-cart-toggle], #cart-icon-bubble');
+    const usingCustomDrawer = Boolean(drawer);
+
+    console.info(
+      `[Cart Drawer] Mode: ${usingCustomDrawer ? 'Custom cart drawer active' : 'Default cart behavior (drawer markup missing)'}; ${toggles.length} toggle(s) detected.`
+    );
+
     if (drawer) CartDrawer.init(drawer, { skipInitialRefresh: true });
   });
+
+  document.addEventListener(
+    'click',
+    (event) => {
+      const toggle = event.target.closest('[data-cart-toggle], #cart-icon-bubble');
+      if (!toggle || CartDrawer.instance) return;
+
+      const drawer = document.querySelector('[data-cart-drawer]');
+      if (!drawer) {
+        console.info('[Cart Drawer] Toggle clicked but no drawer present; default cart expected.');
+        return;
+      }
+
+      const instance = CartDrawer.init(drawer, { skipInitialRefresh: true });
+      if (!instance) return;
+
+      event.preventDefault();
+      instance.open();
+      console.info('[Cart Drawer] Drawer initialized on-demand after toggle click.');
+    },
+    true
+  );
 
   window.CartDrawer = CartDrawer;
 }
