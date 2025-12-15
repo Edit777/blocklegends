@@ -124,10 +124,18 @@
         cart.items.forEach(function (it, idx) {
           if (!it || isAddonLine(it)) return;
           var uid = getProp(it, G.CFG.propParentUid);
-          if (!uid) return;
-
           var qty = Number(it.quantity || 0);
           var handle = maybeStr(it.handle || it.product_handle);
+
+          // Track handle totals for every non-add-on line so add-ons that only
+          // know their parent handle can follow quantity updates even when the
+          // parent lacks the uid property.
+          if (handle) {
+            parentsByHandle[handle] = (parentsByHandle[handle] || 0) + qty;
+          }
+
+          // Only uid-backed parents participate in uid-based grouping.
+          if (!uid) return;
 
           var existing = parentsByUid[uid];
 
