@@ -38,9 +38,7 @@
       '.upsell .upsell__image__img{aspect-ratio:1/1;object-fit:cover;width:100%;height:auto;}',
       '.upsell[data-upsell-addon="true"] .upsell__variant-picker{display:none !important;}',
       '.bl-addon-picker{margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}',
-      '.bl-addon-select{min-width:140px;max-width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,.2);border-radius:10px;background:#fff;font-size:13px;line-height:1.2;}',
-      '.bl-addon-status{font-size:12px;opacity:.9;}',
-      '.bl-addon-status.is-warn{opacity:1;}'
+      '.bl-addon-select{min-width:140px;max-width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,.2);border-radius:10px;background:#fff;font-size:13px;line-height:1.2;}'
     ].join('');
     document.head.appendChild(st);
   }
@@ -191,13 +189,7 @@
           select.appendChild(opt);
         });
 
-        var status = document.createElement('div');
-        status.className = 'bl-addon-status';
-        status.setAttribute('data-bl-addon-status', '1');
-        status.style.display = 'none';
-
         picker.appendChild(select);
-        picker.appendChild(status);
 
         // insert under title/price area if possible
         var target = card.querySelector('.upsell__content') || card;
@@ -205,20 +197,6 @@
       }
 
       var selectEl = card.querySelector('[data-bl-addon-select]');
-      var statusEl = card.querySelector('[data-bl-addon-status]');
-
-      function setStatus(msg, warn) {
-        if (!statusEl) return;
-        if (!msg) {
-          statusEl.textContent = '';
-          statusEl.style.display = 'none';
-          statusEl.classList.remove('is-warn');
-          return;
-        }
-        statusEl.textContent = String(msg);
-        statusEl.style.display = '';
-        statusEl.classList.toggle('is-warn', !!warn);
-      }
 
       function disableIneligibleOptions() {
         if (!locked || !selectEl) return Promise.resolve();
@@ -259,11 +237,8 @@
 
             if (fallback) {
               selectEl.value = fallback;
-              setStatus('Some rarities are not available for this figure right now. Switched to an available option.', true);
               debugLog('fallback-rarity-addon', { locked: locked, chosen: fallback });
             }
-          } else {
-            setStatus('', false);
           }
 
           debugLog('rarity-eligibility', {
