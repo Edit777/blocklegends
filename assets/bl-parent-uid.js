@@ -190,7 +190,6 @@
 
       var addonForm = addonCard.querySelector('form[data-type="add-to-cart-form"]');
       var uid = deriveUid();
-      P.__lastUid = uid;
 
       // parent gets uid
       ensureHidden(form, 'properties[' + P.CFG.propParentUid + ']', uid);
