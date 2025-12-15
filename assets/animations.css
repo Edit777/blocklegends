@@ -1,0 +1,239 @@
+/* =======================================================
+   BLOCK LEGENDS — RARITY HIGHLIGHT STYLES + ANIMATIONS
+   (Clean regen — single source of truth)
+   ======================================================= */
+
+/* ----------------------------
+   BASE HIGHLIGHT STYLING
+----------------------------- */
+
+/* Base highlight — prepare for movement */
+.piht__hl{
+  display:inline-block;
+  position:relative;
+  color:var(--piht-hl,currentColor);
+  transition:transform .2s ease,text-shadow .2s ease,opacity .2s ease;
+}
+
+/* Optional: stronger weight from settings */
+.piht__hl--bold{ font-weight:700; }
+
+/* ============================
+   RARITY VARIANTS — BASE LOOKS
+   ============================ */
+
+/* Common – no animation */
+.piht__hl--common{
+  text-shadow:none;
+}
+
+/* Rare – mild blue glow + gentle bob */
+.piht__hl--rare{
+  text-shadow:
+    0 0 8px rgba(59,130,246,.40),
+    0 0 16px rgba(59,130,246,.20);
+  animation:bl-rare-bob 2.4s ease-in-out infinite;
+}
+
+/* Epic – magenta/violet pulse */
+.piht__hl--epic{
+  color:#c026d3;
+  text-shadow:
+    0 0 6px rgba(192,38,211,.60),
+    0 0 14px rgba(124,58,237,.40);
+  animation:bl-epic-pulse 1.4s ease-in-out infinite;
+}
+
+/* Legendary – gold glow + moving shine streak (no background box) */
+.piht__hl--legendary{
+  color:#facc15;
+  background:none;
+  -webkit-background-clip:initial;
+  background-clip:initial;
+  text-shadow:
+    0 0 4px rgba(250,204,21,.70),
+    0 0 12px rgba(250,204,21,.45);
+  position:relative;
+  overflow:visible;
+}
+
+/* thin shine streak sweeping across the letters */
+.piht__hl--legendary::after{
+  content:'';
+  position:absolute;
+  top:-10%;
+  left:-40%;
+  width:40%;
+  height:140%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.95),transparent);
+  transform:skewX(-20deg);
+  opacity:0;
+  pointer-events:none;
+  animation:bl-legendary-shine 2.8s linear infinite;
+}
+
+/* Special – drifting label */
+.piht__hl--special{
+  text-shadow:
+    0 0 8px rgba(4,120,87,.60),
+    0 0 16px rgba(4,120,87,.30);
+  animation:bl-special-float 2.8s ease-in-out infinite;
+}
+
+/* =======================================================
+   MYTHICAL — STABLE CREEPY BLOOD (WORD-LEVEL, NOT PER-LETTER)
+   Works whether you have .piht__hl-char spans or not.
+   ======================================================= */
+
+.piht__hl--mythical{
+  position: relative;
+  display: inline-block;
+  color:#dc2626;
+  text-shadow:
+    0 0 2px rgba(220,38,38,.85),
+    0 0 10px rgba(127,29,29,.55);
+  overflow: visible;
+  animation: bl-myth-glow 3.4s ease-in-out infinite;
+}
+
+/* the blood under the word + a few drips */
+.piht__hl--mythical::after{
+  content:"";
+  position:absolute;
+  left: -2px;
+  right: -2px;
+  top: calc(100% - 1px);
+  height: 18px;
+  pointer-events:none;
+  opacity: .9;
+  transform-origin: top;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+
+  /* Layer 1: a thin “wet shelf” under the word
+     Layer 2-4: three drips (fixed positions, clean look) */
+  background-image:
+    linear-gradient(to bottom,
+      rgba(220,38,38,.95) 0%,
+      rgba(127,29,29,.70) 55%,
+      rgba(127,29,29,0) 100%),
+
+    linear-gradient(to bottom,
+      rgba(220,38,38,0) 0%,
+      rgba(220,38,38,.95) 22%,
+      rgba(127,29,29,.85) 65%,
+      rgba(127,29,29,0) 100%),
+
+    linear-gradient(to bottom,
+      rgba(220,38,38,0) 0%,
+      rgba(220,38,38,.90) 28%,
+      rgba(127,29,29,.80) 70%,
+      rgba(127,29,29,0) 100%),
+
+    linear-gradient(to bottom,
+      rgba(220,38,38,0) 0%,
+      rgba(220,38,38,.92) 24%,
+      rgba(127,29,29,.82) 68%,
+      rgba(127,29,29,0) 100%);
+
+  /* sizes: shelf full width, drips narrow */
+  background-size:
+    100% 5px,
+    6px 18px,
+    4px 14px,
+    5px 16px;
+
+  /* positions: shelf at top, drips at 28/58/82% */
+  background-position:
+    0 0,
+    28% 0,
+    58% 0,
+    82% 0;
+
+  background-repeat: no-repeat;
+  border-radius: 9999px;
+
+  animation: bl-myth-drip 4.2s ease-in-out infinite;
+}
+
+@keyframes bl-myth-glow{
+  0%,100%{
+    text-shadow:
+      0 0 2px rgba(220,38,38,.78),
+      0 0 10px rgba(127,29,29,.50);
+  }
+  50%{
+    text-shadow:
+      0 0 3px rgba(220,38,38,.95),
+      0 0 14px rgba(127,29,29,.68);
+  }
+}
+
+/* subtle “alive” movement, not chaotic */
+@keyframes bl-myth-drip{
+  0%,100%{
+    opacity: .80;
+    transform: translateY(0) scaleY(.92);
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+  }
+  55%{
+    opacity: .95;
+    transform: translateY(1px) scaleY(1);
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.42));
+  }
+}
+
+/* =======================================================
+   ANIMATIONS (KEYFRAMES)
+   ======================================================= */
+
+/* Rare – gentle bob */
+@keyframes bl-rare-bob{
+  0%,100%{ transform:translateY(0); opacity:.95; }
+  50%{ transform:translateY(-2px); opacity:1; }
+}
+
+/* Epic – quick “hero” pulse */
+@keyframes bl-epic-pulse{
+  0%,100%{ transform:scale(1) translateY(0); }
+  30%{ transform:scale(1.05) translateY(-1px); }
+  60%{ transform:scale(1.02) translateY(0); }
+}
+
+/* Legendary – moving shine stripe */
+@keyframes bl-legendary-shine{
+  0%{ left:-40%; opacity:0; }
+  20%{ opacity:1; }
+  60%{ left:140%; opacity:0; }
+  100%{ left:140%; opacity:0; }
+}
+
+/* Special – float / drift */
+@keyframes bl-special-float{
+  0%,100%{ transform:translateY(0) translateX(0); }
+  25%{ transform:translateY(-2px) translateX(1px); }
+  50%{ transform:translateY(-3px) translateX(0); }
+  75%{ transform:translateY(-2px) translateX(-1px); }
+}
+
+
+/* Accessibility: reduce motion if user prefers */
+@media (prefers-reduced-motion: reduce){
+  .piht__hl--rare,
+  .piht__hl--epic,
+  .piht__hl--legendary,
+  .piht__hl--mythical,
+  .piht__hl--special{
+    animation:none !important;
+    transform:none !important;
+    text-shadow:none !important;
+  }
+
+  .piht__hl--legendary::after,
+  .piht__hl--mythical .piht__hl-char::before,
+  .piht__hl--mythical .piht__hl-char::after{
+    animation:none !important;
+    opacity:0 !important;
+    height:0 !important;
+    width:0 !important;
+  }
+}

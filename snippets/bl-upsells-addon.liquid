@@ -1,0 +1,222 @@
+{%- comment -%}
+  Block Legends — Mystery Add-On card (rendered separately)
+  Required render params:
+    type, block, section, current_product, addon_product,
+    addon_display, bl_primary_collection, bl_is_slider
+{%- endcomment -%}
+
+{%- if addon_product == blank or addon_display == false -%}
+  {%- break -%}
+{%- endif -%}
+
+{%- liquid
+  assign addon_preselected = block.settings.prdouct_3_preselected
+  assign addon_featured_image = block.settings.product_3_image
+  assign addon_description = block.settings.product_3_desc
+  assign addon_percentage_discount = block.settings.product_3_percentage_discount | plus: 0
+  assign addon_percentage_left = 100.0 | minus: addon_percentage_discount | divided_by: 100.0
+  assign addon_fixed_discount = block.settings.product_3_fixed_amount_discount | times: 100.0
+
+  assign addon_price = addon_product.first_available_variant.price | times: addon_percentage_left | minus: addon_fixed_discount
+  assign addon_compare_price = addon_product.first_available_variant.price
+  if addon_product.first_available_variant.compare_at_price > addon_product.first_available_variant.price
+    assign addon_compare_price = addon_product.first_available_variant.compare_at_price
+  endif
+
+  assign addon_form_id = type | append: 'upsell' | append: block.id | append: 'addon'
+-%}
+
+{%- capture bl_addon_card -%}
+  <{{ type }}-upsell
+    class='upsell upsell--{{ block.settings.style }} {{ type }}-upsell-{{ section.id }} upsell--btn-{{ block.settings.btn_position }} color-{{ block.settings.color_scheme }} accent-color-{{ block.settings.accent_color }}{% if block.settings.show_custom_bg %} upsell--custom-bg{% endif %}{% if block.settings.show_box_shadow %} upsell--box-shadow{% endif %}{% if block.settings.show_border %} upsell--border{% endif %}'
+    data-style="{{ block.settings.style }}"
+    data-selected="{{ addon_preselected }}"
+    data-handle="{{ addon_product.handle }}"
+    data-toggle="{% if block.settings.style == 'add_button' %}false{% else %}true{% endif %}"
+    data-id="{{ addon_product.first_available_variant.id }}"
+    data-skip-non-existent='true'
+    data-skip-unavailable="{{ block.settings.skip_unavailable }}"
+    data-upsell-addon="true"
+    data-parent-handle="{{ current_product.handle }}"
+    data-locked-collection="{{ bl_primary_collection }}"
+    {% if block.settings.update_prices %}
+      data-update-prices='true'
+      data-price="{{ addon_price }}"
+      data-compare-price="{% if addon_compare_price > addon_price %}{{ addon_price }}{% else %}{{ addon_compare_price }}{% endif %}"
+      data-percentage-left="{{ addon_percentage_left }}"
+      data-fixed-discount="{{ addon_fixed_discount }}"
+      data-money-format="{{ shop.money_format }}"
+    {% endif %}
+  >
+    <div class='upsell__container{% if block.settings.toggle_element == "container" and block.settings.style != "add_button" %} upsell-toggle-btn{% endif %}'>
+
+      {% if block.settings.show_images %}
+        {%- liquid
+          if addon_featured_image != blank
+            assign addon_image = addon_featured_image
+          else
+            assign addon_image = addon_product.featured_image
+          endif
+        -%}
+        {% if addon_image != blank %}
+          <div class='upsell__image'>
+            <img
+              src="{{ addon_image | image_url: width: 500, height: 500, crop: 'center' }}"
+              alt="{{ addon_image.alt | escape }}"
+              class="upsell__image__img"
+              loading="lazy"
+              width="500"
+              height="500"
+            >
+          </div>
+        {% endif %}
+      {% endif %}
+
+      <div class='upsell__content{% if block.settings.hide_compare_price %} hide-compare-price{% endif %}'>
+        <div class='upsell__title'>
+          <h3>
+            {{ addon_product.title
+              | replace: ' — Block Legends Figure', ''
+              | replace: ' – Block Legends Figure', ''
+              | replace: ' - Block Legends Figure', ''
+              | replace: '— Block Legends Figure', ''
+              | replace: '– Block Legends Figure', ''
+              | replace: '- Block Legends Figure', ''
+              | replace: ' — Block Legends', ''
+              | replace: ' – Block Legends', ''
+              | replace: ' - Block Legends', ''
+              | replace: '— Block Legends', ''
+              | replace: '– Block Legends', ''
+              | replace: '- Block Legends', ''
+              | strip
+            }}
+          </h3>
+
+          {% if block.settings.price_position == 'next_to_title' %}
+            <div class='upsell__price'>
+              <span class='regular-price'>{{ addon_price | money }}</span>
+              <span class='compare-price{% unless addon_compare_price > addon_price %} hidden{% endunless %}'>{{ addon_compare_price | money }}</span>
+            </div>
+          {% endif %}
+        </div>
+
+        {%- unless addon_description == blank -%}
+          <p class="upsell__desc">{{ addon_description }}</p>
+        {%- endunless -%}
+
+        {%- unless addon_product.has_only_default_variant -%}
+          <div class="bl-addon-variants" data-bl-addon-variants-ui>
+            {%- for v in addon_product.variants -%}
+              <button
+                type="button"
+                class="bl-addon-pill{% if v.id == addon_product.first_available_variant.id %} is-active{% endif %}"
+                data-bl-addon-variant="{{ v.id }}"
+                {% unless v.available %}disabled{% endunless %}
+              >
+                {{ v.title }}
+              </button>
+            {%- endfor -%}
+          </div>
+
+          <script type="application/json" data-bl-addon-variants>
+            [
+              {%- for v in addon_product.variants -%}
+                {
+                  "id": {{ v.id }},
+                  "title": {{ v.title | json }},
+                  "price": {{ v.price }},
+                  "compare_at_price": {{ v.compare_at_price | default: 0 }},
+                  "available": {{ v.available | json }},
+                  "image": {{ v.featured_image | default: addon_product.featured_image | image_url: width: 500, height: 500, crop: 'center' | json }}
+                }{% unless forloop.last %},{% endunless %}
+              {%- endfor -%}
+            ]
+          </script>
+
+          <style>
+            .upsell[data-upsell-addon="true"] .upsell__variant-picker { display:none !important; }
+            .bl-addon-variants { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+            .bl-addon-pill { padding:6px 10px; border:1px solid rgba(0,0,0,.2); border-radius:10px; background:#fff; font-size:13px; line-height:1; }
+            .bl-addon-pill.is-active { border-color:#000; }
+            .bl-addon-pill:disabled { opacity:.5; cursor:not-allowed; }
+          </style>
+        {%- endunless -%}
+
+        {% if block.settings.price_position == 'separate' %}
+          <div class='upsell__price upsell__price--separate'>
+            <span class='regular-price'>{{ addon_price | money }}</span>
+            <span class='compare-price{% unless addon_compare_price > addon_price %} hidden{% endunless %}'>{{ addon_compare_price | money }}</span>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if block.settings.style == 'toggle_switch' %}
+        <button class='upsell__toggle-switch toggle-switch{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+          <span class='toggle-switch__slider'>&nbsp;</span>
+        </button>
+      {% elsif block.settings.style == 'checkbox_1' %}
+        <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+          {% render 'checkbox-icons' %}
+        </button>
+      {% elsif block.settings.style == 'checkbox_2' %}
+        <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+          {% render 'material-icon', icon: 'add_circle', class: ' checkmark-unchecked' %}
+          {% render 'material-icon', icon: 'check_circle', filled: true, class: ' checkmark-checked' %}
+        </button>
+      {% elsif block.settings.style == 'plus_button' %}
+        <button class='upsell__plus-btn{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+          {% render 'material-icon', icon: 'add', class: ' checkmark-unchecked' %}
+          {% render 'material-icon', icon: 'check', filled: true, class: ' checkmark-checked' %}
+        </button>
+      {% else %}
+        <button
+          type="submit"
+          name="add"
+          class="upsell__add-btn button button--has-spinner"
+          form="{{ addon_form_id }}"
+          id="DisplayedSubmitBtn-{{ section.id }}-{{ block.id }}-addon"
+          {% if addon_product.first_available_variant.available == false %}disabled{% endif %}
+        >
+          <span>
+            {%- if addon_product.first_available_variant.available -%}
+              {{ block.settings.add_btn_label }}
+            {%- else -%}
+              {{ 'products.product.sold_out' | t }}
+            {%- endif -%}
+          </span>
+          <div class="loading-overlay__spinner">
+            <svg aria-hidden="true" focusable="false" class="spinner" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg">
+              <circle class="path" fill="none" stroke-width="6" cx="33" cy="33" r="30"></circle>
+            </svg>
+          </div>
+        </button>
+      {% endif %}
+
+      <product-form{% if type == 'cart-drawer' %} data-is-cart-upsell='true'{% endif %} data-section="{{ section.id }}-{{ block.id }}-addon">
+        {%- form 'product',
+          addon_product,
+          id: addon_form_id,
+          class: 'form',
+          novalidate: 'novalidate',
+          data-type: 'add-to-cart-form'
+        -%}
+          <input type="hidden" name="id" value="{{ addon_product.first_available_variant.id }}">
+
+          <input type="hidden" name="properties[_bl_is_addon]" value="1">
+          <input type="hidden" name="properties[_bl_parent_handle]" value="{{ current_product.handle }}">
+          <input type="hidden" name="properties[_bl_locked_collection]" value="{{ bl_primary_collection }}">
+          <input type="hidden" name="properties[_bl_parent_uid]" value="">
+
+          <button type='submit' class='hidden'>+</button>
+        {%- endform -%}
+      </product-form>
+
+    </div>
+  </{{ type }}-upsell>
+{%- endcapture -%}
+
+{%- if bl_is_slider -%}
+  <li class="splide__slide"><div class="splide__slide__container">{{ bl_addon_card }}</div></li>
+{%- else -%}
+  {{ bl_addon_card }}
+{%- endif -%}

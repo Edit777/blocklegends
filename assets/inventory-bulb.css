@@ -1,0 +1,89 @@
+/* ============================
+   BULB (CLEAN + NEVER BUGGY)
+   No SVG circle scaling. Only glow + tiny overall scale.
+   ============================ */
+
+.invstat {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: var(--inv-gap, 6px) !important;
+  line-height: 1.15 !important;
+}
+
+@media (max-width: 749px){
+  .invstat{
+    font-size: var(--inv-fs-mobile, var(--inv-fs, 14px)) !important;
+  }
+}
+
+
+.invstat .invbulb {
+  display: block !important;
+  overflow: visible !important;
+  width: 15px !important;
+  height: 15px !important;
+}
+
+/* Static circles (no animation on inner parts) */
+.invbulb__halo { opacity: 0 !important; animation: none !important; }
+.invbulb__aura { opacity: 0.10 !important; animation: none !important; }
+.invbulb__dot  { animation: none !important; }
+
+/* Animation styles by option */
+.invbulb--pulse {
+  animation: invbulb-breathe var(--invbulb-dur) ease-in-out infinite;
+}
+
+.invbulb--pulse_strong {
+  animation: invbulb-breathe-strong calc(var(--invbulb-dur) * 0.7) ease-in-out infinite;
+}
+
+.invbulb--glow {
+  animation: invbulb-glow var(--invbulb-dur) ease-in-out infinite;
+}
+
+.invbulb--bob {
+  animation: invbulb-bob var(--invbulb-dur) ease-in-out infinite;
+}
+
+.invbulb--wave {
+  animation: invbulb-breathe calc(var(--invbulb-dur) * 1.05) ease-in-out infinite;
+}
+
+.invbulb--nuclear {
+  animation: invbulb-flicker calc(var(--invbulb-dur) * 0.55) linear infinite;
+}
+
+/* Keyframes */
+@keyframes invbulb-breathe {
+  0%, 100% { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--invbulb-color) 45%, transparent)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--invbulb-color) 75%, transparent)); transform: scale(1.04); }
+}
+
+@keyframes invbulb-breathe-strong {
+  0%, 100% { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--invbulb-color) 55%, transparent)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--invbulb-color) 85%, transparent)); transform: scale(1.07); }
+}
+
+@keyframes invbulb-glow {
+  0%, 100% { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--invbulb-color) 55%, transparent)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--invbulb-color) 80%, transparent)); transform: scale(1.03); }
+}
+
+@keyframes invbulb-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+@keyframes invbulb-flicker {
+  0%   { filter: drop-shadow(0 0 6px  color-mix(in srgb, var(--invbulb-color) 70%, transparent)); transform: scale(1); }
+  15%  { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--invbulb-color) 92%, transparent)); transform: scale(1.08); }
+  30%  { filter: drop-shadow(0 0 8px  color-mix(in srgb, var(--invbulb-color) 75%, transparent)); transform: scale(1.02); }
+  45%  { filter: drop-shadow(0 0 16px color-mix(in srgb, var(--invbulb-color) 95%, transparent)); transform: scale(1.09); }
+  60%  { filter: drop-shadow(0 0 7px  color-mix(in srgb, var(--invbulb-color) 70%, transparent)); transform: scale(1.01); }
+  100% { filter: drop-shadow(0 0 6px  color-mix(in srgb, var(--invbulb-color) 70%, transparent)); transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .invbulb { animation: none !important; filter: none !important; }
+}

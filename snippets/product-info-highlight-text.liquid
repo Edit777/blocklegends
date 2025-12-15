@@ -1,0 +1,124 @@
+{%- comment -%}
+  Product info: Custom text (highlight)
+  Expects: {% render 'product-info-highlight-text', block: block %}
+{%- endcomment -%}
+
+{%- assign s = block.settings -%}
+
+{%- comment -%}
+  Read rarity metafield (if defined)
+{%- endcomment -%}
+{%- assign metafield_rarity = product.metafields.custom.rarity.value | default: product.metafields.custom.rarity -%}
+
+{%- comment -%}
+  Base texts from settings
+{%- endcomment -%}
+{%- assign before_text = s.before_text | default: '' -%}
+{%- assign highlight_text = s.highlight_text | default: '' -%}
+{%- assign after_text = s.after_text | default: '' -%}
+
+{%- comment -%}
+  Base color from settings; can be overridden by rarity
+{%- endcomment -%}
+{%- assign highlight_color = s.highlight_color | default: '#ffffff' -%}
+
+{%- assign rarity_class = '' -%}
+{%- assign rarity_down = '' -%}
+{%- assign is_rarity_row = false -%}
+
+{%- if metafield_rarity != blank -%}
+  {%- assign is_rarity_row = true -%}
+  {%- assign highlight_text = metafield_rarity -%}
+  {%- assign rarity_down = metafield_rarity | downcase | strip -%}
+
+  {%- case rarity_down -%}
+    {%- when 'common' -%}
+      {%- assign highlight_color = '#9CA3AF' -%}
+      {%- assign rarity_class = 'piht__hl--common' -%}
+    {%- when 'rare' -%}
+      {%- assign highlight_color = '#3B82F6' -%}
+      {%- assign rarity_class = 'piht__hl--rare' -%}
+    {%- when 'epic' -%}
+      {%- assign highlight_color = '#C026D3' -%}
+      {%- assign rarity_class = 'piht__hl--epic' -%}
+    {%- when 'legendary' -%}
+      {%- assign highlight_color = '#FACC15' -%}
+      {%- assign rarity_class = 'piht__hl--legendary' -%}
+    {%- when 'mythical' -%}
+      {%- assign highlight_color = '#DC2626' -%}
+      {%- assign rarity_class = 'piht__hl--mythical' -%}
+    {%- when 'special' -%}
+      {%- assign highlight_color = '#047857' -%}
+      {%- assign rarity_class = 'piht__hl--special' -%}
+  {%- endcase -%}
+{%- endif -%}
+
+{%- if before_text != blank or highlight_text != blank or after_text != blank -%}
+  {%- assign align_class = 'piht--align-left' -%}
+  {%- if s.align == 'center' -%}{%- assign align_class = 'piht--align-center' -%}{%- endif -%}
+  {%- if s.align == 'right' -%}{%- assign align_class = 'piht--align-right' -%}{%- endif -%}
+
+  <div
+    class="piht {{ align_class }}
+      {% if s.layout == 'stacked' %} piht--stacked{% endif %}
+      {% if s.style == 'pill' %} piht--pill{% endif %}
+      {% if is_rarity_row %} piht--rarity-row{% endif %}
+    "
+    style="
+      --piht-mt: {{ s.margin_top | default: 0 }}px;
+      --piht-mb: {{ s.margin_bottom | default: 0 }}px;
+      --piht-px: {{ s.padding_x | default: 0 }}px;
+      --piht-py: {{ s.padding_y | default: 0 }}px;
+      --piht-fs: {{ s.font_size | default: 14 }}px;
+      --piht-radius: {{ s.border_radius | default: 0 }}px;
+      --piht-bw: {{ s.border_width | default: 0 }}px;
+      --piht-bg: {{ s.bg_color | default: 'transparent' }};
+      --piht-border: {{ s.border_color | default: 'transparent' }};
+      --piht-label: {{ s.label_color | default: 'currentColor' }};
+      --piht-hl: {{ highlight_color }};
+      --piht-pill-bg: {{ s.pill_bg_color | default: 'rgba(255,45,45,.12)' }};
+    "
+    {{ block.shopify_attributes }}
+  >
+    {%- if before_text != blank -%}
+      <span class="piht__label">{{ before_text }}</span>
+    {%- endif -%}
+
+    {%- if highlight_text != blank -%}
+      <span class="
+        piht__hl
+        {% if s.highlight_bold %} piht__hl--bold{% endif %}
+        {% if rarity_class != blank %} {{ rarity_class }}{% endif %}
+        {%- comment -%}
+          IMPORTANT:
+          - Never apply legendary "shine" on the rarity row.
+          - Only allow shine if you use this snippet for other text (not metafield_rarity).
+        {%- endcomment -%}
+        {% if rarity_down == 'legendary' and is_rarity_row == false %} piht__hl--shine{% endif %}
+      ">
+        {%- if rarity_down == 'mythical' -%}
+  {%- assign chars = highlight_text | split: '' -%}
+  {%- for ch in chars -%}
+    {%- if ch == ' ' -%}
+      {{ ' ' }}
+    {%- else -%}
+      <span class="piht__hl-char">{{ ch }}</span>
+    {%- endif -%}
+  {%- endfor -%}
+{%- else -%}
+  {{ highlight_text }}
+{%- endif -%}
+
+      </span>
+    {%- endif -%}
+
+    {%- if s.show_separator and after_text != blank -%}
+      <span class="piht__sep" aria-hidden="true"></span>
+    {%- endif -%}
+
+    {%- if after_text != blank -%}
+      <span class="piht__after">{{ after_text }}</span>
+    {%- endif -%}
+  </div>
+{%- endif -%}
+

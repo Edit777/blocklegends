@@ -1,0 +1,159 @@
+{% comment %}
+  Heading with highlighted span
+  Usage:
+  - Either fill: before_text, highlight_text, after_text
+  - OR type the whole headline into single_line and wrap ANY parts
+    you want to highlight in [[double brackets]]:
+      "Trusted by [[10,000+]] fans who [[collect]] across the [[world]]."
+{% endcomment %}
+
+{% liquid
+  assign before_text = section.settings.before_text | default: ''
+  assign highlight_text = section.settings.highlight_text | default: ''
+  assign after_text = section.settings.after_text | default: ''
+
+  assign single_line = section.settings.single_line | default: ''
+%}
+
+<section class="hl-wrap"
+  style="
+    --pad-t: {{ section.settings.pad_top | default: 24 }}px;
+    --pad-b: {{ section.settings.pad_bottom | default: 24 }}px;
+    --maxw: {{ section.settings.max_width | default: 1100 }}px;
+
+    --fs-d: {{ section.settings.font_size_desktop | default: 38 }}px;
+    --fs-m: {{ section.settings.font_size_mobile  | default: 24 }}px;
+    --fw-base: {{ section.settings.font_weight_base | default: 700 }};
+    --fw-hl: {{ section.settings.font_weight_hl | default: 800 }};
+
+    --color-base: {{ section.settings.color_base | default: '#0b0f19' }};
+    --color-hl:   {{ section.settings.color_hl   | default: '#38BDF8' }};
+  "
+>
+  <div class="hl-inner hl-{{ section.settings.align }}">
+    {% if section.settings.eyebrow != blank %}
+      <div class="hl-eyebrow">{{ section.settings.eyebrow }}</div>
+    {% endif %}
+
+    {% if single_line != blank %}
+      {%- comment -%}
+        MULTI-HIGHLIGHT MODE:
+        Replace every [[...]] with <span class="hl-span">...</span>
+      {%- endcomment -%}
+      {% capture headline %}
+        {{ single_line | escape }}
+      {% endcapture %}
+      <h2 class="hl-heading">
+        {{ headline
+          | replace: '[[', '<span class="hl-span">'
+          | replace: ']]', '</span>'
+        }}
+      </h2>
+    {% else %}
+      {%- comment -%}
+        LEGACY MODE: before / highlight / after
+      {%- endcomment -%}
+      <h2 class="hl-heading">
+        {{ before_text | escape }}
+        {% if highlight_text != blank %}
+          <span class="hl-span">{{ highlight_text | escape }}</span>
+        {% endif %}
+        {{ after_text | escape }}
+      </h2>
+    {% endif %}
+
+    {% if section.settings.subtext != blank %}
+      <p class="hl-sub">{{ section.settings.subtext }}</p>
+    {% endif %}
+  </div>
+</section>
+
+<style>
+.hl-wrap{
+  padding: var(--pad-t) 0 var(--pad-b);
+}
+.hl-inner{
+  margin-inline:auto; max-width:var(--maxw);
+  text-align:center;
+  padding: 0 18px; /* small side padding on mobile */
+}
+.hl-left{ text-align:left; }
+.hl-center{ text-align:center; }
+.hl-right{ text-align:right; }
+
+.hl-eyebrow{
+  font-size:13px; letter-spacing:.08em; text-transform:uppercase;
+  color:rgba(11,15,25,.6); margin-bottom:8px; font-weight:700;
+}
+
+/* ——— MOBILE-FRIENDLY HEADING ——— */
+.hl-heading{
+  margin:0;
+  line-height:1.15;
+  font-size: clamp(var(--fs-m), 6.2vw, var(--fs-d));
+  font-weight:var(--fw-base);
+  color:var(--color-base);
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  word-break: normal;
+  letter-spacing: -.01em;
+}
+
+/* Highlight span */
+.hl-heading .hl-span{
+  color:var(--color-hl);
+  font-weight:var(--fw-hl);
+  white-space: nowrap;
+}
+
+.hl-sub{
+  margin:10px 0 0;
+  color:rgba(11,15,25,.75);
+  font-size:16px;
+  line-height:1.55;
+}
+
+@media (max-width: 420px){
+  .hl-wrap{ padding-top: calc(var(--pad-t) * .85); padding-bottom: calc(var(--pad-b) * .85); }
+  .hl-sub{ font-size:15px; }
+}
+</style>
+
+{% schema %}
+{
+  "name": "Heading — highlight span",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow (optional)" },
+
+    { "type": "text", "id": "single_line", "label": "Single-line headline (use [[highlight]] to accent)", "info": "You can use [[...]] multiple times: Trusted by [[10,000+]] fans who [[collect]] across the [[world]]." },
+
+    { "type": "header", "content": "— OR split into parts —" },
+    { "type": "text", "id": "before_text", "label": "Before" },
+    { "type": "text", "id": "highlight_text", "label": "Highlight" },
+    { "type": "text", "id": "after_text", "label": "After" },
+
+    { "type": "textarea", "id": "subtext", "label": "Subtext (optional)" },
+
+    { "type": "header", "content": "Layout" },
+    { "type": "select", "id": "align", "label": "Alignment", "default": "center", "options": [
+      { "value": "left", "label": "Left" },
+      { "value": "center", "label": "Center" },
+      { "value": "right", "label": "Right" }
+    ]},
+    { "type": "range", "id": "max_width", "min": 600, "max": 1400, "step": 20, "unit": "px", "label": "Max width", "default": 1100 },
+    { "type": "range", "id": "pad_top", "min": 0, "max": 120, "step": 2, "unit": "px", "label": "Padding top", "default": 24 },
+    { "type": "range", "id": "pad_bottom", "min": 0, "max": 120, "step": 2, "unit": "px", "label": "Padding bottom", "default": 24 },
+
+    { "type": "header", "content": "Typography & colors" },
+    { "type": "range", "id": "font_size_desktop", "min": 24, "max": 96, "step": 1, "unit": "px", "label": "Headline size (desktop)", "default": 38 },
+    { "type": "range", "id": "font_size_mobile", "min": 18, "max": 48, "step": 1, "unit": "px", "label": "Headline size (mobile)", "default": 24 },
+    { "type": "range", "id": "font_weight_base", "min": 300, "max": 900, "step": 100, "label": "Weight (base)", "default": 700 },
+    { "type": "range", "id": "font_weight_hl", "min": 300, "max": 900, "step": 100, "label": "Weight (highlight)", "default": 800 },
+    { "type": "color", "id": "color_base", "label": "Base color", "default": "#0b0f19" },
+    { "type": "color", "id": "color_hl", "label": "Highlight color", "default": "#38BDF8" }
+  ],
+  "presets": [
+    { "name": "Heading — highlight span", "category": "Text" }
+  ]
+}
+{% endschema %}

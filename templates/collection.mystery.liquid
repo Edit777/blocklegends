@@ -1,0 +1,21 @@
+{%- layout none -%}
+
+{%- paginate collection.products by 250 -%}
+{
+  "collection": {{ collection.handle | json }},
+  "page": {{ paginate.current_page | json }},
+  "pages": {{ paginate.pages | json }},
+  "next_page": {% if paginate.next %}{{ paginate.current_page | plus: 1 }}{% else %}null{% endif %},
+  "products": [
+    {%- for p in collection.products -%}
+      {
+        "handle": {{ p.handle | json }},
+        "title": {{ p.title | json }},
+        "rarity": {{ p.metafields.custom.rarity.value | default: p.metafields.custom.rarity | downcase | json }},
+        "exclude_from_mystery": {{ p.metafields.custom.exclude_from_mystery.value | default: false | json }},
+        "variant_id": {{ p.selected_or_first_available_variant.id | json }}
+      }{%- unless forloop.last -%},{%- endunless -%}
+    {%- endfor -%}
+  ]
+}
+{%- endpaginate -%}

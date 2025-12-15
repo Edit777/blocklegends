@@ -1,0 +1,113 @@
+/* Remove vertical padding inside collection-list slider when toggle is ON */
+.collection-list--no-shadow-padding .splide__slide_container,
+.collection-list--no-shadow-padding .splide__slide_container--card,
+.collection-list--no-shadow-padding .slider__slide {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+@media screen and (max-width: 749px) {
+  .product-media-container {
+    --aspect-ratio: 1 !important; /* 1:1 ratio */
+  }
+}
+
+/* ============================
+   PIHT (highlight text block)
+   ============================ */
+.piht {
+  margin-top: var(--piht-mt);
+  margin-bottom: var(--piht-mb);
+  padding: var(--piht-py) var(--piht-px);
+  font-size: var(--piht-fs);
+  line-height: 1.25;
+
+  background: var(--piht-bg);
+  border: var(--piht-bw) solid var(--piht-border);
+  border-radius: var(--piht-radius);
+
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.piht__label { color: var(--piht-label); font-weight: 600; opacity: 0.9; }
+.piht__hl { color: var(--piht-hl); }
+.piht__hl--bold { font-weight: 800; }
+.piht__after { opacity: 0.95; }
+
+.piht__sep {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Alignments */
+.piht--align-left { text-align: left; }
+.piht--align-center { text-align: center; }
+.piht--align-right { text-align: right; }
+
+/* Stacked layout */
+.piht--stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+.piht--stacked.piht--align-center { align-items: center; }
+.piht--stacked.piht--align-right { align-items: flex-end; }
+
+/* Optional pill style for highlighted text */
+.piht--pill .piht__hl {
+  background: var(--piht-pill-bg);
+  padding: 0.2em 0.55em;
+  border-radius: 999px;
+}
+
+/* ============================
+   Product collection link
+   ============================ */
+.product-collection {
+  margin-top: var(--pc-mt, 0);
+  margin-bottom: var(--pc-mb, 0.35rem);
+  font-size: var(--pc-fs, 0.9rem);
+}
+
+.product-collection__label {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+/* Force underline on collection link */
+.product-collection a.product-collection__link,
+.product-collection__link {
+  text-decoration: underline !important;
+  font-weight: 700;
+  cursor: pointer;
+  color: inherit;
+}
+
+.product-collection__link:hover {
+  text-decoration: underline;
+}
+
+/* ============================
+   Upsell square thumbnails
+   ============================ */
+.upsell__image {
+  width: 64px;           /* or whatever you want */
+  aspect-ratio: 1 / 1;   /* force 1:1 box */
+  overflow: hidden;
+  display: block;
+}
+
+.upsell__image__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;       /* fill square, crop nicely */
+  object-position: center; /* keep figure centered */
+}

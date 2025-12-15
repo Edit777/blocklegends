@@ -1,0 +1,295 @@
+{% comment %}
+  REVIEWS — Infinite slider (seamless, tunable)
+{% endcomment %}
+
+<section
+  class="lyk-reviews-marquee {% if section.settings.direction == 'right' %}is-reverse{% endif %}"
+  style="
+    --marquee-duration: {{ section.settings.speed | default: 28 }}s;
+
+    /* section spacing */
+    --pad-top: {{ section.settings.pad_top | default: 24 }}px;
+    --pad-bottom: {{ section.settings.pad_bottom | default: 24 }}px;
+    --pad-x: {{ section.settings.pad_x | default: 24 }}px;
+    /* inner vertical padding for glow clearance */
+    --pad-y: {{ section.settings.pad_y | default: 24 }}px;
+
+    /* card sizing */
+    --card-pad-y: {{ section.settings.card_pad_y | default: 14 }}px;
+    --card-pad-x: {{ section.settings.card_pad_x | default: 22 }}px;
+    --card-min: {{ section.settings.card_min | default: 320 }}px;
+    --card-max: {{ section.settings.card_max | default: 560 }}px;
+    --card-gap: {{ section.settings.card_gap | default: 22 }}px;
+
+    /* avatar chip */
+    --avatar-size: {{ section.settings.avatar_size | default: 42 }}px;
+    --avatar-left: {{ section.settings.avatar_left | default: 16 }}px;
+
+    /* glow */
+    --glow-alpha: calc({{ section.settings.glow_alpha | default: 18 }} / 100);
+    --glow-color: {{ section.settings.glow_color | default: '#ff4d4f' }};
+    --edge-fade: {{ section.settings.edge_fade | default: 56 }}px;
+  ">
+  {% if section.blocks.size > 0 %}
+    <div class="lyk-marquee">
+      <div class="lyk-track">
+        <!-- Group A -->
+        <div class="lyk-group">
+          {% for block in section.blocks %}
+            <article class="lyk-card {% if block.settings.avatar != blank %}has-avatar{% endif %}" {{ block.shopify_attributes }}>
+              {% if block.settings.avatar != blank %}
+                <img class="lyk-avatar"
+                  src="{{ block.settings.avatar | image_url: width: 100, height: 100, crop: 'center' }}"
+                  width="100" height="100"
+                  alt="{{ block.settings.author | escape }}"
+                  loading="lazy" decoding="async">
+              {% endif %}
+
+              {% if block.settings.stars > 0 %}
+                <div class="lyk-stars">{% for i in (1..block.settings.stars) %}★{% endfor %}</div>
+              {% endif %}
+
+              {% if block.settings.headline != blank %}
+                <h4 class="lyk-head">{{ block.settings.headline | escape }}</h4>
+              {% endif %}
+
+              {% if block.settings.text != blank %}
+                <p class="lyk-text">{{ block.settings.text | escape }}</p>
+              {% endif %}
+
+              {% if block.settings.author != blank %}
+                <div class="lyk-author">— {{ block.settings.author | escape }}</div>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+
+        <!-- Group B (duplicate for seamless loop) -->
+        <div class="lyk-group" aria-hidden="true">
+          {% for block in section.blocks %}
+            <article class="lyk-card {% if block.settings.avatar != blank %}has-avatar{% endif %}">
+              {% if block.settings.avatar != blank %}
+                <img class="lyk-avatar"
+                  src="{{ block.settings.avatar | image_url: width: 100, height: 100, crop: 'center' }}"
+                  width="100" height="100"
+                  alt="{{ block.settings.author | escape }}"
+                  loading="lazy" decoding="async">
+              {% endif %}
+              {% if block.settings.stars > 0 %}
+                <div class="lyk-stars">{% for i in (1..block.settings.stars) %}★{% endfor %}</div>
+              {% endif %}
+              {% if block.settings.headline != blank %}
+                <h4 class="lyk-head">{{ block.settings.headline | escape }}</h4>
+              {% endif %}
+              {% if block.settings.text != blank %}
+                <p class="lyk-text">{{ block.settings.text | escape }}</p>
+              {% endif %}
+              {% if block.settings.author != blank %}
+                <div class="lyk-author">— {{ block.settings.author | escape }}</div>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+<style>
+/* ---------- Section + edge fade (prevents glow clipping) ---------- */
+.lyk-reviews-marquee{
+  position:relative;
+  padding-top:var(--pad-top);padding-bottom:var(--pad-bottom);
+  -webkit-mask-image:linear-gradient(to right,
+    transparent 0, #000 var(--edge-fade),
+    #000 calc(100% - var(--edge-fade)), transparent 100%);
+          mask-image:linear-gradient(to right,
+    transparent 0, #000 var(--edge-fade),
+    #000 calc(100% - var(--edge-fade)), transparent 100%);
+}
+
+/* ---------- Scroller ---------- */
+.lyk-marquee{
+  position:relative;
+  overflow:hidden;                 /* keeps the page from scrolling */
+  padding-inline:var(--pad-x);
+  padding-block:var(--pad-y);      /* NEW – keeps card glow from being clipped */
+}
+
+/* Left/right fade overlay (keeps glow looking soft without overflow) */
+.lyk-marquee::before{
+  content:"";
+  position:absolute; inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(to right,
+      rgb(0, 0, 0)
+      rgba(0, 0, 0, 0) var(--edge-fade),
+      rgba(0, 0, 0, 0) calc(100% - var(--edge-fade)),
+      rgb(0, 0, 0) 100%);
+  /* If your page background isn’t white, swap #fff accordingly */
+}
+
+/* Measure exact content width (no wrap) and animate the whole strip */
+.lyk-track{
+  display:inline-flex;              /* <- inline-flex + max-content = exact width */
+  width:max-content;
+  gap:0;                            /* no rounding from gap */
+  align-items:flex-start;
+  animation:lyk-scroll var(--marquee-duration,28s) linear infinite;
+  will-change:transform;
+}
+.lyk-reviews-marquee.is-reverse .lyk-track{animation-direction:reverse}
+
+/* Two identical groups, no gaps here either */
+.lyk-group{display:inline-flex;gap:0;align-items:flex-start;flex:0 0 auto}
+
+/* Move exactly one copy’s width (the second copy slides under the first) */
+@keyframes lyk-scroll{
+  from{transform:translate3d(0,0,0)}
+  to  {transform:translate3d(-50%,0,0)}
+}
+
+/* Pixel-based animation (used when JS measures one-copy width) */
+@keyframes lyk-scroll-px{
+  from{transform:translate3d(0,0,0)}
+  to  {transform:translate3d(calc(var(--copy-w,0px) * -1),0,0)}
+}
+
+/* When JS adds .is-px, we use the pixel animation instead of % */
+.lyk-track.is-px{
+  animation-name: lyk-scroll-px;
+}
+
+/* ---------- Pill cards ---------- */
+.lyk-card{
+  position:relative;
+  background:#fff;color:#0b0f19;border-radius:9999px;
+  padding:var(--card-pad-y) var(--card-pad-x);
+  min-width:var(--card-min);max-width:var(--card-max);
+  margin-right:var(--card-gap);          /* spacing done with margins (stable) */
+  box-shadow:
+    0px 3px 6px 0px rgb(214, 34, 34),
+    0 10px 40px color-mix(in srgb, var(--glow-color) calc(var(--glow-alpha)*100%), transparent);
+  transition:transform .2s ease;
+  box-sizing:border-box;flex:0 0 auto;   /* prevents shrinking of the last pill */
+}
+.lyk-group > .lyk-card:last-child{margin-right:0}  /* no extra gap at row end */
+.lyk-card:hover{transform:translateY(-2px)}
+.lyk-group::after{
+  content:"";
+  flex:0 0 var(--card-gap);
+}
+/* ---------- Avatar chip ---------- */
+.lyk-avatar{
+  position:absolute;left:calc(-1 * var(--avatar-left));
+  top:50%;transform:translateY(-50%);
+  width:var(--avatar-size);height:var(--avatar-size);
+  border-radius:50%;object-fit:cover;border:3px solid #fff;background:#fff;
+  box-shadow:0 4px 12px rgba(0,0,0,.18);
+}
+
+/* ---------- Text system (only indent when avatar exists) ---------- */
+.lyk-stars,.lyk-head,.lyk-text,.lyk-author{margin-left:0}
+.lyk-card.has-avatar .lyk-stars,
+.lyk-card.has-avatar .lyk-head,
+.lyk-card.has-avatar .lyk-text,
+.lyk-card.has-avatar .lyk-author{
+  margin-left:calc(var(--avatar-left)+28px);
+}
+.lyk-stars{font-size:12px;letter-spacing:.3px;color:#fbbf24}
+.lyk-head{margin:2px 0 2px;font-weight:700;font-size:15px}
+.lyk-text{margin:0;font-size:13.5px;line-height:1.45}
+.lyk-author{font-size:12.5px;color:#6b7280;margin-top:6px}
+
+/* Safety: no accidental backgrounds */
+.lyk-marquee,.lyk-track,.lyk-group{background:transparent !important}
+
+/* Mobile */
+@media (max-width:480px){
+  .lyk-card{min-width:300px;max-width:520px}
+  .lyk-card.has-avatar .lyk-stars,
+  .lyk-card.has-avatar .lyk-head,
+  .lyk-card.has-avatar .lyk-text,
+  .lyk-card.has-avatar .lyk-author{
+    margin-left:calc(var(--avatar-left)+24px)
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion:reduce){.lyk-track{animation:none}}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var root = document.currentScript.closest('.lyk-reviews-marquee');
+  if(!root) return;
+  var track = root.querySelector('.lyk-track');
+  var group = root.querySelector('.lyk-group');
+  if(!track || !group) return;
+
+  function setCopyWidth(){
+    // exact device-pixel width of a single copy (including our ::after spacer)
+    var w = Math.round(group.getBoundingClientRect().width);
+    track.style.setProperty('--copy-w', w + 'px');
+    // restart animation so it uses the fresh width
+    track.classList.add('is-px');
+    track.style.animation = 'none';
+    // reflow tick
+    void track.offsetHeight;
+    track.style.animation = '';
+  }
+
+  setCopyWidth();
+  // Update on resize and when fonts/images settle
+  new ResizeObserver(setCopyWidth).observe(group);
+  window.addEventListener('load', setCopyWidth, { once:true });
+});
+</script>
+
+{% schema %}
+{
+  "name": "Reviews – Infinite slider",
+  "settings": [
+    { "type": "range", "id": "speed", "label": "Scroll duration (lower = faster)", "min": 12, "max": 60, "step": 1, "unit": "s", "default": 28 },
+    { "type": "select", "id": "direction", "label": "Scroll direction", "options": [
+      { "value": "left",  "label": "Left (move leftwards)" },
+      { "value": "right", "label": "Right (move rightwards)" }
+    ], "default": "left" },
+
+    { "type": "range", "id": "pad_top", "label": "Section padding top", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 24 },
+    { "type": "range", "id": "pad_bottom", "label": "Section padding bottom", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 24 },
+    { "type": "range", "id": "pad_x", "label": "Section padding left/right", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 24 },
+
+    { "type": "range", "id": "card_pad_y", "label": "Card padding Y", "min": 8, "max": 28, "step": 1, "unit": "px", "default": 14 },
+    { "type": "range", "id": "card_pad_x", "label": "Card padding X", "min": 12, "max": 36, "step": 1, "unit": "px", "default": 22 },
+    { "type": "range", "id": "card_min", "label": "Card min width", "min": 260, "max": 520, "step": 10, "unit": "px", "default": 320 },
+    { "type": "range", "id": "card_max", "label": "Card max width", "min": 360, "max": 720, "step": 10, "unit": "px", "default": 560 },
+    { "type": "range", "id": "card_gap", "label": "Gap between cards", "min": 10, "max": 40, "step": 1, "unit": "px", "default": 22 },
+
+    { "type": "range", "id": "avatar_size", "label": "Avatar size", "min": 28, "max": 56, "step": 1, "unit": "px", "default": 42 },
+    { "type": "range", "id": "avatar_left", "label": "Avatar overlap (to the left)", "min": 8, "max": 26, "step": 1, "unit": "px", "default": 16 },
+
+    { "type": "color", "id": "glow_color", "label": "Glow color", "default": "#ff4d4f" },
+    { "type": "range", "id": "glow_alpha", "label": "Glow intensity", "min": 0, "max": 40, "step": 1, "default": 18 },
+    { "type": "range", "id": "edge_fade", "label": "Edge fade (prevents clipping)", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 56 },
+    { "type": "range", "id": "pad_y", "label": "Inner padding Y (glow clearance)",
+  "min": 0, "max": 80, "step": 2, "unit": "px", "default": 24 }
+  ],
+  "blocks": [
+    {
+      "type": "review",
+      "name": "Review",
+      "settings": [
+        { "type": "image_picker", "id": "avatar", "label": "Avatar (optional)" },
+        { "type": "range", "id": "stars", "label": "Stars", "min": 0, "max": 5, "step": 1, "default": 5 },
+        { "type": "text", "id": "headline", "label": "Short headline", "default": "Polecam! 😊" },
+        { "type": "textarea", "id": "text", "label": "Review text", "default": "Lekka, szczelna i wygodna w ruchu." },
+        { "type": "text", "id": "author", "label": "Author", "default": "Karolina S." }
+      ]
+    }
+  ],
+  "max_blocks": 12,
+  "presets": [{ "name": "Reviews – Infinite slider" }]
+}
+{% endschema %}

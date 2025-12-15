@@ -1,0 +1,133 @@
+{%- liquid
+  assign v = product.selected_or_first_available_variant
+  assign qty = v.inventory_quantity | default: 0
+  assign fs_m = block.settings.inv_font_size_mobile | default: fs
+
+  assign threshold = block.settings.inventory_threshold | default: 0
+  assign limited_on = block.settings.enable_limited_stock | default: true
+  assign force_limited = block.settings.force_limited_stock | default: false
+
+  assign c_in   = block.settings.bulb_in_stock | default: '#3ED660'
+  assign c_low  = block.settings.bulb_low_stock | default: '#EE9441'
+  assign c_out  = block.settings.bulb_out_of_stock | default: '#C8C8C8'
+  assign c_cont = block.settings.bulb_continue_selling | default: '#3ED660'
+
+  assign state = 'in'
+  assign bulb = c_in
+
+  if qty > 0
+    if force_limited
+      assign state = 'low'
+      assign bulb = c_low
+    elsif limited_on and qty <= threshold
+      assign state = 'low'
+      assign bulb = c_low
+    else
+      assign state = 'in'
+      assign bulb = c_in
+    endif
+  else
+    if v.inventory_policy == 'continue'
+      assign state = 'continue'
+      assign bulb = c_cont
+    else
+      assign state = 'out'
+      assign bulb = c_out
+    endif
+  endif
+
+  assign outer = bulb | color_modify: 'alpha', 0.3
+
+  assign txt_in   = block.settings.inv_text_in_stock | default: 'In stock'
+  assign txt_low  = block.settings.inv_text_low_stock | default: 'Limited stock'
+  assign txt_cont = block.settings.inv_text_continue | default: 'Ships on backorder'
+  assign txt_out  = block.settings.inv_text_out_of_stock | default: 'Out of stock'
+
+  assign msg = txt_in
+  if state == 'low'
+    assign msg = txt_low
+  elsif state == 'continue'
+    assign msg = txt_cont
+  elsif state == 'out'
+    assign msg = txt_out
+  endif
+
+  assign fs = block.settings.inv_font_size | default: 14
+  assign px = block.settings.inv_pad_x | default: 0
+  assign py = block.settings.inv_pad_y | default: 0
+  assign gap = block.settings.inv_gap | default: 6
+
+  assign boxed = block.settings.inv_boxed | default: false
+  assign radius = block.settings.inv_radius | default: 200
+
+  assign txt_color = block.settings.inv_text_color | default: 'currentColor'
+  assign bg = block.settings.inv_bg
+  assign bg_op = block.settings.inv_bg_opacity | default: 0
+  assign border_color = block.settings.inv_border_color | default: 'transparent'
+  assign bw = block.settings.inv_border_width | default: 0
+
+  assign bg_final = 'transparent'
+  if bg != blank and bg_op > 0
+    assign alpha = bg_op | times: 0.01
+    assign bg_final = bg | color_modify: 'alpha', alpha
+  endif
+
+  assign inv_fw = 400
+  if block.settings.inv_bold
+    assign inv_fw = 700
+  endif
+
+  assign anim_in  = block.settings.bulb_animation_in_stock | default: 'none'
+  assign anim_low = block.settings.bulb_animation_low_stock | default: anim_in
+
+  assign anim = anim_in
+  if state == 'low'
+    assign anim = anim_low
+  endif
+
+  assign anim_class = ''
+  if anim != 'none'
+    assign anim_class = ' invbulb--' | append: anim
+  endif
+
+  assign text_style = block.settings.text_style | default: 'body'
+-%}
+
+<p
+  class="no-js-hidden invstat invstat--{{ state }}{% if boxed %} invstat--boxed{% endif %}{% if text_style == 'uppercase' %} caption-with-letter-spacing{% elsif text_style == 'subtitle' %} subtitle{% endif %}{% if block.settings.inv_bold %} invstat--bold{% endif %}"
+  {{ block.shopify_attributes }}
+  id="Inventory-{{ section.id }}"
+  role="status"
+  style="
+    --margin-top: {{ block.settings.margin_top | default: 15 }}px;
+    --margin-bottom: {{ block.settings.margin_bottom | default: 15 }}px;
+
+    --inv-fs: {{ fs }}px;
+    --inv-fs-mobile: {{ fs_m }}px;
+    --inv-px: {{ px }}px;
+    --inv-py: {{ py }}px;
+    --inv-gap: {{ gap }}px;
+
+    --inv-fw: {{ inv_fw }};
+    --inv-radius: {{ radius }}px;
+    --inv-bg: {{ bg_final }};
+    --inv-bw: {{ bw }}px;
+    --inv-border: {{ border_color }};
+    --inv-tc: {{ txt_color }};
+  "
+>
+<svg
+  class="invbulb{{ anim_class }}"
+  width="15"
+  height="15"
+  viewBox="0 0 15 15"
+  aria-hidden="true"
+  style="overflow: visible; --invbulb-color: {{ bulb }}; --invbulb-dur: {{ block.settings.bulb_animation_speed | default: 1200 }}ms;"
+>
+    <circle class="invbulb__halo" cx="7.5" cy="7.5" r="7.5" fill="{{ outer }}" />
+    <circle class="invbulb__aura" cx="7.5" cy="7.5" r="5.6" fill="{{ bulb }}" />
+    <circle class="invbulb__dot"  cx="7.5" cy="7.5" r="5" stroke="rgb(255, 255, 255)" stroke-width="1" fill="{{ bulb }}" />
+  </svg>
+
+  {{- msg -}}
+</p>
