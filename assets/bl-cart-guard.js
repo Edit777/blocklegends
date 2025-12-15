@@ -77,12 +77,27 @@
       .catch(function () { return null; });
   }
 
-  function changeLine(lineKey, qty) {
+  function changeLine(change) {
+    if (!change) return Promise.resolve();
+
+    var body = { quantity: change.qty };
+
+    // Prefer the line-item key when available; fall back to numeric line
+    // position to avoid "line parameter is invalid" errors when the key is
+    // missing from the cart payload (some themes omit it).
+    if (change.key) {
+      body.id = change.key;
+    } else if (change.line) {
+      body.line = change.line;
+    } else {
+      return Promise.resolve();
+    }
+
     return fetch('/cart/change.js', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: lineKey, quantity: qty })
+      body: JSON.stringify(body)
     }).catch(function () {});
   }
 
@@ -105,7 +120,7 @@
 
         // index parents by uid (only lines that have uid property are eligible parents)
         var parentsByUid = {};
-        cart.items.forEach(function (it) {
+        cart.items.forEach(function (it, idx) {
           if (!it || isAddonLine(it)) return;
           var uid = getProp(it, G.CFG.propParentUid);
           if (!uid) return;
@@ -126,8 +141,12 @@
         var addonMetaByUid = {};
         var changes = [];
 
-        cart.items.forEach(function (it) {
+        cart.items.forEach(function (it, idx) {
           if (!it || !isAddonLine(it)) return;
+
+          // Keep track of the line position as a fallback identifier for
+          // change.js when the cart payload omits the item key.
+          var lineNumber = Number(it.line || (idx + 1));
 
           var uid = getProp(it, G.CFG.propParentUid);
           var parentHandle = getProp(it, G.CFG.propParentHandle);
@@ -135,7 +154,7 @@
 
           // missing uid OR missing parent => remove
           if (!uid || !parent) {
-            changes.push({ key: it.key, qty: 0 });
+            changes.push({ key: it.key, line: lineNumber, qty: 0 });
             return;
           }
 
@@ -143,7 +162,7 @@
           if (parentHandle) {
             var ph = maybeStr(parent.item.handle || parent.item.product_handle);
             if (ph && ph !== parentHandle) {
-              changes.push({ key: it.key, qty: 0 });
+              changes.push({ key: it.key, line: lineNumber, qty: 0 });
               return;
             }
           }
@@ -161,6 +180,7 @@
 
           meta.lines.push(it);
           meta.count += Number(it.quantity || 0);
+          it.__bl_line_number = lineNumber;
         });
 
         Object.keys(addonMetaByUid).forEach(function (uid) {
@@ -169,7 +189,7 @@
 
           if (allowed <= 0) {
             meta.lines.forEach(function (line) {
-              changes.push({ key: line.key, qty: 0 });
+              changes.push({ key: line.key, line: line.__bl_line_number, qty: 0 });
             });
             debugLog('remove-addon-no-parent', { uid: uid });
             return;
@@ -183,7 +203,7 @@
               remaining -= desired;
 
               if (desired !== cur) {
-                changes.push({ key: line.key, qty: desired });
+                changes.push({ key: line.key, line: line.__bl_line_number, qty: desired });
               }
             });
             debugLog('trim-addon-qty', { uid: uid, allowed: allowed, count: meta.count });
@@ -195,7 +215,7 @@
             var firstLine = meta.lines[0];
             if (firstLine) {
               var targetQty = Number(firstLine.quantity || 0) + diff;
-              changes.push({ key: firstLine.key, qty: targetQty });
+              changes.push({ key: firstLine.key, line: firstLine.__bl_line_number, qty: targetQty });
               debugLog('raise-addon-qty', { uid: uid, target: targetQty, allowed: allowed });
             }
           }
@@ -205,7 +225,7 @@
 
         // apply sequentially
         var p = Promise.resolve();
-        changes.forEach(function (c) { p = p.then(function () { return changeLine(c.key, c.qty); }); });
+        changes.forEach(function (c) { p = p.then(function () { return changeLine(c); }); });
         debugLog('changes-applied', changes);
         return p.then(function () { return true; });
       })
