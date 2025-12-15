@@ -339,7 +339,14 @@
     if (G.__events) return;
     G.__events = true;
 
-    ['cart:updated', 'cart:change', 'cart:refresh', 'cart-drawer:refresh', 'theme:cart:updated'].forEach(function (evt) {
+    [
+      'cart:updated',
+      'cart:change',
+      'cart:refresh',
+      'cart-drawer:refresh',
+      'theme:cart:updated',
+      'cartQuantityUpdated'
+    ].forEach(function (evt) {
       document.addEventListener(evt, function () { G._scheduleCleanupNetwork(evt); }, true);
     });
   };
