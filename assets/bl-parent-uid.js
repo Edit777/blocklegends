@@ -1,7 +1,7 @@
 /* =======================================================
    BLOCK LEGENDS — PARENT UID BINDER
-   - When user submits MAIN product and addon is selected,
-     inject a shared uid into both lines.
+   - Injects a stable parent UID so parent + add-ons can STACK
+   - Ensures add-on submits always bind to an existing parent UID
    ======================================================= */
 
 (function () {
@@ -27,6 +27,33 @@
       }
     } catch (e) {}
     return 'bl_' + Math.random().toString(16).slice(2) + '_' + Date.now();
+  }
+
+  function stableHash(str) {
+    // djb2-ish, returns base36
+    var s = String(str || '');
+    var h = 5381;
+    for (var i = 0; i < s.length; i++) {
+      h = ((h << 5) + h) ^ s.charCodeAt(i);
+    }
+    // force uint32
+    h = h >>> 0;
+    return h.toString(36);
+  }
+
+  function deriveStableParentUid(parentHandle, variantId, lockedCollection) {
+    // Deterministic UID so Shopify will stack the parent line (same variant + same lock)
+    // and add-ons can attach to the same parent group.
+    var key = [
+      'p',
+      String(parentHandle || '').trim(),
+      String(variantId || '').trim(),
+      String(lockedCollection || '').trim()
+    ].join('|');
+
+    // If we cannot build a stable key, fall back to a random uid.
+    if (!parentHandle || !variantId) return newUid();
+    return 'blp_' + stableHash(key);
   }
 
   function cartJson() {
@@ -55,7 +82,7 @@
       el.name = name;
       form.appendChild(el);
     }
-    if (typeof value !== 'undefined') el.value = value;
+    if (typeof value !== 'undefined') el.value = String(value || '');
     return el;
   }
 
@@ -69,18 +96,13 @@
     }
   }
 
-  function deriveUid() {
-    // Always create a fresh uid per submission to avoid collisions when the
-    // same parent/add-on combo is added multiple times (we want the combo to
-    // be stackable instead of treated as the exact same line item).
-    return newUid();
-  }
-
   function isSelected(card) {
     return card && String(card.getAttribute('data-selected')) === 'true';
   }
 
   function findEligibleParentUid(parentHandle, lockedCollection) {
+    // Find a parent UID that has remaining capacity (parent qty - addon qty > 0)
+    // so "add addon later" works and stays 1:1.
     return cartJson().then(function (cart) {
       if (!cart || !cart.items || !cart.items.length) return '';
 
@@ -125,37 +147,64 @@
     });
   }
 
-  function submitAddonForm(form) {
-    if (form.__bl_uid_bound) return;
-    form.__bl_uid_bound = true;
+  function resubmitForm(form) {
+    // Trigger the theme's normal submit/AJAX path (product-form.js etc.)
+    // while avoiding infinite loops in our own submit capture.
+    try { form.dataset.blUidBypass = '1'; } catch (e) {}
 
+    setTimeout(function () {
+      try {
+        if (typeof form.requestSubmit === 'function') form.requestSubmit();
+        else form.submit();
+      } catch (e2) {
+        try { form.submit(); } catch (e3) {}
+      }
+    }, 0);
+  }
+
+  function submitAddonForm(form) {
     var uidInput = ensureHidden(form, 'properties[' + P.CFG.propParentUid + ']');
+    var phInput = ensureHidden(form, 'properties[' + P.CFG.propParentHandle + ']');
+    var lcInput = ensureHidden(form, 'properties[' + P.CFG.propLockedCollection + ']');
+    var isAddonInput = ensureHidden(form, 'properties[' + P.CFG.propIsAddon + ']');
+
     var parentHandle = '';
     var lockedCollection = '';
 
     try {
       var card = form.closest('.upsell');
       if (card) {
-        parentHandle = card.getAttribute('data-parent-handle') || '';
-        lockedCollection = card.getAttribute('data-locked-collection') || '';
+        parentHandle = (card.getAttribute('data-parent-handle') || '').trim();
+        lockedCollection = (card.getAttribute('data-locked-collection') || '').trim();
       }
     } catch (e) {}
 
-    var ensureUid = function (uid) {
-      if (!uid) uid = P.__lastUid || deriveUid();
-      uidInput.value = uid;
+    if (phInput && parentHandle) phInput.value = parentHandle;
+    if (lcInput && lockedCollection) lcInput.value = lockedCollection;
+    if (isAddonInput) isAddonInput.value = '1';
 
-      try { form.submit(); } catch (e) {}
-    };
-
+    // If uid already set on the form (e.g. injected from main submit), use it.
     if (uidInput && uidInput.value) {
-      ensureUid(uidInput.value);
+      P.__lastUid = uidInput.value;
+      resubmitForm(form);
       return;
     }
 
+    // Otherwise attach to an existing parent UID that still needs add-ons.
     findEligibleParentUid(parentHandle, lockedCollection)
-      .then(function (uid) { ensureUid(uid); })
-      .catch(function () { ensureUid(''); });
+      .then(function (uid) {
+        if (!uid) uid = P.__lastUid || '';
+        if (!uid) uid = newUid(); // last resort: still allow add, Cart Guard will clean if orphaned
+        uidInput.value = uid;
+        P.__lastUid = uid;
+        resubmitForm(form);
+      })
+      .catch(function () {
+        var uid = P.__lastUid || newUid();
+        uidInput.value = uid;
+        P.__lastUid = uid;
+        resubmitForm(form);
+      });
   }
 
   P.init = function () {
@@ -165,46 +214,70 @@
     document.addEventListener('submit', function (e) {
       var form = e.target;
       if (!(form instanceof HTMLFormElement)) return;
-      if (!form.querySelector('input[name="id"]')) return;
+      if (!form.querySelector('input[name="id"], select[name="id"]')) return;
+
+      // bypass used only for our internal resubmit
+      if (form.dataset && form.dataset.blUidBypass === '1') {
+        try { form.dataset.blUidBypass = '0'; } catch (e0) {}
+        return;
+      }
 
       var isUpsell = false;
       try { isUpsell = !!form.closest('.upsell'); } catch (err) {}
       var isAddon = !!form.querySelector('input[name="properties[' + P.CFG.propIsAddon + ']"]');
 
+      // Intercept add-on upsell submissions to ensure they bind to a valid parent UID
       if (isUpsell && isAddon) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         submitAddonForm(form);
         return;
       }
 
-      // skip upsell forms that are not the main product
+      // Skip other upsell forms (non-add-ons)
       if (isUpsell) return;
 
-      // find add-on card in same main product section if possible
+      // MAIN PRODUCT FORM:
+      // If an add-on card exists in this context, always inject a stable parent UID.
+      // This enables: (a) parent stacking, (b) adding add-ons later from cart/upsells.
       var scope = null;
       try { scope = form.closest('[id^="MainProduct-"]'); } catch (err2) {}
       scope = scope || document;
 
       var addonCard = scope.querySelector('.upsell[data-upsell-addon="true"]');
-      if (!addonCard || !isSelected(addonCard)) return;
+      if (!addonCard) return;
 
-      var addonForm = addonCard.querySelector('form[data-type="add-to-cart-form"]');
-      var uid = deriveUid();
+      var parentHandle =
+        (addonCard.getAttribute('data-parent-handle') || '').trim() ||
+        (scope.getAttribute && (scope.getAttribute('data-product-handle') || '')) ||
+        (U && typeof U.productHandleFromUrl === 'function' ? (U.productHandleFromUrl() || '') : '') ||
+        '';
 
-      // parent gets uid
+      var lockedCollection = (addonCard.getAttribute('data-locked-collection') || '').trim();
+      var variantId = getVariantId(form);
+      var uid = deriveStableParentUid(parentHandle, variantId, lockedCollection);
+
+      // parent always gets uid (so it can be a valid parent in cart)
       ensureHidden(form, 'properties[' + P.CFG.propParentUid + ']', uid);
+      if (parentHandle) ensureHidden(form, 'properties[' + P.CFG.propParentHandle + ']', parentHandle);
+      if (lockedCollection) ensureHidden(form, 'properties[' + P.CFG.propLockedCollection + ']', lockedCollection);
 
-      // addon gets same uid + defensive sync
+      // If add-on is selected, ensure the add-on form has the same uid + linking properties.
+      // (Theme may submit both forms, or the user may submit the add-on separately.)
+      if (!isSelected(addonCard)) return;
+
+      var addonForm = addonCard.querySelector('form[data-type="add-to-cart-form"]') ||
+        addonCard.querySelector('form[action^="/cart/add"]') ||
+        addonCard.querySelector('form');
+
       if (addonForm) {
         ensureHidden(addonForm, 'properties[' + P.CFG.propParentUid + ']', uid);
-
-        var ph = addonCard.getAttribute('data-parent-handle') || '';
-        var lc = addonCard.getAttribute('data-locked-collection') || '';
-
-        ensureHidden(addonForm, 'properties[' + P.CFG.propParentHandle + ']', ph);
-        ensureHidden(addonForm, 'properties[' + P.CFG.propLockedCollection + ']', lc);
+        if (parentHandle) ensureHidden(addonForm, 'properties[' + P.CFG.propParentHandle + ']', parentHandle);
+        if (lockedCollection) ensureHidden(addonForm, 'properties[' + P.CFG.propLockedCollection + ']', lockedCollection);
         ensureHidden(addonForm, 'properties[' + P.CFG.propIsAddon + ']', '1');
       }
+
+      P.__lastUid = uid;
     }, true);
   };
 })();
