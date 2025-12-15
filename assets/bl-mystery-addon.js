@@ -14,6 +14,22 @@
   var M = window.BL.mysteryEngine;
   var A = window.BL.mysteryAddon;
 
+  function isDebug() {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('bl_mystery_debug') === '1') return true;
+    } catch (e) {}
+    try {
+      if (typeof window !== 'undefined' && window.location && window.location.search.indexOf('mystery_debug=1') !== -1) return true;
+    } catch (e2) {}
+    return false;
+  }
+
+  function debugLog() {
+    if (!isDebug()) return;
+    var args = Array.prototype.slice.call(arguments);
+    try { console.log.apply(console, ['[BL Mystery Addon][debug]'].concat(args)); } catch (e) {}
+  }
+
   function ensureCssOnce() {
     if (document.getElementById('bl-addon-css')) return;
     var st = document.createElement('style');
@@ -104,6 +120,7 @@
     } catch (e) {}
 
     applyCopy(card, rarity);
+    debugLog('variant-applied', { card: card.getAttribute('data-id'), variantId: v.id, rarity: rarity });
 
     // recompute assignment for the add-on (so submit is instant)
     if (M && form) {
@@ -243,10 +260,17 @@
             if (fallback) {
               selectEl.value = fallback;
               setStatus('Some rarities are not available for this figure right now. Switched to an available option.', true);
+              debugLog('fallback-rarity-addon', { locked: locked, chosen: fallback });
             }
           } else {
             setStatus('', false);
           }
+
+          debugLog('rarity-eligibility', {
+            lockedCollection: locked,
+            counts: counts,
+            selected: selectEl.value
+          });
         });
       }
 

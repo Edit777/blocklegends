@@ -19,6 +19,22 @@
     return;
   }
 
+  function isDebug() {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('bl_mystery_debug') === '1') return true;
+    } catch (e) {}
+    try {
+      if (typeof window !== 'undefined' && window.location && window.location.search.indexOf('mystery_debug=1') !== -1) return true;
+    } catch (e2) {}
+    return false;
+  }
+
+  function debugLog() {
+    if (!isDebug()) return;
+    var args = Array.prototype.slice.call(arguments);
+    try { console.log.apply(console, ['[BL Mystery][debug]'].concat(args)); } catch (e) {}
+  }
+
   /* -----------------------------
      CONFIG
   ------------------------------ */
@@ -381,6 +397,17 @@
             legendary: idx.legendary.length
           });
 
+          debugLog('pool-loaded', {
+            handle: h,
+            total: all.length,
+            perRarity: {
+              common: idx.common.length,
+              rare: idx.rare.length,
+              epic: idx.epic.length,
+              legendary: idx.legendary.length
+            }
+          });
+
           return idx;
         });
       })
@@ -534,6 +561,7 @@ function chooseAssignedProductAny(poolHandle) {
         });
 
         U.log('[BL Mystery] Variant map size', Object.keys(state.variantIdToSelection).length);
+        debugLog('variant-map-ready', { size: Object.keys(state.variantIdToSelection).length });
         return state.variantIdToSelection;
       });
 
@@ -623,8 +651,36 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           ? chooseAssignedProductAny(poolHandleUsed)
           : chooseAssignedProduct(poolHandleUsed, rarity);
 
+        // deterministic fallback: if requested rarity is empty, fallback to weighted any but keep requested tier for visibility
+        if (!chosen) {
+          debugLog('no-eligible-choice', {
+            pool: poolHandleUsed,
+            rarity: rarity,
+            requestedCollection: requestedCollection,
+            mode: mode
+          });
+
+          var fallbackRarity = pickWeightedRarity(state.pools[poolHandleUsed]);
+          if (fallbackRarity) {
+            chosen = chooseAssignedProduct(poolHandleUsed, fallbackRarity);
+            if (chosen) {
+              rarity = fallbackRarity; // use fallback for actual assignment but preserve requested tier later
+              debugLog('fallback-choice', { pool: poolHandleUsed, fallbackRarity: fallbackRarity, chosen: chosen });
+            }
+          }
+        }
+
         if (!chosen) {
           U.err('[BL Mystery] No eligible product for assignment', {
+            handle: handle,
+            mode: mode,
+            rarity: rarity,
+            pool: poolHandleUsed,
+            requestedCollection: requestedCollection,
+            variantId: currentVariantId,
+            isAny: isAny
+          });
+          debugLog('assignment-failed', {
             handle: handle,
             mode: mode,
             rarity: rarity,
@@ -667,6 +723,16 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           requestedTier: isAny ? 'Lucky Box' : rarity,
           variantId: currentVariantId,
           force: force
+        });
+
+        debugLog('assignment', {
+          handle: handle,
+          mode: mode,
+          rarity: rarity,
+          requestedCollection: requestedCollection,
+          poolUsed: poolHandleUsed,
+          variantId: currentVariantId,
+          assigned: chosen
         });
 
         return true;
