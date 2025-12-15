@@ -1,9 +1,10 @@
 /* =======================================================
    BLOCK LEGENDS — CART GUARD
    Enforce:
-   - Add-on cannot exist without its parent (shared uid)
-   - Max 1 add-on per parent uid
-   - Add-on quantity forced to 1
+   - Add-on cannot exist without its parent (shared UID or parent handle fallback)
+   - Total add-on quantity per parent group cannot exceed parent quantity (per-unit multiplier)
+   - Optionally "fills" missing add-on quantity ONLY when there is exactly 1 add-on line in the group
+     (safe auto-sync for stacked identical add-ons; avoids guessing across multiple variants)
    Notes:
    - We only touch items that are explicitly marked as add-ons.
    ======================================================= */
@@ -36,6 +37,8 @@
     propIsAddon: '_bl_is_addon',
     propParentHandle: '_bl_parent_handle',
     propParentUid: '_bl_parent_uid',
+
+    // add-ons per parent unit (1 means 1 add-on per 1 parent quantity)
     maxAddonsPerParent: 1,
 
     // throttling
@@ -82,9 +85,7 @@
 
     var body = { quantity: change.qty };
 
-    // Prefer the line-item key when available; fall back to numeric line
-    // position to avoid "line parameter is invalid" errors when the key is
-    // missing from the cart payload (some themes omit it).
+    // Prefer the line-item key when available; fall back to numeric line position.
     if (change.key) {
       body.id = change.key;
     } else if (change.line) {
@@ -118,38 +119,31 @@
       .then(function (cart) {
         if (!cart || !cart.items || !cart.items.length) return false;
 
-        // index parents by uid (only lines that have uid property are eligible parents)
+        // index parents by uid (only lines that have uid property are eligible uid-parents)
         var parentsByUid = {};
         var parentsByHandle = {};
-        cart.items.forEach(function (it, idx) {
+
+        cart.items.forEach(function (it) {
           if (!it || isAddonLine(it)) return;
-          var uid = getProp(it, G.CFG.propParentUid);
+
           var qty = Number(it.quantity || 0);
           var handle = maybeStr(it.handle || it.product_handle);
+          var uid = getProp(it, G.CFG.propParentUid);
 
-          // Track handle totals for every non-add-on line so add-ons that only
-          // know their parent handle can follow quantity updates even when the
-          // parent lacks the uid property.
+          // Handle totals for fallback matching
           if (handle) {
             parentsByHandle[handle] = (parentsByHandle[handle] || 0) + qty;
           }
 
-          // Only uid-backed parents participate in uid-based grouping.
+          // UID-backed parent grouping
           if (!uid) return;
 
           var existing = parentsByUid[uid];
-
           if (!existing) {
             parentsByUid[uid] = { item: it, qty: qty };
           } else {
-            // Sum quantities when multiple parent lines share the same uid so
-            // add-on enforcement uses the full parent count.
             existing.qty += qty;
             existing.item = existing.item || it;
-          }
-
-          if (handle) {
-            parentsByHandle[handle] = (parentsByHandle[handle] || 0) + qty;
           }
         });
 
@@ -159,42 +153,40 @@
         cart.items.forEach(function (it, idx) {
           if (!it || !isAddonLine(it)) return;
 
-          // Keep track of the line position as a fallback identifier for
-          // change.js when the cart payload omits the item key.
           var lineNumber = Number(it.line || (idx + 1));
 
           var uid = getProp(it, G.CFG.propParentUid);
           var parentHandle = getProp(it, G.CFG.propParentHandle);
+
           var parent = uid ? parentsByUid[uid] : null;
           var handleQty = parentHandle ? Number(parentsByHandle[parentHandle] || 0) : 0;
 
-          // If the parent is missing and there is no matching handle quantity,
-          // the add-on is orphaned.
+          // orphaned if no uid and no handle fallback
           if (!uid && !handleQty) {
             changes.push({ key: it.key, line: lineNumber, qty: 0 });
+            debugLog('remove-addon-orphan-no-uid-handle', { key: it.key });
             return;
           }
 
-          // enforce matching handle if provided and parent exists
+          // enforce matching handle if provided and uid-parent exists
           if (parent && parentHandle) {
             var ph = maybeStr(parent.item.handle || parent.item.product_handle);
             if (ph && ph !== parentHandle) {
               changes.push({ key: it.key, line: lineNumber, qty: 0 });
+              debugLog('remove-addon-parent-handle-mismatch', { key: it.key, expected: ph, got: parentHandle });
               return;
             }
           }
 
           var parentQty = parent ? Number(parent.qty || 0) : 0;
-          var perParent = Number(G.CFG.maxAddonsPerParent || 1);
+          var perParent = Math.max(1, Number(G.CFG.maxAddonsPerParent || 1));
           var allowed = Math.max(0, Math.max(parentQty * perParent, handleQty * perParent));
 
-          // Group add-ons by uid when available; otherwise fall back to the
-          // parent handle to allow multiple add-ons to track the combined
-          // parent quantity even when parent uid differs (e.g., stacked
-          // purchases).
-          var metaKey = uid || (parentHandle ? 'handle:' + parentHandle : '');
+          // Group by UID when present; otherwise by parent handle.
+          var metaKey = uid || (parentHandle ? ('handle:' + parentHandle) : '');
           if (!metaKey) {
             changes.push({ key: it.key, line: lineNumber, qty: 0 });
+            debugLog('remove-addon-no-metaKey', { key: it.key });
             return;
           }
 
@@ -206,25 +198,28 @@
             meta.allowed = Math.max(meta.allowed, allowed);
           }
 
+          it.__bl_line_number = lineNumber;
           meta.lines.push(it);
           meta.count += Number(it.quantity || 0);
-          it.__bl_line_number = lineNumber;
         });
 
-        Object.keys(addonMetaByKey).forEach(function (uid) {
-          var meta = addonMetaByKey[uid];
+        Object.keys(addonMetaByKey).forEach(function (k) {
+          var meta = addonMetaByKey[k];
           var allowed = meta.allowed;
 
           if (allowed <= 0) {
             meta.lines.forEach(function (line) {
               changes.push({ key: line.key, line: line.__bl_line_number, qty: 0 });
             });
-            debugLog('remove-addon-no-parent', { uid: uid });
+            debugLog('remove-addon-no-parent', { key: k });
             return;
           }
 
+          // Never allow more add-ons than allowed
           if (meta.count > allowed) {
             var remaining = allowed;
+
+            // Preserve earlier lines first; reduce later lines.
             meta.lines.forEach(function (line) {
               var cur = Number(line.quantity || 0);
               var desired = Math.min(cur, Math.max(0, remaining));
@@ -234,24 +229,27 @@
                 changes.push({ key: line.key, line: line.__bl_line_number, qty: desired });
               }
             });
-            debugLog('trim-addon-qty', { uid: uid, allowed: allowed, count: meta.count });
+
+            debugLog('trim-addon-qty', { key: k, allowed: allowed, count: meta.count });
             return;
           }
 
-          if (meta.count < allowed) {
-            var diff = allowed - meta.count;
-            var firstLine = meta.lines[0];
-            if (firstLine) {
-              var targetQty = Number(firstLine.quantity || 0) + diff;
-              changes.push({ key: firstLine.key, line: firstLine.__bl_line_number, qty: targetQty });
-              debugLog('raise-addon-qty', { uid: uid, target: targetQty, allowed: allowed });
+          // Only auto-fill missing add-on quantity when there is exactly 1 add-on line.
+          // This keeps stacked identical add-ons in sync with parent qty (common case),
+          // but avoids guessing which variant to add when multiple add-on lines exist.
+          if (meta.count < allowed && meta.lines.length === 1) {
+            var line0 = meta.lines[0];
+            var targetQty = allowed; // force exact sync
+            if (Number(line0.quantity || 0) !== targetQty) {
+              changes.push({ key: line0.key, line: line0.__bl_line_number, qty: targetQty });
+              debugLog('raise-addon-qty', { key: k, target: targetQty, allowed: allowed });
             }
           }
         });
 
         if (!changes.length) return false;
 
-        // apply sequentially
+        // Apply sequentially
         var p = Promise.resolve();
         changes.forEach(function (c) { p = p.then(function () { return changeLine(c); }); });
         debugLog('changes-applied', changes);
@@ -319,7 +317,6 @@
     if (G.__obs) return;
     G.__obs = true;
 
-    // try common cart drawer nodes; if none, observe body
     var target =
       document.querySelector('cart-drawer') ||
       document.querySelector('#CartDrawer') ||
@@ -351,7 +348,6 @@
     });
   };
 
-  // Also run cleanup when user clicks checkout
   G.guardCheckout = function () {
     var btns = document.querySelectorAll('button[name="checkout"], input[name="checkout"], [href^="/checkout"]');
     if (!btns.length) return;
@@ -378,7 +374,6 @@
     G.observeCartDrawer();
     G.guardCheckout();
 
-    // initial cleanup
     setTimeout(function () { G.cleanup('init'); }, 200);
 
     document.addEventListener('visibilitychange', function () {
