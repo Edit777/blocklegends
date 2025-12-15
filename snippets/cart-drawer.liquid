@@ -26,25 +26,37 @@
   {% endif %}
 </style>
 
-<cart-drawer class="drawer{% if cart == empty %} is-empty{% endif %}{% if section.settings.test_mode %} active{% endif %} cart-drawer--desktop-width-{{ section.settings.desktop_width }} cart-drawer--mobile-width-{{ section.settings.mobile_width }}" data-type='modal'>
+<cart-drawer
+  class="drawer{% if cart == empty %} is-empty{% endif %}{% if section.settings.test_mode %} active{% endif %} cart-drawer--desktop-width-{{ section.settings.desktop_width }} cart-drawer--mobile-width-{{ section.settings.mobile_width }}"
+  data-type='modal'
+  data-cart-drawer
+  data-cart-heading-template="{{ section.settings.heading_text | escape }}"
+  data-empty-state-initial="{% if cart == empty %}true{% else %}false{% endif %}"
+  data-quantity-error="{{ 'sections.cart.cart_error' | t }}"
+  data-close-label="{{ 'accessibility.close' | t }}"
+  data-continue-shopping="{% if settings.continue_shopping_url == blank %}{{ routes.all_products_collection_url }}{% else %}{{ settings.continue_shopping_url }}{% endif %}"
+  data-empty-text="{{ 'sections.cart.empty' | t }}"
+  data-continue-text="{{ 'general.continue_shopping' | t }}"
+>
   <div id="CartDrawer" class="cart-drawer">
-    <div id="CartDrawer-Overlay" class="cart-drawer__overlay"></div>
+    <div id="CartDrawer-Overlay" class="cart-drawer__overlay" data-cart-overlay></div>
     <div
       class="drawer__inner"
       role="dialog"
       aria-modal="true"
       aria-label="{{ 'sections.cart.title' | t }}"
       tabindex="-1"
+      data-cart-panel
     >
       {%- if cart == empty -%}
         <div class="drawer__inner-empty">
-          <div class="cart-drawer__warnings center{% if settings.cart_drawer_collection != blank %} cart-drawer__warnings--has-collection{% endif %}">
+          <div class="cart-drawer__warnings center{% if settings.cart_drawer_collection != blank %} cart-drawer__warnings--has-collection{% endif %}" data-cart-empty>
             <div class="cart-drawer__empty-content">
               <h2 class="cart__empty-text">{{ 'sections.cart.empty' | t }}</h2>
               <button
                 class="drawer__close"
                 type="button"
-                onclick="this.closest('cart-drawer').close()"
+                data-cart-close
                 aria-label="{{ 'accessibility.close' | t }}"
               >
                 {% render 'icon-close' %}
@@ -64,14 +76,14 @@
             </div>
           </div>
           {%- if settings.cart_drawer_collection != blank -%}
-            <div class="cart-drawer__collection">
+            <div class="cart-drawer__collection" data-cart-empty-collection>
               {% render 'card-collection', card_collection: settings.cart_drawer_collection, columns: 1 %}
             </div>
           {%- endif -%}
         </div>
       {%- endif -%}
       <div class="drawer__header" style='--alignment:{{ section.settings.heading_alignment }}'>
-        <h2 class="drawer__heading">
+        <h2 class="drawer__heading" data-cart-heading>
           {% liquid
             assign non_upsell_count = cart.item_count
             for item in cart.items
@@ -85,7 +97,7 @@
         <button
           class="drawer__close"
           type="button"
-          onclick="this.closest('cart-drawer').close()"
+          data-cart-close
           aria-label="{{ 'accessibility.close' | t }}"
         >
           {% render 'icon-close' %}
@@ -122,17 +134,20 @@
                   id="CartDrawer-Form"
                   class="cart__contents cart-drawer__form"
                   method="post"
+                  data-cart-form
                 >
                   <div id="CartDrawer-CartItems" class="drawer__contents js-contents">
                     {%- if cart != empty -%}
                       <div class="drawer__cart-items-wrapper">
-                        <ul class="cart-items list-unstyled">
+                        <ul class="cart-items list-unstyled" data-cart-items>
                           {%- for item in cart.items -%}
-                            <li 
-                              id="CartDrawer-Item-{{ item.index | plus: 1 }}" 
-                              class="cart-drawer-item cart-item cart-item--product-{{ item.product.handle }}" 
+                            <li
+                              id="CartDrawer-Item-{{ item.index | plus: 1 }}"
+                              class="cart-drawer-item cart-item cart-item--product-{{ item.product.handle }}"
                               role="row" data-index="{{ item.index | plus: 1 }}"
                               data-quantity="{{ item.quantity }}"
+                              data-cart-item
+                              data-item-key="{{ item.key }}"
                             >
                               <div class="loading-overlay hidden">
                                 <div class="loading-overlay__spinner">
@@ -286,6 +301,7 @@
                                     <button
                                       type="button"
                                       class="button button--tertiary"
+                                      data-cart-remove
                                       aria-label="{{ 'sections.cart.remove_title' | t: title: item.title }}"
                                     >
                                       {% render 'icon-remove' %}
@@ -310,7 +326,7 @@
                                           --icon-size:{{ block.settings.quantity_btns_icon_size | divided_by: 100.0 }}em;
                                         '
                                       >
-                                        <button class="quantity__button quantity__button--minus no-js-hidden color-{{ block.settings.quantity_btns_color_scheme }}" name="minus" type="button">
+                                        <button class="quantity__button quantity__button--minus no-js-hidden color-{{ block.settings.quantity_btns_color_scheme }}" name="minus" type="button" data-cart-quantity-change="-1">
                                           <span class="visually-hidden">
                                             {{-
                                               'products.product.quantity.decrease'
@@ -340,7 +356,7 @@
                                           id="Drawer-quantity-{{ item.index | plus: 1 }}"
                                           data-index="{{ item.index | plus: 1 }}"
                                         >
-                                        <button class="quantity__button quantity__button--plus no-js-hidden color-{{ block.settings.quantity_btns_color_scheme }}" name="plus" type="button">
+                                        <button class="quantity__button quantity__button--plus no-js-hidden color-{{ block.settings.quantity_btns_color_scheme }}" name="plus" type="button" data-cart-quantity-change="1">
                                           <span class="visually-hidden">
                                             {{-
                                               'products.product.quantity.increase'
@@ -435,7 +451,7 @@
                       {{ 'accessibility.loading' | t }}
                     </p>
                   </div>
-                  <div id="CartDrawer-CartErrors" role="alert"></div>
+                  <div id="CartDrawer-CartErrors" role="alert" data-cart-errors></div>
                 </form>
               </cart-drawer-items>
             {% when 'product_upsells' %}
@@ -513,7 +529,7 @@
           {% endcase %}
         {% endfor %}
       </div>
-      <div class="drawer__footer">
+      <div class="drawer__footer" data-cart-footer>
         {% for block in section.blocks %}
           {% case block.type %}
             {% when 'discount_field' %}
@@ -526,12 +542,13 @@
                     {% render 'icon-caret' %}
                   </span>
                 </summary>
-                <cart-note class="cart__note field">
+                <cart-note class="cart__note field" data-cart-note-container>
                   <label class="visually-hidden" for="CartDrawer-Note">{{ 'sections.cart.note' | t }}</label>
                   <textarea
                     id="CartDrawer-Note"
                     class="text-area text-area--resize-vertical field__input"
                     name="note"
+                    data-cart-note
                     placeholder="{{ 'sections.cart.note' | t }}"
                   >{{ cart.note }}</textarea>
                 </cart-note>
@@ -549,7 +566,7 @@
                     {% endif %}
                   {% endif %}
                   {% if block.settings.display_subtotal %}
-                    {% capture subtotal_money %}<span class='cart-drawer__totals__row__money'>{{ cart.total_price | money }}</span>{% endcapture %}
+                    {% capture subtotal_money %}<span class='cart-drawer__totals__row__money' data-cart-subtotal>{{ cart.total_price | money }}</span>{% endcapture %}
                     <p class='cart-drawer__totals__row cart-drawer__totals__row--{{ block.settings.subtotal_alignment }} text-color-{{ block.settings.subtotal_text_color }}' style='--text-size:{{ block.settings.subtotal_text_size | divided_by: 10.0 }}rem;'>
                       <span>{{ block.settings.subtotal_left_text | replace: '[subtotal]', subtotal_money }}</span><span>{{ block.settings.subtotal_right_text | replace: '[subtotal]', subtotal_money }}</span>
                     </p>
@@ -610,6 +627,7 @@
                   class="cart__checkout-button button{% if block.settings.prefix_icon != blank %} button--prefix-icon{% endif %}{% if block.settings.suffix_icon != blank %} button--suffix-icon{% endif %}"
                   name="checkout"
                   form="CartDrawer-Form"
+                  data-cart-checkout
                   {% if cart == empty %}
                     disabled
                   {% endif %}
