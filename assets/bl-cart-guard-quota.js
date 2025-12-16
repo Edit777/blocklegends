@@ -36,7 +36,10 @@
   }
 
   async function getCart() {
-    const res = await fetch('/cart.js', { credentials: 'same-origin' });
+    const res = await fetch('/cart.js', {
+      credentials: 'same-origin',
+      headers: { 'X-BL-INTERNAL': '1' }
+    });
     return res.json();
   }
 
