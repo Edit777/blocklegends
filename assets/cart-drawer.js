@@ -15,6 +15,7 @@
     this.bindHandlers();
     this.attachEvents();
     this.bindAddToCartForms();
+    this.restartCountdownTimers();
     this.closeTimeout = null;
     this.setVisibility(this.root.classList.contains('active'));
     this.renderInitialSkeleton();
@@ -66,6 +67,10 @@
       event.preventDefault();
       this.open();
     };
+    this.onSectionChange = () => {
+      this.updateToggleElements();
+      this.bindAddToCartForms();
+    };
     this.onItemClick = (event) => {
       const removeButton = event.target.closest('[data-cart-remove]');
       if (removeButton) {
@@ -103,14 +108,17 @@
       window.location.href = '/checkout';
     };
     this.onAddToCartSubmit = (event) => {
+      if (event.__cartDrawerHandled) return;
+      event.__cartDrawerHandled = true;
       const form = event.target.closest('form');
       if (!form) return;
+      const submitter = event.submitter || form.querySelector('[type="submit"]');
       const shouldBypass = form.dataset.cartRedirect === 'true' || form.dataset.preventDrawer === 'true';
       if (shouldBypass) return;
       event.preventDefault();
       const formData = new FormData(form);
       if (event.submitter?.name) formData.append(event.submitter.name, event.submitter.value);
-      this.addItem(formData, form);
+      this.addItem(formData, form, submitter);
     };
   }
 
@@ -120,12 +128,14 @@
     this.panel?.addEventListener('click', this.onCloseButtonClick);
     document.addEventListener('click', this.onDocumentClose, true);
     document.addEventListener('keyup', this.onKeyUp);
-    this.toggleElements.forEach((toggle) => toggle.addEventListener('click', this.onToggleClick));
+    this.updateToggleElements();
     this.itemsContainer?.addEventListener('click', this.onItemClick);
     this.itemsContainer?.addEventListener('change', this.onItemChange);
     this.noteField?.addEventListener('change', this.onNoteChange);
     this.updateButton?.addEventListener('click', this.onUpdateClick);
     this.checkoutButton?.addEventListener('click', this.onCheckoutClick);
+    document.addEventListener('shopify:section:load', this.onSectionChange);
+    document.addEventListener('shopify:section:reorder', this.onSectionChange);
   }
 
   detachEvents() {
@@ -141,13 +151,44 @@
     this.updateButton?.removeEventListener('click', this.onUpdateClick);
     this.checkoutButton?.removeEventListener('click', this.onCheckoutClick);
     this.addToCartForms?.forEach((form) => form.removeEventListener('submit', this.onAddToCartSubmit));
+
+    if (this.delegatedSubmitListenerAttached) {
+      document.removeEventListener('submit', this.onAddToCartSubmit, true);
+      this.delegatedSubmitListenerAttached = false;
+    }
+
+    document.removeEventListener('shopify:section:load', this.onSectionChange);
+    document.removeEventListener('shopify:section:reorder', this.onSectionChange);
   }
 
-  bindAddToCartForms() {
-    this.addToCartForms = Array.from(document.querySelectorAll('form[action*="/cart/add"]'));
-    this.addToCartForms.forEach((form) => {
+  updateToggleElements() {
+    const newToggles = Array.from(document.querySelectorAll('[data-cart-toggle], #cart-icon-bubble'));
+    const removed = this.toggleElements.filter((toggle) => !newToggles.includes(toggle));
+    const added = newToggles.filter((toggle) => !this.toggleElements.includes(toggle));
+
+    removed.forEach((toggle) => toggle.removeEventListener('click', this.onToggleClick));
+    added.forEach((toggle) => toggle.addEventListener('click', this.onToggleClick));
+
+    this.toggleElements = newToggles;
+  }
+
+  bindAddToCartForms(context = document) {
+    const forms = Array.from(context.querySelectorAll('form[action*="/cart/add"]'));
+    const newlyBound = [];
+
+    forms.forEach((form) => {
+      if (form.dataset.cartDrawerBound === 'true') return;
+      form.dataset.cartDrawerBound = 'true';
       form.addEventListener('submit', this.onAddToCartSubmit);
+      newlyBound.push(form);
     });
+
+    this.addToCartForms = [...(this.addToCartForms || []), ...newlyBound];
+
+    if (!this.delegatedSubmitListenerAttached) {
+      document.addEventListener('submit', this.onAddToCartSubmit, true);
+      this.delegatedSubmitListenerAttached = true;
+    }
   }
 
   destroy() {
@@ -185,6 +226,7 @@
       this.root = null;
       CartDrawerController.init(newDrawer, { skipInitialRefresh: true });
       if (shouldStayOpen && CartDrawerController.instance) CartDrawerController.instance.open();
+      CartDrawerController.instance?.restartCountdownTimers?.();
       this.dispatchCartEvent('cart-drawer:rendered', { reason: 'refresh' });
     } catch (error) {
       console.error(error);
@@ -211,11 +253,11 @@
     }
   }
 
-  async addItem(formData, form) {
+  async addItem(formData, form, submitter) {
     const errorMessage = this.root?.dataset.quantityError || 'Error updating cart';
     try {
       this.setLoading(true);
-      this.setAddToCartState(form, true);
+      this.setAddToCartState(form, true, submitter);
       const response = await fetch('/cart/add.js', {
         method: 'POST',
         headers: { Accept: 'application/json' },
@@ -242,7 +284,7 @@
       }
     } finally {
       this.setLoading(false);
-      this.setAddToCartState(form, false);
+      this.setAddToCartState(form, false, submitter);
     }
   }
 
@@ -266,11 +308,38 @@
     this.root?.classList?.toggle('is-loading', Boolean(isLoading));
   }
 
-  setAddToCartState(form, isLoading) {
+  restartCountdownTimers() {
+    const timers = this.root?.querySelectorAll('countdown-timer') || [];
+    timers.forEach((timer) => {
+      try {
+        if (typeof timer.start === 'function') {
+          timer.start();
+        } else if (typeof timer.restart === 'function') {
+          timer.restart();
+        } else if (typeof timer.reset === 'function') {
+          timer.reset();
+          timer.start?.();
+        } else {
+          const clone = timer.cloneNode(true);
+          timer.replaceWith(clone);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  }
+
+  setAddToCartState(form, isLoading, submitter) {
     if (!form) return;
 
-    const submitButton = form.querySelector('[type="submit"][name="add"]');
-    const spinner = submitButton?.querySelector('.loading-overlay__spinner');
+    const submitButton =
+      submitter ||
+      form.querySelector('[type="submit"][name="add"]') ||
+      form.querySelector('[type="submit"][name="add-to-cart"]') ||
+      form.querySelector('[type="submit"]');
+    const spinner =
+      submitButton?.querySelector('.loading-overlay__spinner') ||
+      form.querySelector('.loading-overlay__spinner');
     const errorSummary = form.querySelector('[data-form-error]');
 
     if (errorSummary) errorSummary.textContent = '';
@@ -347,6 +416,7 @@
     this.root?.classList?.add('active');
     document.body.classList.add('overflow-hidden');
     this.panel?.focus();
+    this.restartCountdownTimers();
   }
 
   close() {
