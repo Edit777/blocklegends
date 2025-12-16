@@ -146,8 +146,6 @@
   bindAddToCartForms() {
     this.addToCartForms = Array.from(document.querySelectorAll('form[action*="/cart/add"]'));
     this.addToCartForms.forEach((form) => {
-      if (form.dataset.cartDrawerBound === 'true') return;
-      form.dataset.cartDrawerBound = 'true';
       form.addEventListener('submit', this.onAddToCartSubmit);
     });
   }
@@ -217,6 +215,7 @@
     const errorMessage = this.root?.dataset.quantityError || 'Error updating cart';
     try {
       this.setLoading(true);
+      this.setAddToCartState(form, true);
       const response = await fetch('/cart/add.js', {
         method: 'POST',
         headers: { Accept: 'application/json' },
@@ -243,6 +242,7 @@
       }
     } finally {
       this.setLoading(false);
+      this.setAddToCartState(form, false);
     }
   }
 
@@ -264,6 +264,33 @@
 
   setLoading(isLoading) {
     this.root?.classList?.toggle('is-loading', Boolean(isLoading));
+  }
+
+  setAddToCartState(form, isLoading) {
+    if (!form) return;
+
+    const submitButton = form.querySelector('[type="submit"][name="add"]');
+    const spinner = submitButton?.querySelector('.loading-overlay__spinner');
+    const errorSummary = form.querySelector('[data-form-error]');
+
+    if (errorSummary) errorSummary.textContent = '';
+    if (!submitButton) return;
+
+    if (isLoading) {
+      submitButton.dataset.prevDisabled = submitButton.hasAttribute('disabled');
+      submitButton.setAttribute('disabled', 'true');
+      submitButton.classList.add('loading');
+      spinner?.classList?.remove('hidden');
+      submitButton.setAttribute('aria-busy', 'true');
+    } else {
+      submitButton.removeAttribute('aria-busy');
+      submitButton.classList.remove('loading');
+      if (submitButton.dataset.prevDisabled !== 'true' && submitButton.dataset.unavailable !== 'true') {
+        submitButton.removeAttribute('disabled');
+      }
+      delete submitButton.dataset.prevDisabled;
+      spinner?.classList?.add('hidden');
+    }
   }
 
   getTransitionDuration() {
