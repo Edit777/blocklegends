@@ -833,6 +833,13 @@
       if (!trigger) return;
 
       event.preventDefault();
+
+      const controller = window.CartDrawerController?.instance;
+      if (controller) {
+        controller.close();
+        return;
+      }
+
       const drawer = trigger.closest('[data-cart-drawer]');
       if (!drawer) return;
 
