@@ -1,8 +1,14 @@
 (() => {
   const global = window;
 
+  function hasNativeCartDrawer() {
+    const nativeElement = global.customElements?.get?.('cart-drawer');
+    return Boolean(nativeElement && nativeElement !== CartDrawerController);
+  }
+
   class CartDrawerController {
   static init(root, options = {}) {
+    if (hasNativeCartDrawer()) return null;
     if (!root) return null;
     if (CartDrawerController.instance) CartDrawerController.instance.destroy();
     CartDrawerController.instance = new CartDrawerController(root, options);
@@ -446,6 +452,11 @@
   document.addEventListener('DOMContentLoaded', () => {
     if (global.__cartDrawerBootstrapped) return;
     global.__cartDrawerBootstrapped = true;
+
+    if (hasNativeCartDrawer()) {
+      console.info('[Cart Drawer] Native custom element detected; deferring to built-in behavior.');
+      return;
+    }
     const drawer = document.querySelector('[data-cart-drawer]');
     const toggles = document.querySelectorAll('[data-cart-toggle], #cart-icon-bubble');
     const usingCustomDrawer = Boolean(drawer);
@@ -463,6 +474,8 @@
   document.addEventListener(
     'click',
     (event) => {
+      if (hasNativeCartDrawer()) return;
+
       const toggle = event.target.closest('[data-cart-toggle], #cart-icon-bubble');
       if (!toggle || CartDrawerController.instance) return;
 
