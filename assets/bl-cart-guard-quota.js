@@ -2,14 +2,25 @@
   window.BL = window.BL || {};
   const BL = window.BL;
 
-  // Identify add-ons (choose ONE primary signal and keep it consistent)
+  // =========================
+  // CONFIG — adjust these
+  // =========================
   const CFG = {
-    // Most reliable: line item property set when add-on is added
-    propIsAddon: '_bl_is_addon',   // value "1"
-    // Fallback: handle match (only if you truly have a dedicated add-on product)
+    // Best signal: line-item property on add-on lines
+    propIsAddon: '_bl_is_addon', // value must be "1"
+
+    // Optional fallback: add-on product handle (only if you have one dedicated add-on product)
     addonHandle: 'mystery-add-on',
-    // Debug toggle
-    debugParam: 'cart_guard_debug'
+
+    // Debug toggle: ?cart_guard_debug=1
+    debugParam: 'cart_guard_debug',
+
+    // How long to ignore stable events after guard itself mutates the cart (ms)
+    internalMuteMs: 1200,
+
+    // Removal policy when too many add-ons:
+    // 'last' removes from last add-on line backwards (deterministic)
+    removePolicy: 'last',
   };
 
   const debug = (() => {
@@ -18,19 +29,33 @@
   })();
   const log = (...a) => { if (debug) console.log('[BL:guard]', ...a); };
 
+  // =========================
+  // INTERNAL STATE / SAFETY
+  // =========================
   let running = false;
   let queued = false;
+  let internalMuteUntil = 0;
 
+  function muteInternal() {
+    internalMuteUntil = Date.now() + CFG.internalMuteMs;
+  }
+  function isMuted() {
+    return Date.now() < internalMuteUntil;
+  }
+
+  // =========================
+  // HELPERS
+  // =========================
   function isAddonItem(item) {
     if (!item) return false;
 
-    // Ajax cart returns properties as object under `properties`
-    const p = item.properties || {};
-    if (String(p[CFG.propIsAddon] || '') === '1') return true;
+    // 1) Strong signal: property
+    const props = item.properties || {};
+    if (String(props[CFG.propIsAddon] || '') === '1') return true;
 
-    // Fallback handle-based (item.handle can be missing in some themes; item.url usually exists)
+    // 2) Fallback: URL contains /products/<handle>
     const url = String(item.url || '');
-    if (url.includes('/products/' + CFG.addonHandle)) return true;
+    if (CFG.addonHandle && url.includes('/products/' + CFG.addonHandle)) return true;
 
     return false;
   }
@@ -44,85 +69,135 @@
   }
 
   async function changeLine(lineIndex1Based, quantity) {
-    // IMPORTANT: use line numbers from cart.items order (1-based)
-    await fetch('/cart/change.js', {
+    // Shopify expects 1-based line index (based on current cart.items array order)
+    await fetch('/cart/change', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
         'X-BL-CART-GUARD': '1'
       },
-      body: JSON.stringify({ line: lineIndex1Based, quantity: quantity })
+      body: JSON.stringify({ line: lineIndex1Based, quantity })
     });
   }
 
-  async function enforceQuota(cart) {
-    const items = cart && cart.items ? cart.items : [];
+  // Build an action plan based on current cart snapshot
+  function buildPlan(cart) {
+    const items = (cart && cart.items) ? cart.items : [];
 
     let parentUnits = 0;
-    let addonLines = []; // { line, qty }
+    let addonLines = []; // { line, qty, url }
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       const line = i + 1;
 
       if (isAddonItem(it)) {
-        addonLines.push({ line, qty: it.quantity });
+        addonLines.push({ line, qty: Number(it.quantity || 0), url: it.url || '' });
       } else {
-        parentUnits += (it.quantity || 0);
+        parentUnits += Number(it.quantity || 0);
       }
     }
 
     const addonUnits = addonLines.reduce((s, x) => s + (x.qty || 0), 0);
 
-    log({ parentUnits, addonUnits, addonLines });
-
-    if (addonUnits <= parentUnits) return { changed: false };
-
-    // Need to reduce add-ons down to parentUnits
-    let toRemove = addonUnits - parentUnits;
-
-    // Deterministic policy: remove from the last add-on line backward
-    for (let i = addonLines.length - 1; i >= 0 && toRemove > 0; i--) {
-      const ln = addonLines[i];
-      const canReduce = Math.min(ln.qty, toRemove);
-      const newQty = ln.qty - canReduce;
-
-      log('reduce addon line', ln.line, 'from', ln.qty, 'to', newQty);
-
-      await changeLine(ln.line, newQty);
-      toRemove -= canReduce;
+    // Core rule: addonUnits <= parentUnits
+    if (addonUnits <= parentUnits) {
+      return {
+        parentUnits,
+        addonUnits,
+        changes: [],
+        message: null
+      };
     }
 
-    return { changed: true };
+    let toRemove = addonUnits - parentUnits;
+    let changes = [];
+
+    // Deterministic removal policy
+    const ordered = (CFG.removePolicy === 'last')
+      ? addonLines.slice().reverse()
+      : addonLines.slice(); // 'first'
+
+    for (const ln of ordered) {
+      if (toRemove <= 0) break;
+      if (!ln.qty) continue;
+
+      const reduceBy = Math.min(ln.qty, toRemove);
+      const newQty = ln.qty - reduceBy;
+
+      changes.push({ line: ln.line, quantity: newQty });
+      toRemove -= reduceBy;
+    }
+
+    return {
+      parentUnits,
+      addonUnits,
+      changes,
+      message: `Add-ons cannot exceed the number of items in your cart.`
+    };
   }
 
+  async function applyPlan(plan) {
+    if (!plan.changes || !plan.changes.length) return false;
+
+    // Important: applying changes triggers cart mutation requests -> stable -> guard again
+    // We mute internal stable events briefly to avoid loops.
+    muteInternal();
+
+    // Apply sequentially to avoid race conditions with line indexing
+    for (const ch of plan.changes) {
+      log('changeLine', ch);
+      await changeLine(ch.line, ch.quantity);
+    }
+    return true;
+  }
+
+  function emitMessage(text) {
+    if (!text) return;
+    document.dispatchEvent(new CustomEvent('bl:cartguard:message', {
+      detail: { type: 'warning', text }
+    }));
+  }
+
+  // =========================
+  // MAIN GUARD RUNNER
+  // =========================
   async function runGuard(reason) {
+    // Ignore stable events immediately after the guard itself changed the cart
+    if (isMuted() && reason !== 'queued') {
+      return;
+    }
+
     if (running) { queued = true; return; }
     running = true;
     queued = false;
 
     try {
       const cart = await getCart();
-      const res = await enforceQuota(cart);
-      if (res.changed) {
-        // Optional: emit a message event for UI (toast/banner)
-        document.dispatchEvent(new CustomEvent('bl:cartguard:message', {
-          detail: { type: 'warning', text: 'Add-ons cannot exceed the number of items in your cart.' }
-        }));
+      const plan = buildPlan(cart);
+
+      log({ reason, parentUnits: plan.parentUnits, addonUnits: plan.addonUnits, changes: plan.changes });
+
+      if (plan.changes.length) {
+        emitMessage(plan.message);
+        await applyPlan(plan);
       }
     } catch (e) {
       console.warn('[BL:guard] error', e);
     } finally {
       running = false;
       if (queued) {
-        // If updates happened while we were running, run again once
-        setTimeout(() => runGuard('queued'), 120);
+        // Run once more after queued changes settle
+        setTimeout(() => runGuard('queued'), 180);
       }
     }
   }
 
+  // Run only at the correct time: after cart mutation + drawer settled
   document.addEventListener('bl:cart:stable', (e) => {
-    runGuard((e && e.detail && e.detail.reason) || 'stable');
+    const reason = (e && e.detail && e.detail.reason) || 'stable';
+    runGuard(reason);
   });
+
 })();
