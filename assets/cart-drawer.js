@@ -4,6 +4,13 @@
   function hasNativeCartDrawer() {
     const nativeElement = document.querySelector('cart-drawer');
     const nativeDefinition = global.customElements?.get?.('cart-drawer');
+    // If we have explicit cart drawer markup (data-cart-drawer), prefer the custom controller
+    // even when a native custom element is registered. This keeps the close buttons working
+    // reliably when merchants override the default behavior.
+    const prefersCustomDrawer = Boolean(document.querySelector('[data-cart-drawer]'));
+
+    if (prefersCustomDrawer) return false;
+
     return Boolean(nativeElement && nativeDefinition && nativeDefinition !== CartDrawerController);
   }
 
@@ -52,12 +59,17 @@
   }
 
   bindHandlers() {
-    this.onOverlayClick = () => this.close();
+    this.onOverlayClick = (event) => {
+      event?.stopPropagation?.();
+      this.close();
+    };
     this.onCloseButtonClick = (event) => {
-      if (event.target.closest('[data-cart-close]')) {
-        event.preventDefault();
-        this.close();
-      }
+      const closeButton = event.target.closest('[data-cart-close]');
+      if (!closeButton) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
     };
     this.onDocumentClose = (event) => {
       const closeBtn = event.target.closest('[data-cart-close]');
