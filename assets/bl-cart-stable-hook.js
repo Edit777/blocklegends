@@ -17,8 +17,13 @@
   let drawerQuiet = true;
   let drawerQuietTimer = null;
 
-  function isCartUrl(url) {
-    return /\/cart(\/|\.js)/i.test(String(url || ''));
+  function isCartMutationUrl(url) {
+    url = String(url || '');
+    // ignore the read-only cart snapshot endpoint
+    if (/\/cart\.js(\?|$)/i.test(url)) return false;
+
+    // treat mutating endpoints as “updates”
+    return /\/cart\/(add|change|update|clear)\.js(\?|$)/i.test(url);
   }
 
   function markDrawerDirty() {
@@ -72,7 +77,7 @@
       let url = '';
       try { url = typeof input === 'string' ? input : (input && input.url) || ''; } catch (e) {}
 
-      if (!isCartUrl(url)) return origFetch(input, init);
+      if (!isCartMutationUrl(url)) return origFetch(input, init);
 
       inFlight++;
       log('cart fetch start', inFlight, url);
@@ -104,7 +109,7 @@
 
     XHR.prototype.send = function () {
       const url = this.__bl_url || '';
-      if (!isCartUrl(url)) return origSend.apply(this, arguments);
+      if (!isCartMutationUrl(url)) return origSend.apply(this, arguments);
 
       inFlight++;
       log('cart xhr start', inFlight, this.__bl_method, url);
