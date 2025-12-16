@@ -25,13 +25,6 @@
       window.BL.mysteryAddon.init(root);
     }
 
-    if (window.BL.parentUid && typeof window.BL.parentUid.init === 'function') {
-      window.BL.parentUid.init();
-    }
-
-    if (window.BL.cartGuard && typeof window.BL.cartGuard.init === 'function') {
-      window.BL.cartGuard.init();
-    }
   }
 
   document.addEventListener('DOMContentLoaded', function () {

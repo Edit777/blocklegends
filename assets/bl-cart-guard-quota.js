@@ -15,6 +15,9 @@
     // Debug toggle: ?cart_guard_debug=1
     debugParam: 'cart_guard_debug',
 
+    // Internal header to tag guard-driven requests
+    internalHeader: 'X-BL-CART-GUARD',
+
     // How long to ignore stable events after guard itself mutates the cart (ms)
     internalMuteMs: 1200,
 
@@ -35,6 +38,7 @@
   let running = false;
   let queued = false;
   let internalMuteUntil = 0;
+  let lastStableTxnId = 0;
 
   function muteInternal() {
     internalMuteUntil = Date.now() + CFG.internalMuteMs;
@@ -68,16 +72,15 @@
     return res.json();
   }
 
-  async function changeLine(lineIndex1Based, quantity) {
-    // Shopify expects 1-based line index (based on current cart.items array order)
-    await fetch('/cart/change', {
+  async function changeLineByKey(lineKey, quantity) {
+    await fetch('/cart/change.js', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
-        'X-BL-CART-GUARD': '1'
+        [CFG.internalHeader]: '1'
       },
-      body: JSON.stringify({ line: lineIndex1Based, quantity })
+      body: JSON.stringify({ id: lineKey, quantity })
     });
   }
 
@@ -86,14 +89,13 @@
     const items = (cart && cart.items) ? cart.items : [];
 
     let parentUnits = 0;
-    let addonLines = []; // { line, qty, url }
+    let addonLines = []; // { key, qty, url }
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      const line = i + 1;
 
       if (isAddonItem(it)) {
-        addonLines.push({ line, qty: Number(it.quantity || 0), url: it.url || '' });
+        addonLines.push({ key: it.key, qty: Number(it.quantity || 0), url: it.url || '' });
       } else {
         parentUnits += Number(it.quantity || 0);
       }
@@ -126,7 +128,7 @@
       const reduceBy = Math.min(ln.qty, toRemove);
       const newQty = ln.qty - reduceBy;
 
-      changes.push({ line: ln.line, quantity: newQty });
+      changes.push({ key: ln.key, quantity: newQty });
       toRemove -= reduceBy;
     }
 
@@ -148,7 +150,7 @@
     // Apply sequentially to avoid race conditions with line indexing
     for (const ch of plan.changes) {
       log('changeLine', ch);
-      await changeLine(ch.line, ch.quantity);
+      await changeLineByKey(ch.key, ch.quantity);
     }
     return true;
   }
@@ -163,10 +165,17 @@
   // =========================
   // MAIN GUARD RUNNER
   // =========================
-  async function runGuard(reason) {
+  async function runGuard(reason, txnId) {
     // Ignore stable events immediately after the guard itself changed the cart
     if (isMuted() && reason !== 'queued') {
       return;
+    }
+
+    if (txnId && txnId < lastStableTxnId) {
+      return;
+    }
+    if (txnId) {
+      lastStableTxnId = txnId;
     }
 
     if (running) { queued = true; return; }
@@ -177,7 +186,7 @@
       const cart = await getCart();
       const plan = buildPlan(cart);
 
-      log({ reason, parentUnits: plan.parentUnits, addonUnits: plan.addonUnits, changes: plan.changes });
+      log({ reason, txnId, parentUnits: plan.parentUnits, addonUnits: plan.addonUnits, changes: plan.changes });
 
       if (plan.changes.length) {
         emitMessage(plan.message);
@@ -197,7 +206,8 @@
   // Run only at the correct time: after cart mutation + drawer settled
   document.addEventListener('bl:cart:stable', (e) => {
     const reason = (e && e.detail && e.detail.reason) || 'stable';
-    runGuard(reason);
+    const txnId = (e && e.detail && e.detail.txnId) ? Number(e.detail.txnId) : 0;
+    runGuard(reason, txnId);
   });
 
 })();

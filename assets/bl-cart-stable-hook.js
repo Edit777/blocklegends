@@ -9,6 +9,9 @@
   })();
   const log = (...a) => { if (debug) console.log('[BL:stable]', ...a); };
 
+  const DRAWER_QUIET_MS = 300;
+  const STABLE_DELAY_MS = 150;
+
   // Cart request tracking
   let inFlight = 0;
   let stableTimer = null;
@@ -16,10 +19,23 @@
   // Only emit stable after a real cart mutation finishes
   let pendingCartUpdate = false;
   let pendingExpireTimer = null;
+  let pendingTxnId = 0;
+  let mutationTxnCounter = 0;
 
   // Drawer DOM quiet detection (covers section re-render timing)
   let drawerQuiet = true;
   let drawerQuietTimer = null;
+
+  // Drawer node tracking (drawer can be re-rendered/replaced)
+  const drawerSelectors = [
+    '#CartDrawer',
+    'cart-drawer',
+    '[data-cart-drawer]',
+    '.cart-drawer'
+  ];
+  let drawerObserver = null;
+  let drawerObservedEl = null;
+  let bodyObserver = null;
 
   function isCartMutationUrl(url) {
     url = String(url || '');
@@ -30,12 +46,14 @@
     return /\/cart\/(add|change|update|clear)(\.js)?(\?|$)/i.test(url);
   }
 
-  function markPending() {
+  function markPending(txnId) {
     pendingCartUpdate = true;
+    if (txnId) pendingTxnId = txnId;
     clearTimeout(pendingExpireTimer);
     // Safety: drop pending state if something goes wrong
     pendingExpireTimer = setTimeout(() => {
       pendingCartUpdate = false;
+      pendingTxnId = 0;
     }, 4000);
   }
 
@@ -49,11 +67,13 @@
     drawerQuietTimer = setTimeout(() => {
       drawerQuiet = true;
       scheduleStable('drawer_quiet');
-    }, 140);
+    }, DRAWER_QUIET_MS);
   }
 
   function scheduleStable(reason) {
     clearTimeout(stableTimer);
+    const txnId = pendingTxnId || mutationTxnCounter;
+
     stableTimer = setTimeout(() => {
       if (inFlight !== 0) return;
       if (!drawerQuiet) return;
@@ -64,31 +84,55 @@
       pendingCartUpdate = false;
       clearTimeout(pendingExpireTimer);
 
-      log('stable', { reason });
-      document.dispatchEvent(new CustomEvent('bl:cart:stable', { detail: { reason } }));
-    }, 80);
+      const detailTxn = pendingTxnId || txnId;
+      pendingTxnId = 0;
+
+      log('stable', { reason, txnId: detailTxn });
+      document.dispatchEvent(new CustomEvent('bl:cart:stable', { detail: { reason, txnId: detailTxn } }));
+    }, STABLE_DELAY_MS);
+  }
+
+  function findDrawerEl() {
+    for (const sel of drawerSelectors) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
   }
 
   // Observe cart drawer DOM changes (works even if theme does sections rendering)
-  function setupDrawerObserver() {
-    // Try common drawer containers; adjust selectors if your theme differs.
-    const selectors = [
-      '#CartDrawer',
-      'cart-drawer',
-      '[data-cart-drawer]',
-      '.cart-drawer'
-    ];
+  function attachDrawerObserver() {
+    const el = findDrawerEl();
+    if (!el) return;
 
-    let el = null;
-    for (const sel of selectors) {
-      el = document.querySelector(sel);
-      if (el) break;
-    }
-    if (!el) return; // not fatal; fetch tracking still works
+    if (drawerObservedEl === el && drawerObserver) return;
 
-    const mo = new MutationObserver(() => markDrawerDirty());
-    mo.observe(el, { subtree: true, childList: true, attributes: true, characterData: true });
+    if (drawerObserver) drawerObserver.disconnect();
+
+    drawerObservedEl = el;
+    drawerObserver = new MutationObserver(() => markDrawerDirty());
+    drawerObserver.observe(el, { subtree: true, childList: true, attributes: true, characterData: true });
     log('drawer observer attached', el);
+  }
+
+  function watchDrawerMount() {
+    if (bodyObserver || !window.MutationObserver) return;
+
+    bodyObserver = new MutationObserver(() => {
+      const candidate = findDrawerEl();
+
+      if (candidate && candidate !== drawerObservedEl) {
+        attachDrawerObserver();
+        return;
+      }
+
+      if (drawerObservedEl && !document.body.contains(drawerObservedEl)) {
+        attachDrawerObserver();
+      }
+    });
+
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+    attachDrawerObserver();
   }
 
   // Wrap fetch
@@ -102,14 +146,15 @@
 
       if (!isCartMutationUrl(url)) return origFetch(input, init);
 
+      const txnId = ++mutationTxnCounter;
       inFlight++;
-      log('cart fetch start', inFlight, url);
+      markPending(txnId);
+      log('cart fetch start', { inFlight, url, txnId });
 
       return origFetch(input, init)
         .finally(() => {
           inFlight = Math.max(0, inFlight - 1);
-          log('cart fetch done', inFlight, url);
-          markPending();
+          log('cart fetch done', { inFlight, url, txnId });
           // After cart request completes, the theme may still be re-rendering drawer sections.
           // Our drawer observer (if present) will extend the quiet window as needed.
           scheduleStable('cart_fetch_done');
@@ -135,13 +180,14 @@
       const url = this.__bl_url || '';
       if (!isCartMutationUrl(url)) return origSend.apply(this, arguments);
 
+      const txnId = ++mutationTxnCounter;
       inFlight++;
-      log('cart xhr start', inFlight, this.__bl_method, url);
+      markPending(txnId);
+      log('cart xhr start', { inFlight, method: this.__bl_method, url, txnId });
 
       this.addEventListener('loadend', () => {
         inFlight = Math.max(0, inFlight - 1);
-        log('cart xhr done', inFlight, this.__bl_method, url);
-        markPending();
+        log('cart xhr done', { inFlight, method: this.__bl_method, url, txnId });
         scheduleStable('cart_xhr_done');
       });
 
@@ -151,9 +197,9 @@
 
   // Start observer after DOM ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupDrawerObserver, { once: true });
+    document.addEventListener('DOMContentLoaded', watchDrawerMount, { once: true });
   } else {
-    setupDrawerObserver();
+    watchDrawerMount();
   }
 
   // Allow manual poke from other scripts if needed
