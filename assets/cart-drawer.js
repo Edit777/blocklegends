@@ -11,13 +11,16 @@
 
   constructor(root, { skipInitialRefresh = false } = {}) {
     this.root = root;
+    this.fallbackCountdownIntervals = new Set();
     this.mapElements();
     this.bindHandlers();
     this.attachEvents();
     this.bindAddToCartForms();
+    CartDrawerController.ensureGlobalObservers();
     this.closeTimeout = null;
     this.setVisibility(this.root.classList.contains('active'));
     this.renderInitialSkeleton();
+    this.restartCountdownTimers();
     if (!skipInitialRefresh) this.refreshCart();
   }
 
@@ -144,6 +147,10 @@
   }
 
   bindAddToCartForms() {
+    if (this.addToCartForms?.length) {
+      this.addToCartForms.forEach((form) => form.removeEventListener('submit', this.onAddToCartSubmit));
+    }
+
     this.addToCartForms = Array.from(document.querySelectorAll('form[action*="/cart/add"]'));
     this.addToCartForms.forEach((form) => {
       form.addEventListener('submit', this.onAddToCartSubmit);
@@ -152,6 +159,8 @@
 
   destroy() {
     this.detachEvents();
+    this.fallbackCountdownIntervals.forEach((interval) => clearInterval(interval));
+    this.fallbackCountdownIntervals.clear();
     this.root = null;
   }
 
@@ -159,6 +168,23 @@
     if (this.root.dataset.emptyStateInitial === 'true') {
       this.showEmptyState();
     }
+  }
+
+  static ensureGlobalObservers() {
+    if (this.drawerObserver || typeof MutationObserver === 'undefined') return;
+
+    this.drawerObserver = new MutationObserver(() => {
+      const drawer = document.querySelector('[data-cart-drawer]');
+      if (!drawer) return;
+      if (!CartDrawerController.instance || CartDrawerController.instance.root !== drawer) {
+        CartDrawerController.init(drawer, { skipInitialRefresh: true });
+      } else {
+        CartDrawerController.instance.bindAddToCartForms();
+        CartDrawerController.instance.restartCountdownTimers();
+      }
+    });
+
+    this.drawerObserver.observe(document.body, { childList: true, subtree: true });
   }
 
   async refreshCart() {
@@ -339,6 +365,52 @@
       newScript.textContent = oldScript.textContent;
       oldScript.replaceWith(newScript);
     });
+  }
+
+  restartCountdownTimers() {
+    const timers = this.root?.querySelectorAll('countdown-timer') || [];
+    timers.forEach((timer) => {
+      if (typeof timer.restart === 'function') return timer.restart();
+      if (typeof timer.start === 'function') return timer.start();
+      if (typeof timer.resume === 'function') return timer.resume();
+      this.startFallbackCountdown(timer);
+    });
+  }
+
+  startFallbackCountdown(timer) {
+    if (!timer) return;
+
+    const duration = Number(timer.dataset.duration || timer.getAttribute('data-duration'));
+    if (!Number.isFinite(duration) || duration <= 0) return;
+
+    if (timer.__fallbackInterval) {
+      clearInterval(timer.__fallbackInterval);
+      this.fallbackCountdownIntervals.delete(timer.__fallbackInterval);
+    }
+
+    const start = Date.now();
+
+    const update = () => {
+      const elapsedMs = Date.now() - start;
+      const remainingSeconds = Math.max(0, Math.ceil((duration * 1000 - elapsedMs) / 1000));
+      const minutes = Math.floor(remainingSeconds / 60)
+        .toString()
+        .padStart(1, '0');
+      const seconds = (remainingSeconds % 60).toString().padStart(2, '0');
+      timer.textContent = `${minutes}:${seconds}`;
+      if (remainingSeconds <= 0) this.stopFallbackCountdown(timer);
+    };
+
+    update();
+    timer.__fallbackInterval = setInterval(update, 1000);
+    this.fallbackCountdownIntervals.add(timer.__fallbackInterval);
+  }
+
+  stopFallbackCountdown(timer) {
+    if (!timer?.__fallbackInterval) return;
+    clearInterval(timer.__fallbackInterval);
+    this.fallbackCountdownIntervals.delete(timer.__fallbackInterval);
+    delete timer.__fallbackInterval;
   }
 
   open() {
