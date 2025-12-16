@@ -26,8 +26,8 @@
     // ignore the read-only cart snapshot endpoint
     if (/\/cart\.js(\?|$)/i.test(url)) return false;
 
-    // treat mutating endpoints as “updates”
-    return /\/cart\/(add|change|update|clear)\.js(\?|$)/i.test(url);
+    // match both JS and non-JS mutation endpoints
+    return /\/cart\/(add|change|update|clear)(\.js)?(\?|$)/i.test(url);
   }
 
   function markPending() {
