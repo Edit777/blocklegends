@@ -815,6 +815,12 @@
     if (window.__cartDrawerCloseFallbackAttached) return;
     window.__cartDrawerCloseFallbackAttached = true;
 
+    const hasNativeCartDrawer = () => {
+      const nativeElement = document.querySelector('cart-drawer');
+      const nativeDefinition = window.customElements?.get?.('cart-drawer');
+      return Boolean(nativeElement && nativeDefinition && nativeDefinition !== window.CartDrawerController);
+    };
+
     const parseDuration = (node) => {
       try {
         const value = getComputedStyle(node).getPropertyValue('--duration-default').trim();
@@ -831,6 +837,8 @@
     const handleClose = (event) => {
       const trigger = event.target.closest('[data-cart-close-fallback]');
       if (!trigger) return;
+
+      if (hasNativeCartDrawer()) return;
 
       event.preventDefault();
 
