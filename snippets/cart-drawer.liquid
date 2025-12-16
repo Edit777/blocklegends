@@ -54,9 +54,10 @@
             <div class="cart-drawer__empty-content">
               <h2 class="cart__empty-text">{{ 'sections.cart.empty' | t }}</h2>
               <button
-                class="drawer__close"
+                class="drawer__close cart-drawer__close-trigger"
                 type="button"
                 data-cart-close
+                data-cart-close-fallback
                 aria-label="{{ 'accessibility.close' | t }}"
               >
                 {% render 'icon-close' %}
@@ -95,9 +96,10 @@
           {{ section.settings.heading_text | replace: '[count]', non_upsell_count }}
         </h2>
         <button
-          class="drawer__close"
+          class="drawer__close cart-drawer__close-trigger"
           type="button"
           data-cart-close
+          data-cart-close-fallback
           aria-label="{{ 'accessibility.close' | t }}"
         >
           {% render 'icon-close' %}
@@ -806,4 +808,59 @@
       document.querySelector('#cart').submit();
     });
   });
+</script>
+
+<script>
+  (() => {
+    if (window.__cartDrawerCloseFallbackAttached) return;
+    window.__cartDrawerCloseFallbackAttached = true;
+
+    const hasNativeCartDrawer = () => {
+      const nativeElement = document.querySelector('cart-drawer');
+      const nativeDefinition = window.customElements?.get?.('cart-drawer');
+      return Boolean(nativeElement && nativeDefinition && nativeDefinition !== window.CartDrawerController);
+    };
+
+    const parseDuration = (node) => {
+      try {
+        const value = getComputedStyle(node).getPropertyValue('--duration-default').trim();
+        if (!value) return 200;
+        const numeric = Number.parseFloat(value);
+        if (Number.isNaN(numeric)) return 200;
+        return value.endsWith('ms') ? numeric : numeric * 1000;
+      } catch (error) {
+        console.error(error);
+        return 200;
+      }
+    };
+
+    const handleClose = (event) => {
+      const trigger = event.target.closest('[data-cart-close-fallback]');
+      if (!trigger) return;
+
+      if (hasNativeCartDrawer()) return;
+
+      event.preventDefault();
+
+      const controller = window.CartDrawerController?.instance;
+      if (controller) {
+        controller.close();
+        return;
+      }
+
+      const drawer = trigger.closest('[data-cart-drawer]');
+      if (!drawer) return;
+
+      drawer.classList.remove('active');
+      document.body.classList.remove('overflow-hidden');
+
+      const timeout = parseDuration(drawer);
+      window.clearTimeout(drawer.__cartDrawerHideTimeout);
+      drawer.__cartDrawerHideTimeout = window.setTimeout(() => {
+        drawer.style.visibility = 'hidden';
+      }, timeout);
+    };
+
+    document.addEventListener('click', handleClose, true);
+  })();
 </script>
