@@ -472,6 +472,28 @@
     if (drawer) CartDrawerController.init(drawer, { skipInitialRefresh: true });
   });
 
+  async function loadDrawerMarkup() {
+    const response = await fetch('/?sections=cart-drawer');
+    const data = await response.json();
+    const html = data['cart-drawer'];
+    if (!html) throw new Error('Missing cart drawer section HTML');
+
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    const drawer = temp.querySelector('[data-cart-drawer]');
+    if (!drawer) throw new Error('Cart drawer markup missing');
+
+    temp.querySelectorAll('script').forEach((oldScript) => {
+      if (oldScript.src) return;
+      const newScript = document.createElement('script');
+      newScript.textContent = oldScript.textContent;
+      oldScript.replaceWith(newScript);
+    });
+
+    document.body.appendChild(drawer);
+    return drawer;
+  }
+
   document.addEventListener(
     'click',
     (event) => {
@@ -481,17 +503,22 @@
       if (!toggle || CartDrawerController.instance) return;
 
       const drawer = document.querySelector('[data-cart-drawer]');
-      if (!drawer) {
-        console.info('[Cart Drawer] Toggle clicked but no drawer present; default cart expected.');
-        return;
-      }
 
-      const instance = CartDrawerController.init(drawer, { skipInitialRefresh: true });
-      if (!instance) return;
+      const bootstrapAndOpen = async () => {
+        try {
+          const targetDrawer = drawer || (await loadDrawerMarkup());
+          const instance = CartDrawerController.init(targetDrawer, { skipInitialRefresh: true });
+          if (!instance) return;
 
-      event.preventDefault();
-      instance.open();
-      console.info('[Cart Drawer] Drawer initialized on-demand after toggle click.');
+          event.preventDefault();
+          instance.open();
+          console.info('[Cart Drawer] Drawer initialized on-demand after toggle click.');
+        } catch (error) {
+          console.error(error);
+        }
+      };
+
+      bootstrapAndOpen();
     },
     true
   );
