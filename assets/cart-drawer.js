@@ -1,10 +1,12 @@
-if (!window.CartDrawer) {
-  class CartDrawer {
+(() => {
+  const global = window;
+
+  class CartDrawerController {
   static init(root, options = {}) {
     if (!root) return null;
-    if (CartDrawer.instance) CartDrawer.instance.destroy();
-    CartDrawer.instance = new CartDrawer(root, options);
-    return CartDrawer.instance;
+    if (CartDrawerController.instance) CartDrawerController.instance.destroy();
+    CartDrawerController.instance = new CartDrawerController(root, options);
+    return CartDrawerController.instance;
   }
 
   constructor(root, { skipInitialRefresh = false } = {}) {
@@ -144,8 +146,6 @@ if (!window.CartDrawer) {
   bindAddToCartForms() {
     this.addToCartForms = Array.from(document.querySelectorAll('form[action*="/cart/add"]'));
     this.addToCartForms.forEach((form) => {
-      if (form.dataset.cartDrawerBound === 'true') return;
-      form.dataset.cartDrawerBound = 'true';
       form.addEventListener('submit', this.onAddToCartSubmit);
     });
   }
@@ -183,8 +183,8 @@ if (!window.CartDrawer) {
       currentRoot?.replaceWith(newDrawer);
       this.runInlineScripts(newDrawer);
       this.root = null;
-      CartDrawer.init(newDrawer, { skipInitialRefresh: true });
-      if (shouldStayOpen && CartDrawer.instance) CartDrawer.instance.open();
+      CartDrawerController.init(newDrawer, { skipInitialRefresh: true });
+      if (shouldStayOpen && CartDrawerController.instance) CartDrawerController.instance.open();
       this.dispatchCartEvent('cart-drawer:rendered', { reason: 'refresh' });
     } catch (error) {
       console.error(error);
@@ -215,6 +215,7 @@ if (!window.CartDrawer) {
     const errorMessage = this.root?.dataset.quantityError || 'Error updating cart';
     try {
       this.setLoading(true);
+      this.setAddToCartState(form, true);
       const response = await fetch('/cart/add.js', {
         method: 'POST',
         headers: { Accept: 'application/json' },
@@ -228,7 +229,10 @@ if (!window.CartDrawer) {
       }
 
       await this.refreshCart();
-      this.open();
+
+      // Always open the most recent controller instance to avoid using a
+      // destroyed reference after the cart section re-renders.
+      CartDrawerController.instance?.open?.();
     } catch (error) {
       console.error(error);
       this.showError(error?.message || errorMessage);
@@ -238,6 +242,7 @@ if (!window.CartDrawer) {
       }
     } finally {
       this.setLoading(false);
+      this.setAddToCartState(form, false);
     }
   }
 
@@ -259,6 +264,33 @@ if (!window.CartDrawer) {
 
   setLoading(isLoading) {
     this.root?.classList?.toggle('is-loading', Boolean(isLoading));
+  }
+
+  setAddToCartState(form, isLoading) {
+    if (!form) return;
+
+    const submitButton = form.querySelector('[type="submit"][name="add"]');
+    const spinner = submitButton?.querySelector('.loading-overlay__spinner');
+    const errorSummary = form.querySelector('[data-form-error]');
+
+    if (errorSummary) errorSummary.textContent = '';
+    if (!submitButton) return;
+
+    if (isLoading) {
+      submitButton.dataset.prevDisabled = submitButton.hasAttribute('disabled');
+      submitButton.setAttribute('disabled', 'true');
+      submitButton.classList.add('loading');
+      spinner?.classList?.remove('hidden');
+      submitButton.setAttribute('aria-busy', 'true');
+    } else {
+      submitButton.removeAttribute('aria-busy');
+      submitButton.classList.remove('loading');
+      if (submitButton.dataset.prevDisabled !== 'true' && submitButton.dataset.unavailable !== 'true') {
+        submitButton.removeAttribute('disabled');
+      }
+      delete submitButton.dataset.prevDisabled;
+      spinner?.classList?.add('hidden');
+    }
   }
 
   getTransitionDuration() {
@@ -342,11 +374,43 @@ if (!window.CartDrawer) {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    if (window.__cartDrawerBootstrapped) return;
-    window.__cartDrawerBootstrapped = true;
+    if (global.__cartDrawerBootstrapped) return;
+    global.__cartDrawerBootstrapped = true;
     const drawer = document.querySelector('[data-cart-drawer]');
-    if (drawer) CartDrawer.init(drawer, { skipInitialRefresh: true });
+    const toggles = document.querySelectorAll('[data-cart-toggle], #cart-icon-bubble');
+    const usingCustomDrawer = Boolean(drawer);
+
+    const nativeElement = global.customElements?.get?.('cart-drawer');
+    const hasConflictingCartDrawer = Boolean(nativeElement) && nativeElement !== CartDrawerController;
+
+    console.info(
+      `[Cart Drawer] Mode: ${usingCustomDrawer ? 'Custom cart drawer active' : 'Default cart behavior (drawer markup missing)'}; ${toggles.length} toggle(s) detected. ${hasConflictingCartDrawer ? 'Native cart drawer element already registered.' : ''}`
+    );
+
+    if (drawer) CartDrawerController.init(drawer, { skipInitialRefresh: true });
   });
 
-  window.CartDrawer = CartDrawer;
-}
+  document.addEventListener(
+    'click',
+    (event) => {
+      const toggle = event.target.closest('[data-cart-toggle], #cart-icon-bubble');
+      if (!toggle || CartDrawerController.instance) return;
+
+      const drawer = document.querySelector('[data-cart-drawer]');
+      if (!drawer) {
+        console.info('[Cart Drawer] Toggle clicked but no drawer present; default cart expected.');
+        return;
+      }
+
+      const instance = CartDrawerController.init(drawer, { skipInitialRefresh: true });
+      if (!instance) return;
+
+      event.preventDefault();
+      instance.open();
+      console.info('[Cart Drawer] Drawer initialized on-demand after toggle click.');
+    },
+    true
+  );
+
+  global.CartDrawerController = CartDrawerController;
+})();
