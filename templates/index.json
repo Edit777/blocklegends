@@ -94,6 +94,7 @@
           "type": "featured_collection",
           "settings": {
             "collection": "magic-legacy-1",
+            "custom_image": "shopify://shop_images/Use_reference_1_2k_202512162008.jpg",
             "custom_title": ""
           }
         },
@@ -101,6 +102,7 @@
           "type": "featured_collection",
           "settings": {
             "collection": "clash-legends-1",
+            "custom_image": "shopify://shop_images/Ultradetailed_photorealistic_169_2025120800.jpg",
             "custom_title": ""
           }
         },
