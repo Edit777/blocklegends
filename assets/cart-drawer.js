@@ -426,6 +426,7 @@
 
   open() {
     clearTimeout(this.closeTimeout);
+    this.closeTimeout = null;
     this.setVisibility(true);
     this.root?.classList?.add('active');
     document.body.classList.add('overflow-hidden');
@@ -437,7 +438,12 @@
     clearTimeout(this.closeTimeout);
     this.root?.classList?.remove('active');
     document.body.classList.remove('overflow-hidden');
-    this.closeTimeout = setTimeout(() => this.setVisibility(false), this.getTransitionDuration());
+    const duration = this.getTransitionDuration();
+    this.closeTimeout = setTimeout(() => {
+      if (!this.root?.classList?.contains('active')) {
+        this.setVisibility(false);
+      }
+    }, duration);
   }
 
   formatMoney(value, showCurrency = false) {
