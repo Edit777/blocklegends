@@ -1,9 +1,8 @@
 /* =======================================================
-   BLOCK LEGENDS — CART GUARD (ONE-TO-ONE)
-   - Enforces a strict 1:1 relationship between parent lines and add-ons
-   - Each parent UID may have at most one parent line (qty forced to 1)
-   - Each parent UID may have at most one add-on line (qty forced to 1)
-   - Orphaned add-ons are removed
+   BLOCK LEGENDS — CART GUARD (1:1 PARENT ⇄ ADD-ON)
+   - One parent UID maps to exactly one parent line and one add-on line
+   - Parent and add-on quantities are forced to 1 (increment/decrement undo)
+   - Extra parents/add-ons are removed, orphans are removed
    - Runs after cart mutations and before checkout
    ======================================================= */
 
@@ -90,6 +89,7 @@
 
       if (isAddon(item)) {
         if (!uid) {
+          // add-on with no parent assignment — remove
           changes.push({ key: item.key, line: lineNumber, qty: 0 });
           debugLog('remove-orphan-addon-no-uid', meta);
           return;
@@ -99,7 +99,8 @@
         return;
       }
 
-      if (!uid) return; // only guard parents participating in the 1:1 contract
+      // Only enforce uniqueness on parents that participate in the UID contract
+      if (!uid) return;
 
       if (!parents[uid]) {
         parents[uid] = meta;
@@ -134,12 +135,14 @@
 
       addons.forEach(function (meta, index) {
         if (index > 0) {
+          // Only one add-on per UID
           changes.push({ key: meta.key, line: meta.line, qty: 0 });
           debugLog('remove-extra-addon', meta);
           return;
         }
 
         if (meta.qty !== 1) {
+          // force qty to 1 so increment/decrement controls cannot stack
           changes.push({ key: meta.key, line: meta.line, qty: 1 });
           debugLog('normalize-addon-qty', { uid: uid, from: meta.qty, to: 1 });
         }
