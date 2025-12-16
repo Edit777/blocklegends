@@ -52,12 +52,17 @@
   }
 
   bindHandlers() {
-    this.onOverlayClick = () => this.close();
+    this.onOverlayClick = (event) => {
+      event?.stopPropagation?.();
+      this.close();
+    };
     this.onCloseButtonClick = (event) => {
-      if (event.target.closest('[data-cart-close]')) {
-        event.preventDefault();
-        this.close();
-      }
+      const closeButton = event.target.closest('[data-cart-close]');
+      if (!closeButton) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
     };
     this.onDocumentClose = (event) => {
       const closeBtn = event.target.closest('[data-cart-close]');
