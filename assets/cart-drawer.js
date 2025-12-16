@@ -1,10 +1,12 @@
-if (!window.CartDrawer) {
-  class CartDrawer {
+(() => {
+  const global = window;
+
+  class CartDrawerController {
   static init(root, options = {}) {
     if (!root) return null;
-    if (CartDrawer.instance) CartDrawer.instance.destroy();
-    CartDrawer.instance = new CartDrawer(root, options);
-    return CartDrawer.instance;
+    if (CartDrawerController.instance) CartDrawerController.instance.destroy();
+    CartDrawerController.instance = new CartDrawerController(root, options);
+    return CartDrawerController.instance;
   }
 
   constructor(root, { skipInitialRefresh = false } = {}) {
@@ -183,8 +185,8 @@ if (!window.CartDrawer) {
       currentRoot?.replaceWith(newDrawer);
       this.runInlineScripts(newDrawer);
       this.root = null;
-      CartDrawer.init(newDrawer, { skipInitialRefresh: true });
-      if (shouldStayOpen && CartDrawer.instance) CartDrawer.instance.open();
+      CartDrawerController.init(newDrawer, { skipInitialRefresh: true });
+      if (shouldStayOpen && CartDrawerController.instance) CartDrawerController.instance.open();
       this.dispatchCartEvent('cart-drawer:rendered', { reason: 'refresh' });
     } catch (error) {
       console.error(error);
@@ -342,24 +344,27 @@ if (!window.CartDrawer) {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    if (window.__cartDrawerBootstrapped) return;
-    window.__cartDrawerBootstrapped = true;
+    if (global.__cartDrawerBootstrapped) return;
+    global.__cartDrawerBootstrapped = true;
     const drawer = document.querySelector('[data-cart-drawer]');
     const toggles = document.querySelectorAll('[data-cart-toggle], #cart-icon-bubble');
     const usingCustomDrawer = Boolean(drawer);
 
+    const nativeElement = global.customElements?.get?.('cart-drawer');
+    const hasConflictingCartDrawer = Boolean(nativeElement) && nativeElement !== CartDrawerController;
+
     console.info(
-      `[Cart Drawer] Mode: ${usingCustomDrawer ? 'Custom cart drawer active' : 'Default cart behavior (drawer markup missing)'}; ${toggles.length} toggle(s) detected.`
+      `[Cart Drawer] Mode: ${usingCustomDrawer ? 'Custom cart drawer active' : 'Default cart behavior (drawer markup missing)'}; ${toggles.length} toggle(s) detected. ${hasConflictingCartDrawer ? 'Native cart drawer element already registered.' : ''}`
     );
 
-    if (drawer) CartDrawer.init(drawer, { skipInitialRefresh: true });
+    if (drawer) CartDrawerController.init(drawer, { skipInitialRefresh: true });
   });
 
   document.addEventListener(
     'click',
     (event) => {
       const toggle = event.target.closest('[data-cart-toggle], #cart-icon-bubble');
-      if (!toggle || CartDrawer.instance) return;
+      if (!toggle || CartDrawerController.instance) return;
 
       const drawer = document.querySelector('[data-cart-drawer]');
       if (!drawer) {
@@ -367,7 +372,7 @@ if (!window.CartDrawer) {
         return;
       }
 
-      const instance = CartDrawer.init(drawer, { skipInitialRefresh: true });
+      const instance = CartDrawerController.init(drawer, { skipInitialRefresh: true });
       if (!instance) return;
 
       event.preventDefault();
@@ -377,5 +382,5 @@ if (!window.CartDrawer) {
     true
   );
 
-  window.CartDrawer = CartDrawer;
-}
+  global.CartDrawerController = CartDrawerController;
+})();
