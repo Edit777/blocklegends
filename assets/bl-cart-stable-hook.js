@@ -13,6 +13,10 @@
   let inFlight = 0;
   let stableTimer = null;
 
+  // Only emit stable after a real cart mutation finishes
+  let pendingCartUpdate = false;
+  let pendingExpireTimer = null;
+
   // Drawer DOM quiet detection (covers section re-render timing)
   let drawerQuiet = true;
   let drawerQuietTimer = null;
@@ -26,7 +30,19 @@
     return /\/cart\/(add|change|update|clear)\.js(\?|$)/i.test(url);
   }
 
+  function markPending() {
+    pendingCartUpdate = true;
+    clearTimeout(pendingExpireTimer);
+    // Safety: drop pending state if something goes wrong
+    pendingExpireTimer = setTimeout(() => {
+      pendingCartUpdate = false;
+    }, 4000);
+  }
+
   function markDrawerDirty() {
+    // Ignore drawer churn (e.g., timers) unless a cart mutation is pending
+    if (!pendingCartUpdate && inFlight === 0) return;
+
     drawerQuiet = false;
     clearTimeout(drawerQuietTimer);
     // Quiet window: when no mutations for X ms, assume drawer finished re-render
@@ -41,6 +57,13 @@
     stableTimer = setTimeout(() => {
       if (inFlight !== 0) return;
       if (!drawerQuiet) return;
+
+      // Only emit stable if we are finishing a real cart mutation
+      if (!pendingCartUpdate) return;
+
+      pendingCartUpdate = false;
+      clearTimeout(pendingExpireTimer);
+
       log('stable', { reason });
       document.dispatchEvent(new CustomEvent('bl:cart:stable', { detail: { reason } }));
     }, 80);
@@ -86,6 +109,7 @@
         .finally(() => {
           inFlight = Math.max(0, inFlight - 1);
           log('cart fetch done', inFlight, url);
+          markPending();
           // After cart request completes, the theme may still be re-rendering drawer sections.
           // Our drawer observer (if present) will extend the quiet window as needed.
           scheduleStable('cart_fetch_done');
@@ -117,6 +141,7 @@
       this.addEventListener('loadend', () => {
         inFlight = Math.max(0, inFlight - 1);
         log('cart xhr done', inFlight, this.__bl_method, url);
+        markPending();
         scheduleStable('cart_xhr_done');
       });
 
