@@ -57,7 +57,7 @@
       this.close();
     };
     this.onCloseButtonClick = (event) => {
-      const closeButton = event.target.closest('[data-cart-close]');
+      const closeButton = event.target.closest?.('[data-cart-close]');
       if (!closeButton) return;
 
       event.preventDefault();
@@ -65,7 +65,7 @@
       this.close();
     };
     this.onDocumentClose = (event) => {
-      const closeBtn = event.target.closest('[data-cart-close]');
+      const closeBtn = event.target.closest?.('[data-cart-close]');
       if (!closeBtn) return;
       event.preventDefault();
       this.close();
