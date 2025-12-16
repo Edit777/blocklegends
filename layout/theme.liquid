@@ -622,8 +622,8 @@
         })
       </script>
     {% endif %}
-    {{ 'bl-cart-stable-hook.js' | asset_url | script_tag }}
-    {{ 'bl-cart-guard-quota.js' | asset_url | script_tag }}
+    <script src="{{ 'bl-cart-stable-hook.js' | asset_url }}" defer></script>
+    <script src="{{ 'bl-cart-guard-quota.js' | asset_url }}" defer></script> 
     {% if settings.display_store_languages %}
       {% render 'enabled-languages-modal' %}
     {% endif %}
