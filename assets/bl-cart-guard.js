@@ -1,13 +1,10 @@
 /* =======================================================
-   BLOCK LEGENDS — CART GUARD (REWRITE)
-   Purpose:
-   - Keep add-ons tied to a valid parent line (UID preferred, handle fallback).
-   - Allow any mix of add-on variants as long as the combined add-on quantity
-     does not exceed the parent's quantity (per-unit multiplier supported).
-   - Auto-balance totals when they drift (trim extras, top up the first add-on
-     line when the parent quantity increases).
-   - Play nicely with the new cart-drawer.js refresh cycle (listens for
-     `cart-drawer:rendered`).
+   BLOCK LEGENDS — CART GUARD (ONE-TO-ONE)
+   - Enforces a strict 1:1 relationship between parent lines and add-ons
+   - Each parent UID may have at most one parent line (qty forced to 1)
+   - Each parent UID may have at most one add-on line (qty forced to 1)
+   - Orphaned add-ons are removed
+   - Runs after cart mutations and before checkout
    ======================================================= */
 
 (function () {
@@ -22,7 +19,6 @@
     propIsAddon: '_bl_is_addon',
     propParentHandle: '_bl_parent_handle',
     propParentUid: '_bl_parent_uid',
-    maxAddonsPerParent: 1,
     networkDebounceMs: 200,
     mutationDebounceMs: 250
   };
@@ -34,6 +30,14 @@
   function toNumber(value) {
     var n = Number(value);
     return Number.isFinite(n) ? n : 0;
+  }
+
+  function debugLog() {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('bl_mystery_debug') !== '1') return;
+    } catch (e) {}
+    var args = Array.prototype.slice.call(arguments);
+    try { console.log.apply(console, ['[BL CartGuard][debug]'].concat(args)); } catch (e2) {}
   }
 
   function isAddon(item) {
@@ -67,102 +71,79 @@
     }).catch(function () {});
   }
 
-  function debugLog() {
-    try {
-      if (typeof localStorage !== 'undefined' && localStorage.getItem('bl_mystery_debug') !== '1') return;
-    } catch (e) {}
-    var args = Array.prototype.slice.call(arguments);
-    try { console.log.apply(console, ['[BL CartGuard][debug]'].concat(args)); } catch (e2) {}
-  }
+  function computeChanges(cart) {
+    if (!cart || !cart.items || !cart.items.length) return [];
 
-  function buildParentMaps(cart) {
-    var parentsByUid = {};
-    var parentsByHandle = {};
-
-    (cart.items || []).forEach(function (item) {
-      if (!item || isAddon(item)) return;
-      var qty = Math.max(0, toNumber(item.quantity));
-      var uid = toStr(item.properties && item.properties[G.CFG.propParentUid]);
-      var handle = toStr(item.handle || item.product_handle);
-
-      if (uid) parentsByUid[uid] = (parentsByUid[uid] || 0) + qty;
-      if (handle) parentsByHandle[handle] = (parentsByHandle[handle] || 0) + qty;
-    });
-
-    return { parentsByUid: parentsByUid, parentsByHandle: parentsByHandle };
-  }
-
-  function collectAddonGroups(cart, parentsByUid, parentsByHandle) {
-    var perParent = Math.max(1, toNumber(G.CFG.maxAddonsPerParent || 1));
-    var groups = {};
-    var immediate = [];
+    var parents = {};
+    var duplicateParents = [];
+    var addonGroups = {};
+    var changes = [];
 
     (cart.items || []).forEach(function (item, idx) {
-      if (!item || !isAddon(item)) return;
+      if (!item) return;
 
       var lineNumber = toNumber(item.line || idx + 1);
       var qty = Math.max(0, toNumber(item.quantity));
       var uid = toStr(item.properties && item.properties[G.CFG.propParentUid]);
       var parentHandle = toStr(item.properties && item.properties[G.CFG.propParentHandle]);
+      var meta = { key: item.key, line: lineNumber, qty: qty, uid: uid, handle: parentHandle };
 
-      var allowed = 0;
-      if (uid && parentsByUid[uid]) allowed = parentsByUid[uid] * perParent;
-      else if (parentHandle && parentsByHandle[parentHandle]) allowed = parentsByHandle[parentHandle] * perParent;
-
-      var groupKey = uid ? ('uid:' + uid) : parentHandle ? ('handle:' + parentHandle) : '';
-
-      if (!groupKey || allowed <= 0) {
-        immediate.push({ key: item.key, line: lineNumber, qty: 0 });
-        debugLog('remove-orphan', { key: item.key, uid: uid, handle: parentHandle });
+      if (isAddon(item)) {
+        if (!uid) {
+          changes.push({ key: item.key, line: lineNumber, qty: 0 });
+          debugLog('remove-orphan-addon-no-uid', meta);
+          return;
+        }
+        if (!addonGroups[uid]) addonGroups[uid] = [];
+        addonGroups[uid].push(meta);
         return;
       }
 
-      var group = groups[groupKey];
-      if (!group) {
-        group = { allowed: allowed, lines: [], total: 0 };
-        groups[groupKey] = group;
+      if (!uid) return; // only guard parents participating in the 1:1 contract
+
+      if (!parents[uid]) {
+        parents[uid] = meta;
       } else {
-        group.allowed = Math.max(group.allowed, allowed);
+        duplicateParents.push(meta);
       }
 
-      group.lines.push({ key: item.key, line: lineNumber, qty: qty });
-      group.total += qty;
+      if (qty !== 1) {
+        changes.push({ key: item.key, line: lineNumber, qty: 1 });
+        debugLog('normalize-parent-qty', { uid: uid, from: qty, to: 1 });
+      }
     });
 
-    return { groups: groups, immediate: immediate };
-  }
+    // Remove duplicate parents, keep the first instance per UID
+    duplicateParents.forEach(function (meta) {
+      changes.push({ key: meta.key, line: meta.line, qty: 0 });
+      debugLog('remove-duplicate-parent', meta);
+    });
 
-  function computeChanges(cart) {
-    if (!cart || !cart.items || !cart.items.length) return [];
+    // Validate add-ons per parent UID
+    Object.keys(addonGroups).forEach(function (uid) {
+      var addons = addonGroups[uid];
+      var parent = parents[uid];
 
-    var parents = buildParentMaps(cart);
-    var grouped = collectAddonGroups(cart, parents.parentsByUid, parents.parentsByHandle);
-    var changes = grouped.immediate.slice();
-
-    Object.keys(grouped.groups).forEach(function (key) {
-      var meta = grouped.groups[key];
-      var allowed = Math.max(0, meta.allowed);
-      var total = Math.max(0, meta.total);
-
-      // Trim extras while keeping the earliest lines intact.
-      if (total > allowed) {
-        var remaining = allowed;
-        meta.lines.forEach(function (line) {
-          var desired = Math.min(line.qty, Math.max(0, remaining));
-          remaining -= desired;
-          if (desired !== line.qty) changes.push({ key: line.key, line: line.line, qty: desired });
+      if (!parent) {
+        addons.forEach(function (meta) {
+          changes.push({ key: meta.key, line: meta.line, qty: 0 });
+          debugLog('remove-orphan-addon', meta);
         });
-        debugLog('trim-addons', { key: key, allowed: allowed, total: total });
         return;
       }
 
-      // If we are short, bump the first line to match the parent total (keeps ratios simple).
-      if (total < allowed && meta.lines.length) {
-        var first = meta.lines[0];
-        var desiredQty = first.qty + (allowed - total);
-        changes.push({ key: first.key, line: first.line, qty: desiredQty });
-        debugLog('topup-addons', { key: key, from: total, to: allowed });
-      }
+      addons.forEach(function (meta, index) {
+        if (index > 0) {
+          changes.push({ key: meta.key, line: meta.line, qty: 0 });
+          debugLog('remove-extra-addon', meta);
+          return;
+        }
+
+        if (meta.qty !== 1) {
+          changes.push({ key: meta.key, line: meta.line, qty: 1 });
+          debugLog('normalize-addon-qty', { uid: uid, from: meta.qty, to: 1 });
+        }
+      });
     });
 
     return changes;
@@ -181,12 +162,14 @@
         if (!changes || !changes.length) return false;
 
         var p = Promise.resolve();
+        G.__silentNetwork = true;
         changes.forEach(function (change) { p = p.then(function () { return changeLine(change); }); });
         debugLog('changes-applied', { reason: reason, count: changes.length });
         return p.then(function () { return true; });
       })
       .catch(function () { return false; })
       .finally(function () {
+        G.__silentNetwork = false;
         G.__busy = false;
         if (G.__queued) {
           G.__queued = false;
@@ -222,7 +205,7 @@
         try { url = typeof input === 'string' ? input : (input && input.url) ? input.url : ''; } catch (e) {}
         var isMutation = /\/cart\/(add|change|update)\.js(\?|$)/.test(url);
         return origFetch(input, init).then(function (res) {
-          if (isMutation) G._scheduleNetwork('fetch');
+          if (isMutation && !G.__silentNetwork) G._scheduleNetwork('fetch');
           return res;
         });
       };
@@ -240,7 +223,7 @@
         function done() {
           try {
             var u = String(xhr.__bl_url || '');
-            if (/\/cart\/(add|change|update)\.js(\?|$)/.test(u)) G._scheduleNetwork('xhr');
+            if (/\/cart\/(add|change|update)\.js(\?|$)/.test(u) && !G.__silentNetwork) G._scheduleNetwork('xhr');
           } catch (e) {}
         }
         xhr.addEventListener('load', done);
