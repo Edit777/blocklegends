@@ -230,7 +230,10 @@
       }
 
       await this.refreshCart();
-      this.open();
+
+      // Always open the most recent controller instance to avoid using a
+      // destroyed reference after the cart section re-renders.
+      CartDrawerController.instance?.open?.();
     } catch (error) {
       console.error(error);
       this.showError(error?.message || errorMessage);
