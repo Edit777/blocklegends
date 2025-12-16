@@ -462,7 +462,6 @@
     <script src="{{ 'bl-mystery-ui.js' | asset_url }}" defer></script>
     <script src="{{ 'bl-mystery-addon.js' | asset_url }}" defer></script>
     <script src="{{ 'bl-upsells.js' | asset_url }}" defer></script>
-    <script src="{{ 'bl-cart-guard.js' | asset_url }}" defer></script>
     <script src="{{ 'bl-parent-uid.js' | asset_url }}" defer></script>
     <script src="{{ 'bl-init.js' | asset_url }}" defer></script>
 
@@ -623,6 +622,8 @@
         })
       </script>
     {% endif %}
+    {{ 'bl-cart-stable-hook.js' | asset_url | script_tag }}
+    {{ 'bl-cart-guard-quota.js' | asset_url | script_tag }}
     {% if settings.display_store_languages %}
       {% render 'enabled-languages-modal' %}
     {% endif %}
