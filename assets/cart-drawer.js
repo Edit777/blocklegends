@@ -138,6 +138,7 @@
     this.overlay?.addEventListener('click', this.onOverlayClick);
     this.closeButtons.forEach((btn) => btn.addEventListener('click', this.onCloseButtonClick));
     this.panel?.addEventListener('click', this.onCloseButtonClick);
+    this.root?.addEventListener('click', this.onCloseButtonClick, true);
     document.addEventListener('click', this.onDocumentClose, true);
     document.addEventListener('keyup', this.onKeyUp);
     this.updateToggleElements();
@@ -154,6 +155,7 @@
     this.overlay?.removeEventListener('click', this.onOverlayClick);
     this.closeButtons.forEach((btn) => btn.removeEventListener('click', this.onCloseButtonClick));
     this.panel?.removeEventListener('click', this.onCloseButtonClick);
+    this.root?.removeEventListener('click', this.onCloseButtonClick, true);
     document.removeEventListener('click', this.onDocumentClose, true);
     document.removeEventListener('keyup', this.onKeyUp);
     this.toggleElements.forEach((toggle) => toggle.removeEventListener('click', this.onToggleClick));
