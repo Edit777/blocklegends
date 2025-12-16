@@ -4,13 +4,6 @@
   function hasNativeCartDrawer() {
     const nativeElement = document.querySelector('cart-drawer');
     const nativeDefinition = global.customElements?.get?.('cart-drawer');
-    // If we have explicit cart drawer markup (data-cart-drawer), prefer the custom controller
-    // even when a native custom element is registered. This keeps the close buttons working
-    // reliably when merchants override the default behavior.
-    const prefersCustomDrawer = Boolean(document.querySelector('[data-cart-drawer]'));
-
-    if (prefersCustomDrawer) return false;
-
     return Boolean(nativeElement && nativeDefinition && nativeDefinition !== CartDrawerController);
   }
 
