@@ -2,8 +2,9 @@
   const global = window;
 
   function hasNativeCartDrawer() {
-    const nativeElement = global.customElements?.get?.('cart-drawer');
-    return Boolean(nativeElement && nativeElement !== CartDrawerController);
+    const nativeElement = document.querySelector('cart-drawer');
+    const nativeDefinition = global.customElements?.get?.('cart-drawer');
+    return Boolean(nativeElement && nativeDefinition && nativeDefinition !== CartDrawerController);
   }
 
   class CartDrawerController {
