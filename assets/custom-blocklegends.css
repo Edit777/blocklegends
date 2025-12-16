@@ -12,6 +12,11 @@
   }
 }
 
+/* Force a green background across the entire store */
+body {
+  background-color: #008000 !important;
+}
+
 /* ============================
    PIHT (highlight text block)
    ============================ */
