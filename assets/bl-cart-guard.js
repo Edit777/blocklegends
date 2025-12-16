@@ -1,58 +1,47 @@
 /* =======================================================
-   BLOCK LEGENDS — CART GUARD (MYSTERY ADD-ON ENFORCER)
-   - Validates mystery add-ons are tied to an eligible parent item
-   - Enforces 1 add-on per parent quantity, qty always 1 for add-ons
-   - Removes orphan / mismatched add-ons before they can be abused
-   - Hooks into cart mutations and checkout to keep state clean
+   BLOCK LEGENDS — SIMPLE CART GUARD
+   - Runs *after* built-in theme cart updates finish
+   - Ensures addon quantity never exceeds other products
+   - Addon identified by unique handle or line item tag
    ======================================================= */
 
 (() => {
   const global = window;
-  global.BL = global.BL || {};
-  global.BL.cartGuard = global.BL.cartGuard || {};
+  const Guard = (global.BL = global.BL || {}).cartGuard || {};
+  global.BL.cartGuard = Guard;
 
-  const Guard = global.BL.cartGuard;
-
-  Guard.CFG = Guard.CFG || {
+  Guard.CFG = {
     addonHandle: 'mystery-add-on',
-    propIsAddon: '_bl_is_addon',
-    propParentHandle: '_bl_parent_handle',
-    propParentUid: '_bl_parent_uid',
-    propLockedCollection: '_bl_locked_collection',
-    networkDebounceMs: 200,
-    mutationDebounceMs: 250
+    addonPropertyKey: '_bl_addon_tag',
+    addonPropertyValue: 'BL_ADDON',
+    postThemeDelayMs: 300,
+    initDelayMs: 200
   };
 
-  const toStr = (val) => {
+  const toStr = (value) => {
     try {
-      return String(val || '').trim();
+      return String(value || '').trim();
     } catch (error) {
       return '';
     }
   };
 
-  const toNumber = (val) => {
-    const n = Number(val);
-    return Number.isFinite(n) ? n : 0;
+  const toQty = (value) => {
+    const qty = Number(value);
+    return Number.isFinite(qty) ? Math.max(0, qty) : 0;
   };
 
   const isAddon = (item) => {
     if (!item) return false;
 
-    try {
-      const flag = toStr(item?.properties?.[Guard.CFG.propIsAddon]);
-      if (flag === '1') return true;
+    const handle = toStr(item.handle || item.product_handle);
+    if (handle && handle === Guard.CFG.addonHandle) return true;
 
-      const handle = toStr(item.handle || item.product_handle);
-      if (handle && handle === Guard.CFG.addonHandle) return true;
+    const tag = toStr(item?.properties?.[Guard.CFG.addonPropertyKey]);
+    if (!tag) return false;
+    if (!Guard.CFG.addonPropertyValue) return true;
 
-      const url = toStr(item.url);
-      if (url && url.indexOf(`/products/${Guard.CFG.addonHandle}`) !== -1) return true;
-    } catch (error) {
-      return false;
-    }
-
-    return false;
+    return tag === Guard.CFG.addonPropertyValue;
   };
 
   const fetchCart = () =>
@@ -60,174 +49,101 @@
       .then((response) => (response.ok ? response.json() : null))
       .catch(() => null);
 
-  const changeLine = ({ key, line, qty }) => {
-    if (!key && !line) return Promise.resolve();
-
-    const payload = { quantity: qty };
-    if (key) payload.id = key;
-    else payload.line = line;
+  const sendChange = ({ line, quantity }) => {
+    if (!line && line !== 0) return Promise.resolve();
 
     return fetch('/cart/change.js', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ line, quantity: toQty(quantity) })
     }).catch(() => {});
   };
 
-  const buildParents = (items) => {
-    const parents = {};
+  const buildChanges = (cart) => {
+    if (!cart || !Array.isArray(cart.items) || !cart.items.length) return [];
 
-    (items || []).forEach((item, index) => {
-      if (!item || isAddon(item)) return;
+    let otherQty = 0;
+    const addons = [];
 
-      const uid = toStr(item?.properties?.[Guard.CFG.propParentUid]);
-      if (!uid) return; // only guard items that opted into the contract
-
-      const line = toNumber(item.line || index + 1);
-      const handle = toStr(item.handle || item.product_handle);
-      const locked = toStr(item?.properties?.[Guard.CFG.propLockedCollection]);
-      const qty = Math.max(0, toNumber(item.quantity));
-
-      const existing = parents[uid];
-      if (existing) {
-        // Merge duplicate parents under the same uid so capacity matches total quantity
-        existing.qty += qty;
-        existing.lines.push(line);
+    cart.items.forEach((item, index) => {
+      if (isAddon(item)) {
+        addons.push({ ...item, line: toQty(item.line || index + 1) });
       } else {
-        parents[uid] = {
-          uid,
-          handle,
-          locked,
-          qty,
-          lines: [line]
-        };
+        otherQty += toQty(item.quantity);
       }
     });
 
-    return parents;
-  };
-
-  const computeChanges = (cart) => {
-    if (!cart || !Array.isArray(cart.items) || !cart.items.length) return [];
-
-    const parents = buildParents(cart.items);
-    const capacity = Object.keys(parents).reduce((acc, uid) => {
-      acc[uid] = parents[uid].qty;
-      return acc;
-    }, {});
-
+    let remaining = Math.max(0, otherQty);
     const changes = [];
 
-    (cart.items || []).forEach((item, index) => {
-      if (!item || !isAddon(item)) return;
+    addons.forEach((item, idx) => {
+      const currentQty = toQty(item.quantity);
+      const allowed = Math.min(currentQty, remaining);
 
-      const line = toNumber(item.line || index + 1);
-      const qty = Math.max(0, toNumber(item.quantity));
-      const uid = toStr(item?.properties?.[Guard.CFG.propParentUid]);
-      const parentHandle = toStr(item?.properties?.[Guard.CFG.propParentHandle]);
-      const locked = toStr(item?.properties?.[Guard.CFG.propLockedCollection]);
-      const parent = uid ? parents[uid] : null;
-
-      const meta = { key: item.key, line, qty, uid, parentHandle, locked };
-
-      if (!parent) {
-        // Add-on without a tracked parent UID — remove entirely
-        changes.push({ key: item.key, line, qty: 0 });
-        return;
+      if (allowed !== currentQty) {
+        const line = toQty(item.line || idx + 1);
+        changes.push({ line, quantity: allowed });
       }
 
-      if (parentHandle && parent.handle && parentHandle !== parent.handle) {
-        changes.push({ key: item.key, line, qty: 0 });
-        return;
-      }
-
-      if (locked && parent.locked && locked !== parent.locked) {
-        changes.push({ key: item.key, line, qty: 0 });
-        return;
-      }
-
-      const remaining = Math.max(0, toNumber(capacity[uid]));
-      const allowed = Math.min(1, remaining);
-
-      if (allowed <= 0) {
-        changes.push({ key: item.key, line, qty: 0 });
-        return;
-      }
-
-      if (qty !== allowed) {
-        changes.push({ key: item.key, line, qty: allowed });
-      }
-
-      capacity[uid] = remaining - allowed;
+      remaining = Math.max(0, remaining - allowed);
     });
 
     return changes;
   };
 
-  Guard.cleanup = (reason) => {
-    if (Guard.__busy) {
+  Guard.runCheck = (reason = 'manual') => {
+    if (Guard.__checking) {
       Guard.__queued = true;
-      return Promise.resolve(false);
+      return Promise.resolve();
     }
 
-    Guard.__busy = true;
+    Guard.__checking = true;
 
     return fetchCart()
       .then((cart) => {
-        const changes = computeChanges(cart);
-        if (!changes.length) return false;
+        const changes = buildChanges(cart);
+        if (!changes.length) return null;
 
-        Guard.__silentNetwork = true;
-
-        let sequence = Promise.resolve();
-        changes.forEach((change) => {
-          sequence = sequence.then(() => changeLine(change));
-        });
-
-        return sequence.then(() => true);
+        return changes.reduce((promise, change) => promise.then(() => sendChange(change)), Promise.resolve());
       })
-      .catch(() => false)
+      .catch(() => null)
       .finally(() => {
-        Guard.__silentNetwork = false;
-        Guard.__busy = false;
-
+        Guard.__checking = false;
         if (Guard.__queued) {
           Guard.__queued = false;
-          Guard.cleanup('queued');
+          Guard.schedule('queued');
         }
       });
   };
 
-  const debounce = (fn, ms) => {
-    let timer = null;
-    return (...args) => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => fn.apply(null, args), ms);
-    };
+  Guard.schedule = (reason = 'scheduled') => {
+    clearTimeout(Guard.__timer);
+    Guard.__timer = setTimeout(() => {
+      // Defer until the browser has a frame to apply built-in DOM updates
+      requestAnimationFrame(() => Guard.runCheck(reason));
+    }, Guard.CFG.postThemeDelayMs);
   };
 
-  Guard._scheduleNetwork = debounce((reason) => Guard.cleanup(reason || 'network'), Guard.CFG.networkDebounceMs);
-  Guard._scheduleMutation = debounce((reason) => Guard.cleanup(reason || 'mutation'), Guard.CFG.mutationDebounceMs);
-
-  Guard.patchNetwork = () => {
+  Guard.observeNetwork = () => {
     if (Guard.__patched) return;
     Guard.__patched = true;
 
+    const mutationPattern = /\/cart\/(add|change|update)\.js(\?|$)/;
+    const scheduleAfterTheme = () => Guard.schedule('network');
+
     if (global.fetch) {
-      const originalFetch = global.fetch;
+      const originalFetch = global.fetch.bind(global);
       global.fetch = (input, init) => {
         const url = typeof input === 'string' ? input : input?.url || '';
-        const isMutation = /\/cart\/(add|change|update)\.js(\?|$)/.test(url);
-
         return originalFetch(input, init).then((response) => {
-          if (isMutation && !Guard.__silentNetwork) Guard._scheduleNetwork('fetch');
+          if (mutationPattern.test(url)) scheduleAfterTheme();
           return response;
         });
       };
     }
 
-    try {
+    if (global.XMLHttpRequest) {
       const open = XMLHttpRequest.prototype.open;
       const send = XMLHttpRequest.prototype.send;
 
@@ -240,9 +156,7 @@
         const xhr = this;
         const done = () => {
           const url = toStr(xhr.__bl_url);
-          if (/\/cart\/(add|change|update)\.js(\?|$)/.test(url) && !Guard.__silentNetwork) {
-            Guard._scheduleNetwork('xhr');
-          }
+          if (mutationPattern.test(url)) scheduleAfterTheme();
         };
 
         xhr.addEventListener('load', done);
@@ -250,82 +164,27 @@
 
         return send.apply(this, arguments);
       };
-    } catch (error) {
-      // ignore
     }
-  };
-
-  Guard.observeCartDrawer = () => {
-    if (Guard.__obs || !global.MutationObserver) return;
-
-    const target =
-      document.querySelector('[data-cart-items]') ||
-      document.querySelector('[data-cart-drawer]') ||
-      document.querySelector('#CartDrawer') ||
-      document.querySelector('cart-drawer');
-
-    if (!target) return;
-
-    Guard.__obs = new MutationObserver(() => Guard._scheduleMutation('dom'));
-    Guard.__obs.observe(target, { childList: true, subtree: true });
   };
 
   Guard.bindThemeEvents = () => {
     if (Guard.__events) return;
     Guard.__events = true;
 
-    ['cart:updated', 'cart:change', 'cart:refresh', 'cart-drawer:rendered'].forEach((evt) => {
-      document.addEventListener(evt, () => Guard._scheduleNetwork(evt), true);
+    const events = ['cart:updated', 'cart:change', 'cart:refresh', 'cart-drawer:rendered', 'shopify:section:load'];
+    events.forEach((eventName) => {
+      document.addEventListener(eventName, () => Guard.schedule(eventName), true);
     });
-  };
-
-  Guard.guardCheckout = () => {
-    if (Guard.__checkoutBound) return;
-    Guard.__checkoutBound = true;
-
-    const selector = 'button[name="checkout"], input[name="checkout"], [href^="/checkout"]';
-
-    document.addEventListener(
-      'click',
-      (event) => {
-        const target = event.target?.closest(selector);
-        if (!target) return;
-
-        event.preventDefault();
-        event.stopImmediatePropagation();
-
-        const proceed = () => {
-          try {
-            if (target.tagName === 'A' && target.href) return (global.location.href = target.href);
-            const form = target.closest('form');
-            if (form) return form.submit();
-          } catch (error) {
-            // ignore and fall back
-          }
-
-          global.location.href = '/checkout';
-        };
-
-        Guard.cleanup('checkout').finally(proceed);
-      },
-      true
-    );
   };
 
   Guard.init = () => {
     if (Guard.__inited) return;
     Guard.__inited = true;
 
-    Guard.patchNetwork();
+    Guard.observeNetwork();
     Guard.bindThemeEvents();
-    Guard.observeCartDrawer();
-    Guard.guardCheckout();
 
-    setTimeout(() => Guard.cleanup('init'), 150);
-
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) Guard._scheduleNetwork('visibility');
-    });
+    setTimeout(() => Guard.runCheck('init'), Guard.CFG.initDelayMs + Guard.CFG.postThemeDelayMs);
   };
 
   if (document.readyState === 'loading') {
