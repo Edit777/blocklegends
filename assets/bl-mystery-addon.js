@@ -76,11 +76,17 @@
     st.id = 'bl-addon-css';
     st.textContent = [
       '.upsell .upsell__image__img{aspect-ratio:1/1;object-fit:cover;width:100%;height:auto;}',
+      '.upsell[data-upsell-addon="true"] .upsell__container{align-items:flex-start;row-gap:0.25rem;}',
+      '.upsell[data-upsell-addon="true"] .upsell__content{display:flex;flex-direction:column;gap:0.2rem;}',
       '.upsell[data-upsell-addon="true"] .upsell__variant-picker{display:none !important;}',
-      '.bl-addon-picker{margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}',
-      '.bl-addon-select{min-width:140px;max-width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,.2);border-radius:10px;background:#fff;font-size:13px;line-height:1.2;}',
-      '.bl-addon-status{font-size:12px;opacity:.9;}',
+      '.bl-addon-topline{display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;}',
+      '.bl-addon-topline .upsell__title{flex:1;display:flex;align-items:center;gap:0.35rem;justify-content:flex-start;margin:0;}',
+      '.bl-addon-topline .upsell__price{margin-left:auto;line-height:1.2;}',
+      '.bl-addon-picker{margin-top:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}',
+      '.bl-addon-select{min-width:128px;max-width:100%;padding:6px 9px;border:1px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;font-size:12px;line-height:1.25;min-height:34px;}',
+      '.bl-addon-status{font-size:12px;opacity:.9;margin-top:4px;}',
       '.bl-addon-status.is-warn{opacity:1;}',
+      '.bl-addon-helper{margin-top:6px;font-size:12px;line-height:1.35;opacity:.9;}',
       '.bl-addon-hint{font-size:12px;opacity:.9;}'
     ].join('');
     document.head.appendChild(st);
@@ -206,17 +212,36 @@
     return '';
   }
 
-  function hintForRarity(rarity) {
+  function formatCollectionName(card) {
+    var name = '';
+    try {
+      name = (card && card.getAttribute('data-locked-collection-name')) || '';
+    } catch (e) { name = ''; }
+    if (name && name.trim()) return name.trim();
+
+    var handle = '';
+    try { handle = (card && card.getAttribute('data-locked-collection')) || ''; } catch (e2) { handle = ''; }
+    if (!handle) return '';
+
+    return handle
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, function (c) { return c.toUpperCase(); })
+      .trim();
+  }
+
+  function hintForRarity(rarity, collectionName) {
     var r = String(rarity || '').toLowerCase();
     var anyKey = '';
     try { anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase(); } catch (e) { anyKey = 'any'; }
 
-    if (r === anyKey) return 'Get a random figure.';
-    if (r === 'common') return 'Get a random Common figure.';
-    if (r === 'rare') return 'Get a random Rare figure.';
-    if (r === 'epic') return 'Get a random Epic figure.';
-    if (r === 'legendary') return 'Get a random Legendary figure.';
-    return 'Get a random figure.';
+    var suffix = collectionName ? ' from ' + collectionName : '';
+
+    if (r === anyKey) return 'Get a random figure' + suffix + '.';
+    if (r === 'common') return 'Get a random Common figure' + suffix + '.';
+    if (r === 'rare') return 'Get a random Rare figure' + suffix + '.';
+    if (r === 'epic') return 'Get a random Epic figure' + suffix + '.';
+    if (r === 'legendary') return 'Get a random Legendary figure' + suffix + '.';
+    return 'Get a random figure' + suffix + '.';
   }
 
   function startObserver() {
@@ -319,23 +344,67 @@
         U.qsa(card, '.bl-addon-pill').forEach(function (btn) { btn.remove(); });
       }
 
-      function ensureHint() {
-        if (!isMysteryAddon || !selectEl) return null;
-        if (hintEl && hintEl.parentNode) return hintEl;
+      function ensureHelperWrap() {
+        var content = card.querySelector('.upsell__content') || card;
+        if (!content) return null;
 
-        hintEl = document.createElement('div');
-        hintEl.className = 'bl-addon-hint';
-        hintEl.setAttribute('data-bl-addon-hint', '1');
-
-        var parent = selectEl.parentNode;
-        if (parent) {
-          if (statusEl) {
-            parent.insertBefore(hintEl, statusEl);
+        var wrap = content.querySelector('.bl-addon-helper');
+        if (!wrap) {
+          wrap = document.createElement('div');
+          wrap.className = 'bl-addon-helper';
+          wrap.setAttribute('data-bl-addon-helper', '1');
+          var topline = content.querySelector('.bl-addon-topline');
+          if (topline && topline.nextSibling) {
+            content.insertBefore(wrap, topline.nextSibling);
+          } else if (topline) {
+            content.appendChild(wrap);
           } else {
-            parent.appendChild(hintEl);
+            content.appendChild(wrap);
           }
         }
+        return wrap;
+      }
+
+      function ensureHint() {
+        if (!isMysteryAddon || !selectEl) return null;
+        var helperWrap = ensureHelperWrap();
+        if (!helperWrap) return null;
+        if (hintEl && helperWrap.contains(hintEl)) return hintEl;
+
+        if (!hintEl) {
+          hintEl = document.createElement('div');
+          hintEl.className = 'bl-addon-hint';
+          hintEl.setAttribute('data-bl-addon-hint', '1');
+        }
+
+        helperWrap.insertBefore(hintEl, helperWrap.firstChild || null);
         return hintEl;
+      }
+
+      function ensureLayout() {
+        var content = card.querySelector('.upsell__content') || card;
+        if (!content) return;
+
+        var picker = card.querySelector('[data-bl-addon-picker]');
+        var price = card.querySelector('.upsell__price');
+        var title = content.querySelector('.upsell__title');
+        var topline = content.querySelector('.bl-addon-topline');
+        var helperWrap = ensureHelperWrap();
+
+        if (!topline) {
+          topline = document.createElement('div');
+          topline.className = 'bl-addon-topline';
+          content.insertBefore(topline, content.firstChild);
+        }
+
+        if (title && title.parentNode !== topline) topline.appendChild(title);
+        if (picker && picker.parentNode !== topline) topline.appendChild(picker);
+        if (price && price.parentNode !== topline) topline.appendChild(price);
+
+        if (helperWrap) {
+          if (hintEl && hintEl.parentNode !== helperWrap) helperWrap.insertBefore(hintEl, helperWrap.firstChild || null);
+          if (statusEl && statusEl.parentNode !== helperWrap) helperWrap.appendChild(statusEl);
+        }
       }
 
       function updateHint() {
@@ -343,7 +412,8 @@
         var hintNode = ensureHint();
         if (!hintNode) return;
         var rarity = getVariantRarity(variants, selectEl ? selectEl.value : null);
-        hintNode.textContent = hintForRarity(rarity);
+        var collectionName = formatCollectionName(card);
+        hintNode.textContent = hintForRarity(rarity, collectionName);
       }
 
       function setStatus(msg, warn) {
@@ -431,6 +501,7 @@
           var mo = new MutationObserver(U.debounce(function () {
             if (!card.isConnected) { mo.disconnect(); return; }
             removePills();
+            ensureLayout();
             sync();
           }, 80));
           mo.observe(card, { childList: true, subtree: true, characterData: true });
@@ -443,6 +514,7 @@
       if (selectEl && initialId) selectEl.value = String(initialId);
 
       removePills();
+      ensureLayout();
 
       // Ensure variant map is ready then disable + sync
       (M.fetchVariantMap ? M.fetchVariantMap() : Promise.resolve())
