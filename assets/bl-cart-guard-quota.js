@@ -29,7 +29,9 @@
 
     lastAddonKeyStorage: 'BL_LAST_ADDON_KEY',
     lastAddonTsStorage: 'BL_LAST_ADDON_TS',
-    lastAddonMetaStorage: 'BL_LAST_ADDON_META'
+    lastAddonMetaStorage: 'BL_LAST_ADDON_META',
+
+    messageStorage: 'BL_GUARD_MESSAGE'
   };
 
   const debug = (() => {
@@ -52,6 +54,7 @@
   let lastTouchedAddonKey = null;
   let latestCartSnapshot = null;
   let latestClassificationsByKey = {};
+  let persistedMessage = null;
 
   function muteInternal() {
     internalMuteUntil = Date.now() + CFG.internalMuteMs;
@@ -193,12 +196,6 @@
 
       targets.push({ id, section, selector, target, type: entry.type || null });
       seen.add(id);
-    }
-
-    const drawer = getDrawerElement();
-    if (drawer) {
-      const drawerId = resolveSectionIdFromDom(drawer, 'cart-drawer');
-      addTarget({ id: drawerId, section: drawerId, selector: drawer.id ? `#${drawer.id}` : null, target: drawer, type: 'drawer' });
     }
 
     const drawerItems = getDrawerItemsElement();
@@ -916,6 +913,8 @@
     host.style.display = 'block';
     requestAnimationFrame(() => { host.classList?.add('is-visible'); host.style.opacity = '1'; });
 
+    try { persistedMessage = { text, ts: Date.now() }; sessionStorage.setItem(CFG.messageStorage, JSON.stringify(persistedMessage)); } catch (e) {}
+
     if (guardMsgTimer) clearTimeout(guardMsgTimer);
     guardMsgTimer = setTimeout(() => {
       host.classList?.remove('is-visible');
@@ -924,8 +923,24 @@
         host.style.display = 'none';
         host.textContent = '';
       }, 300);
+      try { sessionStorage.removeItem(CFG.messageStorage); } catch (e) {}
     }, 4200);
   }
+
+  (function hydratePersistedMessage() {
+    try {
+      const raw = sessionStorage.getItem(CFG.messageStorage);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.text || !parsed.ts) return;
+      if (Date.now() - parsed.ts < 2200) {
+        persistedMessage = parsed;
+        showDrawerMessage(parsed.text);
+      } else {
+        sessionStorage.removeItem(CFG.messageStorage);
+      }
+    } catch (e) {}
+  })();
 
   document.addEventListener('bl:cartguard:message', (e) => {
     const detail = (e && e.detail) || {};
@@ -963,9 +978,12 @@
         const projected = computeProjectedTotals(lineKey, action);
         if (!projected) return;
 
+        const isAddonAction = !!(cls.isAddonFinal);
+        const isIncrease = action === 'inc' || action === 'add';
         const wouldBreak = projected.addonUnits > projected.parentUnits;
-        if (wouldBreak) {
-          if (cls.isAddonFinal && action === 'inc') {
+
+        if (isAddonAction && isIncrease && wouldBreak) {
+          if (cls.isAddonFinal) {
             recordAddonIntent(lineKey, { source: 'preflight_click', action: 'inc_blocked' }, wrapper);
           }
           warnAndBlock(event, { lineKey, action, projected });
@@ -980,7 +998,10 @@
 
         const projected = computeProjectedTotals(lineKey, 'set', newQty);
         if (!projected) return;
-        if (projected.addonUnits > projected.parentUnits) {
+        const isAddonAction = !!projected.isAddon;
+        const isIncrease = isAddonAction && projected.nextQty > projected.currentQty;
+
+        if (isAddonAction && isIncrease && projected.addonUnits > projected.parentUnits) {
           const otherUnits = projected.isAddon ? projected.addonUnits - projected.nextQty : projected.addonUnits;
           const allowedQty = projected.isAddon
             ? Math.max(0, projected.parentUnits - otherUnits)
