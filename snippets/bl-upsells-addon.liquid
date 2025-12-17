@@ -33,8 +33,10 @@
     assign bl_locked_collection_title = bl_primary_collection | replace: '-', ' ' | replace: '_', ' ' | capitalize
   endif
 
-  assign addon_clean_title = addon_product.title
-  assign addon_clean_title = addon_clean_title
+-%}
+
+{%- capture addon_clean_title -%}
+  {{ addon_product.title
     | replace: ' — Block Legends Figure', ''
     | replace: ' – Block Legends Figure', ''
     | replace: ' - Block Legends Figure', ''
@@ -48,7 +50,9 @@
     | replace: '– Block Legends', ''
     | replace: '- Block Legends', ''
     | strip
--%}
+  }}
+{%- endcapture -%}
+{%- assign addon_clean_title = addon_clean_title | strip -%}
 
 {%- capture bl_addon_card -%}
   <{{ type }}-upsell
