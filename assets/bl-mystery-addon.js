@@ -94,7 +94,7 @@ function ensureCssOnce() {
       '.upsell[data-upsell-addon="true"] .bl-addon-select{min-width:0;width:112px;max-width:46vw;}' +
     '}',
 
-    /* <=420: make ALL text a bit smaller + make price/plus gap 0 + image smaller */
+    /* <=420: slightly smaller + price/plus gap 0 + image smaller */
     '@media (max-width: 420px){' +
       '.upsell[data-upsell-addon="true"] .bl-addon-main{gap:.75rem;}' +
       '.upsell[data-upsell-addon="true"] .upsell__image{flex:0 0 62px;width:62px;align-self:center;}' +
@@ -106,11 +106,10 @@ function ensureCssOnce() {
       '.upsell[data-upsell-addon="true"] .bl-addon-select{min-width:96px;height:28px;min-height:28px;padding:3px 8px;font-size:11px;border-radius:7px;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10.75px;line-height:1.25;}' +
 
-      /* HERE: price ↔ plus gap forced to 0 on small screens */
       '.upsell[data-upsell-addon="true"] .bl-addon-right{gap:0px;min-width:0;}' +
     '}',
 
-    /* <=390: switch to grid to prevent collisions; right column max-content */
+    /* <=390: grid so things don’t collide */
     '@media (max-width: 390px){' +
       '.upsell[data-upsell-addon="true"] .bl-addon-main{display:grid;grid-template-columns:56px minmax(0,1fr) max-content;align-items:center;column-gap:12px;row-gap:4px;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-main>.upsell__image{grid-column:1;grid-row:1;align-self:center;}' +
@@ -124,19 +123,29 @@ function ensureCssOnce() {
       '.upsell[data-upsell-addon="true"] .bl-addon-controls{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-width:0;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:98px;min-width:86px;height:28px;min-height:28px;padding:3px 7px;font-size:10.75px;border-radius:7px;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-meta{margin-top:.1rem;}' +
-      '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10.25px;line-height:1.2;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10.5px;line-height:1.2;}' +
     '}',
 
-    /* <=360: even tighter; optionally hide label */
+    /* <=370: START shrinking a bit here (your missing zone) */
+    '@media (max-width: 370px){' +
+      '.upsell[data-upsell-addon="true"] .upsell__title h3{font-size:13px;line-height:1.18;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-controls label{font-size:10.75px;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:94px;min-width:84px;height:28px;min-height:28px;padding:3px 7px;font-size:10.5px;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10.25px;line-height:1.18;}' +
+    '}',
+
+    /* <=360: DO NOT get “super small” (gentle changes only) */
     '@media (max-width: 360px){' +
-      '.upsell[data-upsell-addon="true"] .bl-addon-controls label{display:none;}' +
-      '.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:92px;min-width:82px;font-size:10.5px;padding:3px 6px;}' +
-      '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10px;}' +
+      '.upsell[data-upsell-addon="true"] .upsell__title h3{font-size:12.75px;line-height:1.18;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-controls label{font-size:10.5px;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:92px;min-width:82px;height:27px;min-height:27px;padding:3px 6px;font-size:10.4px;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10.2px;line-height:1.18;}' +
     '}'
   ].join('');
 
   document.head.appendChild(st);
 }
+
 
 
   function ensureLayout(card) {
