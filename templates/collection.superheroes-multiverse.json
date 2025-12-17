@@ -1,0 +1,497 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main-collection-banner": {
+      "type": "main-collection-banner",
+      "disabled": true,
+      "settings": {
+        "show_collection_description": true,
+        "show_collection_image": true,
+        "color_scheme": "background-1"
+      }
+    },
+    "multirow_MQ4Ufw": {
+      "type": "multirow",
+      "blocks": {
+        "row_enFwDV": {
+          "type": "row",
+          "settings": {
+            "image": "shopify://shop_images/Use_reference_1_2k_202512162054.jpg",
+            "video_muted_autoplay": true,
+            "caption": "",
+            "title": "Albuquerque Chemistry",
+            "title_highlight_color": "#6D388B",
+            "text": "<p>A chemistry teacher pushed to the edge teams up with a former student to build a hidden operation. Fast money turns into lies, violence, and a war with the criminal world—until there’s no easy way back.</p>",
+            "button_label": "",
+            "button_link": "",
+            "atc_button_label": "",
+            "atc_product": "",
+            "atc_skip_cart": false
+          }
+        }
+      },
+      "block_order": [
+        "row_enFwDV"
+      ],
+      "name": "t:sections.multirow.presets.name",
+      "settings": {
+        "display_id": false,
+        "visibility": "mobile-hidden",
+        "image_height": "adapt",
+        "desktop_image_width": "medium",
+        "heading_size": "h1",
+        "text_style": "body",
+        "button_style": "secondary",
+        "desktop_content_position": "middle",
+        "desktop_content_alignment": "left",
+        "image_layout": "alternate-left",
+        "row_color_scheme": "background-1",
+        "section_color_scheme": "background-1",
+        "mobile_full_media_width": false,
+        "mobile_direction": "normal",
+        "mobile_content_alignment": "center",
+        "padding_top": 0,
+        "padding_bottom": 0,
+        "custom_colors_background": "#2E2A39",
+        "custom_gradient_background": "",
+        "custom_colors_text": "#FFFFFF",
+        "custom_colors_solid_button_background": "#dd1d1d",
+        "custom_colors_solid_button_text": "#ffffff",
+        "custom_colors_outline_button": "#dd1d1d",
+        "custom_section_colors_background": "#FFFFFF",
+        "custom_section_gradient_background": "linear-gradient(251deg, rgba(254, 217, 81, 1) 11%, rgba(255, 70, 199, 1) 81%)"
+      }
+    },
+    "multirow_VXnpKb": {
+      "type": "multirow",
+      "blocks": {
+        "row_jrNTnM": {
+          "type": "row",
+          "settings": {
+            "image": "shopify://shop_images/Use_reference_1_2k_202512162054.jpg",
+            "video_muted_autoplay": true,
+            "caption": "",
+            "title": "Albuquerque Chemistry",
+            "title_highlight_color": "#6D388B",
+            "text": "<p>A chemistry teacher pushed to the edge teams up with a former student to build a hidden operation. Fast money turns into lies, violence, and a war with the criminal world—until there’s no easy way back.</p>",
+            "button_label": "",
+            "button_link": "",
+            "atc_button_label": "",
+            "atc_product": "",
+            "atc_skip_cart": false
+          }
+        }
+      },
+      "block_order": [
+        "row_jrNTnM"
+      ],
+      "name": "t:sections.multirow.presets.name",
+      "settings": {
+        "display_id": false,
+        "visibility": "desktop-hidden",
+        "image_height": "adapt",
+        "desktop_image_width": "medium",
+        "heading_size": "h1",
+        "text_style": "body",
+        "button_style": "secondary",
+        "desktop_content_position": "middle",
+        "desktop_content_alignment": "left",
+        "image_layout": "alternate-left",
+        "row_color_scheme": "background-1",
+        "section_color_scheme": "background-1",
+        "mobile_full_media_width": false,
+        "mobile_direction": "normal",
+        "mobile_content_alignment": "center",
+        "padding_top": 20,
+        "padding_bottom": 0,
+        "custom_colors_background": "#2E2A39",
+        "custom_gradient_background": "",
+        "custom_colors_text": "#FFFFFF",
+        "custom_colors_solid_button_background": "#dd1d1d",
+        "custom_colors_solid_button_text": "#ffffff",
+        "custom_colors_outline_button": "#dd1d1d",
+        "custom_section_colors_background": "#FFFFFF",
+        "custom_section_gradient_background": "linear-gradient(251deg, rgba(254, 217, 81, 1) 11%, rgba(255, 70, 199, 1) 81%)"
+      }
+    },
+    "main-collection-product-grid": {
+      "type": "main-collection-product-grid",
+      "custom_css": [],
+      "settings": {
+        "products_per_page": 48,
+        "columns_desktop": 4,
+        "stretch_cards": true,
+        "image_ratio": "square",
+        "show_secondary_image": true,
+        "badges": "regular",
+        "show_vendor": false,
+        "show_rating": false,
+        "enable_quick_add": false,
+        "swatches_option_name": "",
+        "swatches_position": "top",
+        "swatches_desktop_size": 36,
+        "swatches_mobile_size": 24,
+        "enable_filtering": true,
+        "filter_type": "horizontal",
+        "enable_sorting": true,
+        "columns_mobile": "2",
+        "padding_top": 0,
+        "padding_bottom": 36
+      }
+    },
+    "collage": {
+      "type": "collage",
+      "blocks": {
+        "product": {
+          "type": "product",
+          "settings": {
+            "product": "",
+            "second_image": false
+          }
+        },
+        "collection": {
+          "type": "collection",
+          "settings": {
+            "collection": "all"
+          }
+        }
+      },
+      "block_order": [
+        "product",
+        "collection"
+      ],
+      "disabled": true,
+      "settings": {
+        "display_id": false,
+        "visibility": "always-display",
+        "title": "Multimedia collage",
+        "title_highlight_color": "#6d388b",
+        "heading_size": "h2",
+        "desktop_layout": "right",
+        "mobile_layout": "collage",
+        "card_styles": "product-card-wrapper",
+        "color_scheme": "background-1",
+        "padding_top": 16,
+        "padding_bottom": 64,
+        "custom_colors_background": "#ffffff",
+        "custom_gradient_background": "",
+        "custom_colors_text": "#2e2a39"
+      }
+    },
+    "newsletter": {
+      "type": "newsletter",
+      "blocks": {
+        "heading": {
+          "type": "heading",
+          "settings": {
+            "title": "Subscribe to our emails",
+            "title_highlight_color": "#6d388b",
+            "heading_size": "h1"
+          }
+        },
+        "paragraph": {
+          "type": "paragraph",
+          "settings": {
+            "text": "<p>Join our email list for exclusive offers and the latest news. </p>"
+          }
+        },
+        "email-form": {
+          "type": "email_form",
+          "settings": {}
+        }
+      },
+      "block_order": [
+        "heading",
+        "paragraph",
+        "email-form"
+      ],
+      "disabled": true,
+      "settings": {
+        "display_id": false,
+        "visibility": "always-display",
+        "button_type": "solid",
+        "button_label": "Sign up",
+        "button_style_secondary": false,
+        "color_scheme": "background-2",
+        "full_width": true,
+        "padding_top": 68,
+        "padding_bottom": 52,
+        "custom_colors_background": "#ffffff",
+        "custom_gradient_background": "",
+        "custom_colors_text": "#2e2a39",
+        "custom_colors_solid_button_background": "#dd1d1d",
+        "custom_colors_solid_button_text": "#ffffff"
+      }
+    },
+    "featured_product_XDt73F": {
+      "type": "featured-product",
+      "blocks": {
+        "title_arTTY3": {
+          "type": "title",
+          "settings": {
+            "text_size": "h1",
+            "title_alignment": "left",
+            "uppercase_title": false,
+            "margin_top": 0,
+            "margin_bottom": 15
+          }
+        },
+        "price_Awybir": {
+          "type": "price",
+          "settings": {
+            "layout": "price_first",
+            "price_color": "accent-1",
+            "compare_price_color": "text",
+            "displayed_badge": "sale",
+            "icon_scale": 140,
+            "custom_badge_text": "[icon_1] SPECIAL OFFER",
+            "icon_1": "redeem",
+            "filled_icon_1": false,
+            "icon_2": "check_circle",
+            "filled_icon_2": false,
+            "margin_top": 15,
+            "margin_bottom": 15
+          }
+        },
+        "variant_picker_BEdNhx": {
+          "type": "variant_picker",
+          "settings": {
+            "picker_types": "pills, pills, pills",
+            "custom_labels": "",
+            "disable_prepend": false,
+            "swatches_size": "medium",
+            "swatches_border_radius": 100,
+            "swatches_custom_colors": "disabled",
+            "swatches_custom_colors_list": "#000000, #FFFFFF",
+            "breaks_style": "normal",
+            "breaks_headline": "BUNDLE & SAVE",
+            "breaks_display_selected_indicator": true,
+            "breaks_border_radius": 10,
+            "breaks_border_width": 2,
+            "breaks_color_scheme": "accent-1",
+            "breaks_badges": "[empty], Most popular, [empty]",
+            "breaks_badge_style": "1",
+            "breaks_badge_color": "accent-1",
+            "breaks_displayed_images": "none",
+            "breaks_custom_images": "",
+            "breaks_image_width": 70,
+            "breaks_space_images": true,
+            "breaks_vertical_images_position": "top",
+            "breaks_vertical_prices_layout": "vertical",
+            "breaks_labels": "[name], [name], [name]",
+            "breaks_benefits": "[empty], Free Shipping, Free Shipping",
+            "breaks_benefit_position": "top",
+            "breaks_benefit_style": "outlined",
+            "breaks_benefit_color": "accent-1",
+            "breaks_captions": "Variant 1 caption, Variant 2 caption, Variant 3 caption",
+            "breaks_price_texts": "[price], [price], [price]",
+            "breaks_compare_price_texts": "[compare_price], [compare_price], [compare_price]",
+            "margin_top": 15,
+            "margin_bottom": 15
+          }
+        },
+        "quantity_selector_z9KReG": {
+          "type": "quantity_selector",
+          "settings": {
+            "full_width_classic": false,
+            "atc_append": "none",
+            "atc_append_heights": "stretch-quantity",
+            "enable_quantity_discounts": false,
+            "style": "normal",
+            "headline": "BUNDLE & SAVE",
+            "preselected": "option_1",
+            "display_selected_indicator": true,
+            "border_radius": 10,
+            "border_width": 2,
+            "color_scheme": "accent-1",
+            "enable_variant_selectors": true,
+            "enable_variant_selectors_on_quantity_of_1": false,
+            "update_prices": false,
+            "skip_unavailable": false,
+            "full_width_pickers": false,
+            "hide_pickers_overlay": true,
+            "pickers_label": "",
+            "image_width": 70,
+            "space_images": true,
+            "vertical_images_position": "top",
+            "vertical_prices_layout": "vertical",
+            "option_1_quantity": 1,
+            "option_1_badge": "",
+            "option_1_badge_style": "1",
+            "option_1_badge_color": "accent-1",
+            "option_1_label": "Buy [quantity]",
+            "option_1_benefit": "",
+            "option_1_benefit_position": "top",
+            "option_1_benefit_style": "outlined",
+            "option_1_benefit_color": "accent-1",
+            "option_1_caption": "You save [amount_saved]",
+            "option_1_percentage_off_text": "0",
+            "option_1_fixed_amount_off": "0",
+            "option_1_price_text": "[price]",
+            "option_1_compare_price": "compare_price",
+            "option_1_compare_price_text": "[compare_price]",
+            "option_2_quantity": 2,
+            "option_2_badge": "",
+            "option_2_badge_style": "1",
+            "option_2_badge_color": "accent-1",
+            "option_2_label": "Buy [quantity]",
+            "option_2_benefit": "",
+            "option_2_benefit_position": "top",
+            "option_2_benefit_style": "outlined",
+            "option_2_benefit_color": "accent-1",
+            "option_2_caption": "You save [amount_saved]",
+            "option_2_percentage_off_text": "0",
+            "option_2_fixed_amount_off": "0",
+            "option_2_price_text": "[price]",
+            "option_2_compare_price": "compare_price",
+            "option_2_compare_price_text": "[compare_price]",
+            "option_3_quantity": 3,
+            "option_3_badge": "",
+            "option_3_badge_style": "1",
+            "option_3_badge_color": "accent-1",
+            "option_3_label": "Buy [quantity]",
+            "option_3_benefit": "",
+            "option_3_benefit_position": "top",
+            "option_3_benefit_style": "outlined",
+            "option_3_benefit_color": "accent-1",
+            "option_3_caption": "You save [amount_saved]",
+            "option_3_percentage_off_text": "0",
+            "option_3_fixed_amount_off": "0",
+            "option_3_price_text": "[price]",
+            "option_3_compare_price": "compare_price",
+            "option_3_compare_price_text": "[compare_price]",
+            "option_4_quantity": 4,
+            "option_4_badge": "",
+            "option_4_badge_style": "1",
+            "option_4_badge_color": "accent-1",
+            "option_4_label": "Buy [quantity]",
+            "option_4_benefit": "",
+            "option_4_benefit_position": "top",
+            "option_4_benefit_style": "outlined",
+            "option_4_benefit_color": "accent-1",
+            "option_4_caption": "You save [amount_saved]",
+            "option_4_percentage_off_text": "0",
+            "option_4_fixed_amount_off": "0",
+            "option_4_price_text": "[price]",
+            "option_4_compare_price": "compare_price",
+            "option_4_compare_price_text": "[compare_price]",
+            "margin_top": 15,
+            "margin_bottom": 15
+          }
+        },
+        "buy_buttons_WGahCe": {
+          "type": "buy_buttons",
+          "settings": {
+            "show_dynamic_checkout": false,
+            "skip_cart": false,
+            "uppercase_text": true,
+            "icon_scale": 120,
+            "icon_spacing": 10,
+            "display_price": false,
+            "enable_custom_color": false,
+            "custom_color": "#dd1d1d",
+            "enable_secondary_btn": false,
+            "secondary_btn_label": "Buy It Now",
+            "secondary_btn_enable_custom_color": false,
+            "secondary_btn_custom_color": "#dd1d1d",
+            "margin_top": 24,
+            "margin_bottom": 24
+          }
+        },
+        "view_details_GfrXbW": {
+          "type": "view_details",
+          "settings": {
+            "style": "text",
+            "enable_custom_color": false,
+            "custom_color": "#dd1d1d",
+            "large_font_size": false,
+            "uppercase": false,
+            "display_arrow": true,
+            "margin_top": 15,
+            "margin_bottom": 0
+          }
+        }
+      },
+      "block_order": [
+        "title_arTTY3",
+        "price_Awybir",
+        "variant_picker_BEdNhx",
+        "quantity_selector_z9KReG",
+        "buy_buttons_WGahCe",
+        "view_details_GfrXbW"
+      ],
+      "name": "t:sections.featured-product.presets.name",
+      "settings": {
+        "display_id": false,
+        "visibility": "always-display",
+        "color_scheme": "background-1",
+        "secondary_background": false,
+        "enable_sticky_info": false,
+        "product": "mystery-figure",
+        "product_images": "one",
+        "display_variant_image_first": false,
+        "disable_prepend": false,
+        "hide_variants": false,
+        "variant_image_filtering": "none",
+        "image_zoom": "none",
+        "arrows_color_scheme": "inverse",
+        "transparent_arrows": false,
+        "dots_color_scheme": "inverse",
+        "video_player": "play_btn",
+        "enable_video_looping": false,
+        "autoplay_videos_pause_btn": false,
+        "video_sound_btn": false,
+        "video_timeline": false,
+        "play_btn_color_scheme": "accent-1",
+        "sound_btn_color_scheme": "inverse",
+        "timeline_color": "accent-1",
+        "media_size": "small",
+        "media_position": "left",
+        "gallery_layout": "thumbnail_slider",
+        "desktop_thumbnails_position": "bottom",
+        "desktop_thumbnails_count": 5,
+        "desktop_vertical_thumbnails_width": 16,
+        "desktop_vertical_thumbnails_hide_arrows": false,
+        "constrain_to_viewport": true,
+        "media_fit": "cover",
+        "desktop_arrows_position": "hidden",
+        "mobile_media_corner_radius": 28,
+        "mobile_spacing_pixels": 0,
+        "mobile_arrows_position": "sides",
+        "mobile_pagination": "dots_overlay",
+        "mobile_thumbnails_position": "hidden",
+        "mobile_thumbnails_count": 5,
+        "mobile_vertical_thumbnails_width": 22,
+        "mobile_vertical_thumbnails_hide_arrows": true,
+        "mobile_scroll_padding_percentage": 0,
+        "mobile_scroll_padding_pixels": 16,
+        "enable_mobile_outher_spacing": false,
+        "mobile_slides_container_width": 100,
+        "mobile_slides_inner_width": 100,
+        "trust_badge_position": "top-right",
+        "trust_badge_size": "medium",
+        "mobile_padding_top": 20,
+        "mobile_padding_bottom": 20,
+        "desktop_padding_top": 36,
+        "desktop_padding_bottom": 36
+      }
+    }
+  },
+  "order": [
+    "main-collection-banner",
+    "multirow_MQ4Ufw",
+    "multirow_VXnpKb",
+    "main-collection-product-grid",
+    "collage",
+    "newsletter",
+    "featured_product_XDt73F"
+  ]
+}
