@@ -1,0 +1,40 @@
+<div
+  data-bl-mystery-ui
+  data-product-handle="{{ product.handle }}"
+  data-collections='{% capture bl_collections_json %}[
+    {%- assign is_first = true -%}
+    {%- for link in linklists['all-collections'].links -%}
+      {%- if link.type == 'collection_link' -%}
+        {%- unless is_first -%},{%- endunless -%}
+        {"handle":"{{ link.object.handle | escape }}","title":"{{ link.object.title | escape_once }}"}
+        {%- assign is_first = false -%}
+      {%- endif -%}
+    {%- endfor -%}
+  ]{% endcapture %}{{ bl_collections_json | strip_newlines | escape }}'
+>
+  <div class="bl-mystery-selector" data-bl-mystery-selector>
+    <div class="bl-mystery-row" data-bl-mode-row>
+      <div class="bl-mystery-label">Mode</div>
+      <div class="bl-mystery-pill-group" data-bl-mode-group>
+        <button type="button" class="bl-mystery-pill" data-bl-mode="random">Random Collection</button>
+        <button type="button" class="bl-mystery-pill" data-bl-mode="preferred">Preferred Collection</button>
+      </div>
+    </div>
+    <div class="bl-mystery-row" data-bl-collection-row style="display: none;">
+      <div class="bl-mystery-label">Collection</div>
+      <select id="BLPreferredCollection-{{ section.id }}" class="bl-mystery-select" data-bl-pref-collection-select>
+        {%- for link in linklists['all-collections'].links -%}
+          {%- if link.type == 'collection_link' -%}
+            <option value="{{ link.object.handle }}">{{ link.object.title }}</option>
+          {%- endif -%}
+        {%- endfor -%}
+      </select>
+    </div>
+    <div class="bl-mystery-row" data-bl-rarity-row>
+      <div class="bl-mystery-label">Rarity</div>
+      <div class="bl-mystery-pill-group" data-bl-rarity-options></div>
+    </div>
+    <div class="bl-mystery-helper" data-bl-mystery-hint></div>
+  </div>
+</div>
+<div class="bl-mystery-notice" data-bl-mystery-notice aria-live="polite" style="display: none;"></div>
