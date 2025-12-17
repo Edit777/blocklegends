@@ -17,6 +17,8 @@
   var A = window.BL.mysteryAddon;
 
   var observer = null;
+  var observerRunning = false;
+  var RARITY_ORDER = ['any', 'common', 'rare', 'epic', 'legendary'];
 
   function getAddonHandle() {
     try {
@@ -48,21 +50,24 @@
     st.id = 'bl-addon-css';
     st.textContent = [
       '.upsell[data-upsell-addon="true"] .upsell__image__img{aspect-ratio:1/1;object-fit:cover;width:100%;height:auto;}',
-      '.upsell[data-upsell-addon="true"] .bl-addon-main{display:flex;align-items:center;gap:.85rem;width:100%;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-main{display:flex;align-items:center;gap:.85rem;width:100%;justify-content:space-between;}',
       '.upsell[data-upsell-addon="true"] .upsell__image{flex:0 0 76px;width:76px;display:flex;align-items:center;justify-content:center;}',
       '.upsell[data-upsell-addon="true"] .upsell__image .upsell__image__img{max-width:76px;width:100%;}',
-      '.upsell[data-upsell-addon="true"] .bl-addon-body{flex:1;min-width:0;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.25rem;}',
       '.upsell[data-upsell-addon="true"] .upsell__content{min-width:0;}',
       '.upsell[data-upsell-addon="true"] .upsell__title h3{white-space:normal;word-break:normal;overflow-wrap:anywhere;margin:0;}',
 
-      '.upsell[data-upsell-addon="true"] .bl-addon-right{display:flex;align-items:center;gap:.6rem;white-space:nowrap;flex:0 0 auto;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-right{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;white-space:nowrap;flex:0 0 auto;}',
       '.upsell[data-upsell-addon="true"] .upsell__price{margin:0;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;line-height:1.15;}',
       '.upsell[data-upsell-addon="true"] .upsell__price .regular-price{font-weight:700;}',
 
       '.upsell[data-upsell-addon="true"] .bl-addon-meta{margin-top:.25rem;display:flex;flex-direction:column;gap:.25rem;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-controls{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-controls label{font-size:12px;font-weight:700;letter-spacing:.01em;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-select{min-height:32px;height:32px;padding:4px 10px;border:1px solid rgba(0,0,0,.18);border-radius:8px;background:#fff;font-size:12px;line-height:1.1;max-width:100%;min-width:120px;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-select option:disabled{color:rgba(0,0,0,.35);}',
       '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:12px;line-height:1.35;opacity:.85;}',
+      '.bl-addon-notice{margin-top:0.75rem;font-size:13px;line-height:1.4;color:#b33;padding:.6rem .8rem;border:1px solid rgba(179,51,51,.35);border-radius:8px;background:rgba(179,51,51,.08);width:100%;display:block;}',
       '.upsell[data-upsell-addon="true"] .upsell__variant-picker{display:none !important;}'
     ].join('');
     document.head.appendChild(st);
@@ -106,6 +111,12 @@
       }
     } catch (e) {}
     return (v.public_title || v.title || 'Option').trim() || 'Option';
+  }
+
+  function rarityOrderValue(rarity) {
+    var r = String(rarity || '').toLowerCase();
+    var idx = RARITY_ORDER.indexOf(r);
+    return idx === -1 ? 999 : idx;
   }
 
   function getVariantRarity(variantId) {
@@ -310,17 +321,28 @@
     var existing = controls.querySelector('select[data-bl-addon-select="1"]');
     if (existing) return existing;
 
+    var selectId = 'bl-addon-select-' + String(Math.random()).replace(/\D/g, '').slice(0, 6);
     var select = document.createElement('select');
     select.className = 'bl-addon-select';
     select.setAttribute('data-bl-addon-select', '1');
+    select.id = selectId;
 
-    variants.forEach(function (v) {
+    var sortedVariants = variants.slice().sort(function (a, b) {
+      return rarityOrderValue(getVariantRarity(a.id)) - rarityOrderValue(getVariantRarity(b.id));
+    });
+
+    sortedVariants.forEach(function (v) {
       var opt = document.createElement('option');
       opt.value = String(v.id);
       opt.textContent = labelForVariant(v);
       select.appendChild(opt);
     });
 
+    var label = document.createElement('label');
+    label.setAttribute('for', selectId);
+    label.textContent = 'Rarity';
+
+    controls.appendChild(label);
     controls.appendChild(select);
     return select;
   }
@@ -382,7 +404,7 @@
         applyVariant(card, variants, selectEl ? selectEl.value : initialId);
         updateHint(card, selectEl);
         if (switched) {
-          showNotice(card, 'Some rarities are not available for this figure right now. Switched to an available option.');
+          showNotice(card, 'Some rarities are not available for this collection right now. Switched to an available option.');
         }
       })
       .catch(function () {
@@ -396,7 +418,7 @@
           applyVariant(card, variants, selectEl.value);
           updateHint(card, selectEl);
           if (switched) {
-            showNotice(card, 'Some rarities are not available for this figure right now. Switched to an available option.');
+            showNotice(card, 'Some rarities are not available for this collection right now. Switched to an available option.');
           }
         });
       });
@@ -424,7 +446,9 @@
     if (observer || typeof MutationObserver === 'undefined' || !U || typeof U.debounce !== 'function') return;
     try {
       observer = new MutationObserver(U.debounce(function () {
-        A.init(document);
+        if (observerRunning) return;
+        observerRunning = true;
+        try { A.init(document); } finally { observerRunning = false; }
       }, 120));
       observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
     } catch (e) {}
