@@ -1,0 +1,1268 @@
+(function () {
+  // Updated to harden quota enforcement: robust mutation responses, verification/retry with fallback, internal request tagging, and richer debug logging.
+  window.BL = window.BL || {};
+  const BL = window.BL;
+
+  // =========================
+  // CONFIG — adjust these
+  // =========================
+  const CFG = {
+    // Best signal: line-item property on add-on lines
+    propIsAddon: '_bl_is_addon', // value must be "1"
+
+    // Optional fallback: add-on product handles (dedicated add-on product(s))
+    addonHandle: 'mystery-add-on',
+    addonHandles: [],
+
+    // Debug toggle: ?cart_guard_debug=1
+    debugParam: 'cart_guard_debug',
+
+    // Internal header to tag guard-driven requests
+    internalHeader: 'X-BL-CART-GUARD',
+
+    // How long to ignore stable events after guard itself mutates the cart (ms)
+    internalMuteMs: 1200,
+
+    // Removal policy when too many add-ons:
+    // 'last' removes from last add-on line backwards (deterministic)
+    removePolicy: 'last',
+
+    lastAddonKeyStorage: 'BL_LAST_ADDON_KEY',
+    lastAddonTsStorage: 'BL_LAST_ADDON_TS',
+    lastAddonMetaStorage: 'BL_LAST_ADDON_META',
+
+    messageStorage: 'BL_GUARD_MESSAGE'
+  };
+
+  const debug = (() => {
+    try { return new URL(location.href).searchParams.get(CFG.debugParam) === '1'; }
+    catch (e) { return false; }
+  })();
+  const log = (...a) => { if (debug) console.log('[BL:guard]', ...a); };
+
+  // =========================
+  // INTERNAL STATE / SAFETY
+  // =========================
+  let running = false;
+  let queued = false;
+  let rerunTimer = null;
+  let internalMuteUntil = 0;
+  let lastTxnId = 0;
+  let prevAddonKeys = new Set();
+  let lastMsgTs = 0;
+  let lastMsgSig = '';
+  let lastTouchedAddonKey = null;
+  let latestCartSnapshot = null;
+  let latestClassificationsByKey = {};
+  let persistedMessage = null;
+  let guardMutated = false;
+
+  function muteInternal() {
+    internalMuteUntil = Date.now() + CFG.internalMuteMs;
+  }
+  function isMuted() {
+    return Date.now() < internalMuteUntil;
+  }
+
+  // =========================
+  // HELPERS
+  // =========================
+  const addonHandleList = (() => {
+    const handles = [];
+    if (CFG.addonHandle) handles.push(CFG.addonHandle);
+    if (Array.isArray(CFG.addonHandles)) handles.push(...CFG.addonHandles);
+    return handles
+      .filter(Boolean)
+      .map((h) => String(h).toLowerCase());
+  })();
+
+  function extractHandle(url) {
+    const m = /\/products\/([^?/]+)/i.exec(String(url || ''));
+    return m ? decodeURIComponent(m[1]).toLowerCase() : '';
+  }
+
+  function summarizeProps(props) {
+    if (!props) return '';
+    try {
+      return Object.keys(props)
+        .filter((k) => props[k] !== undefined && props[k] !== null && props[k] !== '')
+        .map((k) => `${k}:${props[k]}`)
+      .join(',');
+    } catch (e) { return ''; }
+  }
+
+  function readStorage(store, key) {
+    try { return store.getItem(key); } catch (e) { return null; }
+  }
+
+  function writeStorage(store, key, value) {
+    try { store.setItem(key, value); } catch (e) {}
+  }
+
+  function readLastAddonKey() {
+    const storages = [sessionStorage, localStorage];
+    for (const store of storages) {
+      const val = readStorage(store, CFG.lastAddonKeyStorage);
+      if (val) {
+        lastTouchedAddonKey = val;
+        return val;
+      }
+    }
+    return null;
+  }
+
+  function writeLastAddonKey(key, meta) {
+    if (!key) return;
+    const ts = Date.now();
+    const payload = Object.assign({ ts, key }, meta || {});
+    lastTouchedAddonKey = key;
+    try { sessionStorage.setItem(CFG.lastAddonKeyStorage, key); } catch (e) {}
+    try { localStorage.setItem(CFG.lastAddonKeyStorage, key); } catch (e) {}
+    try { localStorage.setItem(CFG.lastAddonTsStorage, String(ts)); } catch (e) {}
+    try { localStorage.setItem(CFG.lastAddonMetaStorage, JSON.stringify(payload)); } catch (e) {}
+  }
+
+  function getLastTouchedAddonKey() {
+    return lastTouchedAddonKey || readLastAddonKey();
+  }
+
+  function classifyItem(item) {
+    const props = item && item.properties ? item.properties : {};
+    const url = String((item && item.url) || '');
+    const handle = extractHandle(url);
+    const isAddonByProp = String(props[CFG.propIsAddon] || '') === '1';
+    const isAddonByHandle = addonHandleList.length ? addonHandleList.includes(handle) : false;
+    const isAddonFinal = isAddonByProp || isAddonByHandle;
+
+    if (debug && isAddonByProp && handle && addonHandleList.length && !isAddonByHandle) {
+      log('WARNING: item marked as add-on via property but handle mismatch (data corruption?)', {
+        key: item && item.key,
+        handle,
+        url,
+        props
+      });
+    }
+
+    return {
+      key: item && item.key,
+      quantity: Number((item && item.quantity) || 0),
+      url,
+      handleExtracted: handle,
+      isAddonByProp,
+      isAddonByHandle,
+      isAddonFinal,
+      propsSummary: summarizeProps(props)
+    };
+  }
+
+  async function getCart() {
+    const res = await fetch('/cart.js', {
+      credentials: 'same-origin',
+      headers: {
+        'X-BL-INTERNAL': '1',
+        [CFG.internalHeader]: '1'
+      }
+    });
+    return res.json();
+  }
+
+  function getDrawerElement() {
+    return document.querySelector('cart-drawer') || document.getElementById('CartDrawer');
+  }
+
+  function isDrawerOpen() {
+    const drawer = getDrawerElement();
+    if (!drawer) return false;
+
+    const hasOpenAttr = (() => {
+      const attr = drawer.getAttribute('open');
+      const expanded = drawer.getAttribute('aria-expanded');
+      return attr === '' || attr === 'true' || expanded === 'true';
+    })();
+
+    const hasOpenClass = (() => {
+      const cl = drawer.classList || {};
+      return cl.contains?.('is-open') || cl.contains?.('active') || cl.contains?.('open') || cl.contains?.('animate');
+    })();
+
+    const ariaHidden = drawer.getAttribute('aria-hidden');
+    const visible = drawer.offsetParent !== null || (drawer.getBoundingClientRect && drawer.getBoundingClientRect().width > 0);
+    const bodyLocked = document.body && document.body.classList.contains('overflow-hidden');
+
+    return !!((hasOpenAttr || hasOpenClass || bodyLocked) && ariaHidden !== 'true' && visible);
+  }
+
+  function getDrawerItemsElement() {
+    return document.querySelector('cart-drawer-items');
+  }
+
+  function syncBodyScrollLock(drawerIsOpen) {
+    try {
+      if (!document || !document.body) return;
+      if (drawerIsOpen) {
+        document.body.classList.add('overflow-hidden');
+      } else {
+        document.body.classList.remove('overflow-hidden');
+      }
+    } catch (e) {}
+  }
+
+  function ensureDrawerOpenAfterPatch(drawerWasOpen) {
+    if (!drawerWasOpen) {
+      syncBodyScrollLock(isDrawerOpen());
+      return;
+    }
+
+    if (isDrawerOpen()) {
+      syncBodyScrollLock(true);
+      return;
+    }
+
+    const openCandidates = [
+      () => window.Shrine && window.Shrine.CartDrawer && typeof window.Shrine.CartDrawer.open === 'function' && window.Shrine.CartDrawer.open(),
+      () => {
+        const drawerEl = getDrawerElement();
+        if (drawerEl && typeof drawerEl.open === 'function') return drawerEl.open();
+        if (drawerEl && typeof drawerEl.show === 'function') return drawerEl.show();
+        return null;
+      },
+      () => {
+        const opener = document.querySelector('[data-cart-drawer-open]')
+          || document.querySelector('#cart-icon-bubble button')
+          || document.querySelector('#cart-icon-bubble a')
+          || document.querySelector('a[href="/cart"]');
+        if (opener) opener.dispatchEvent(new Event('click', { bubbles: true }));
+      }
+    ];
+
+    for (const attempt of openCandidates) {
+      try {
+        const result = attempt();
+        if (result !== undefined) break;
+      } catch (e) {}
+      if (isDrawerOpen()) break;
+    }
+
+    syncBodyScrollLock(isDrawerOpen());
+  }
+
+  function resolveSectionIdFromDom(el, fallbackId) {
+    if (!el) return fallbackId;
+    const sectionEl = el.closest('section[id^="shopify-section-"]');
+    if (!sectionEl || !sectionEl.id) return fallbackId;
+    return sectionEl.id.replace('shopify-section-', '') || fallbackId;
+  }
+
+  function collectSectionTargets() {
+    const targets = [];
+    const seen = new Set();
+    const sectionsUrl = window.location ? window.location.pathname + window.location.search : '/';
+
+    function addTarget(entry) {
+      if (!entry) return;
+      const id = entry.id || entry.section;
+      const section = entry.section || entry.id;
+      if (!id || !section || seen.has(id)) return;
+      const selector = entry.selector || null;
+      const target = entry.target || (selector ? document.querySelector(selector) : null) || document.getElementById(id);
+      if (!target) return;
+
+      targets.push({ id, section, selector, target, type: entry.type || null });
+      seen.add(id);
+    }
+
+    const drawerEl = getDrawerElement() || document.querySelector('[data-cart-drawer], cart-drawer, #CartDrawer');
+    const drawerSectionEl = drawerEl ? drawerEl.closest('section[id^="shopify-section-"]') : document.querySelector('section[id*="cart-drawer"]');
+    if (drawerEl || drawerSectionEl) {
+      const drawerSectionId = resolveSectionIdFromDom(drawerSectionEl || drawerEl, 'cart-drawer');
+      addTarget({ id: drawerSectionId, section: drawerSectionId, selector: drawerSectionEl ? `#${drawerSectionEl.id}` : null, target: drawerSectionEl || drawerEl, type: 'drawer' });
+    }
+
+    const drawerItems = getDrawerItemsElement();
+    if (drawerItems) {
+      const drawerItemsId = resolveSectionIdFromDom(drawerItems, 'cart-drawer');
+      addTarget({ id: drawerItemsId, section: drawerItemsId, selector: drawerItems.id ? `#${drawerItems.id}` : null, target: drawerItems, type: 'items' });
+    }
+
+    const drawerFooter = (drawerEl && (drawerEl.querySelector('.cart-drawer__footer, .drawer__footer') || drawerEl.querySelector('.cart-drawer__totals, .cart-drawer__totals-container')))
+      || document.querySelector('.cart-drawer__footer, .drawer__footer, .cart-drawer__totals, .cart-drawer__totals-container');
+    if (drawerFooter) {
+      const footerId = resolveSectionIdFromDom(drawerFooter, resolveSectionIdFromDom(drawerEl, 'cart-drawer'));
+      addTarget({ id: footerId, section: footerId, selector: `#${drawerFooter.id || ''}`.trim() || null, target: footerId ? drawerFooter.closest?.(`#shopify-section-${footerId}`) || drawerFooter : drawerFooter, type: 'footer' });
+    }
+
+    const bubble = document.getElementById('cart-icon-bubble');
+    if (bubble) {
+      const bubbleId = resolveSectionIdFromDom(bubble, 'cart-icon-bubble');
+      addTarget({ id: bubbleId, section: bubbleId, selector: '#cart-icon-bubble', target: bubble, type: 'bubble' });
+    }
+
+    return { sections: targets, sectionsUrl };
+  }
+
+  function patchSections(sectionHtmls, sections, meta) {
+    if (!sectionHtmls || !sections || !sections.length) return false;
+
+    let applied = false;
+    const patchedTypes = new Set();
+
+    const findDrawerHost = (root) => {
+      if (!root) return null;
+      if (root.matches?.('cart-drawer, #CartDrawer')) return root;
+      return root.querySelector?.('cart-drawer, #CartDrawer');
+    };
+
+    const findDrawerInner = (root) => {
+      if (!root) return null;
+      const selectors = [
+        '.cart-drawer__inner',
+        '.drawer__inner',
+        '.drawer__content',
+        '.cart-drawer__content',
+        '.drawer__body',
+        '.cart-drawer__wrapper'
+      ];
+      for (const sel of selectors) {
+        const found = root.querySelector(sel);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    function findParsedSection(dom, secId) {
+      return dom.getElementById(`shopify-section-${secId}`) || dom.querySelector(`#shopify-section-${secId}`) || dom.querySelector(`section[id^="shopify-section-${secId}"]`);
+    }
+
+    sections.forEach((entry) => {
+      const secId = entry.section || entry.id;
+      const html = sectionHtmls[secId];
+      if (!html) return;
+
+      const liveContainer = entry.target;
+      if (!liveContainer) return;
+
+      const dom = new DOMParser().parseFromString(html, 'text/html');
+
+      if (entry.type === 'drawer') {
+        const parsedSection = findParsedSection(dom, secId) || dom.body;
+        const liveDrawer = findDrawerHost(liveContainer) || liveContainer;
+        const parsedDrawer = findDrawerHost(parsedSection) || parsedSection;
+        const liveInner = findDrawerInner(liveDrawer) || findDrawerInner(liveContainer);
+        const parsedInner = findDrawerInner(parsedDrawer) || findDrawerInner(parsedSection);
+
+        if (liveInner && parsedInner) {
+          liveInner.innerHTML = parsedInner.innerHTML;
+          patchedTypes.add('drawer');
+          applied = true;
+        } else if (liveDrawer && parsedDrawer) {
+          liveDrawer.innerHTML = parsedDrawer.innerHTML;
+          patchedTypes.add('drawer');
+          applied = true;
+        }
+        return;
+      }
+
+      if (entry.type === 'bubble') {
+        const parsedBubble = dom.querySelector('#cart-icon-bubble');
+        if (parsedBubble) {
+          liveContainer.outerHTML = parsedBubble.outerHTML;
+          applied = true;
+          patchedTypes.add('bubble');
+        }
+        return;
+      }
+
+      const parsedSection = findParsedSection(dom, secId);
+      const liveSection = liveContainer.id?.startsWith('shopify-section-') ? liveContainer : liveContainer.closest?.('section[id^="shopify-section-"]');
+      if (parsedSection && liveSection) {
+        liveSection.outerHTML = parsedSection.outerHTML;
+        applied = true;
+        if (entry.type) patchedTypes.add(entry.type);
+        return;
+      }
+
+      const selector = entry.selector || null;
+      let parsed = null;
+      if (selector) parsed = dom.querySelector(selector);
+      if (!parsed) {
+        const tag = (liveContainer.tagName || '').toLowerCase();
+        parsed = dom.querySelector(tag) || dom.body.firstElementChild;
+      }
+      if (!parsed) return;
+
+      if (entry.type === 'drawer') {
+        liveContainer.outerHTML = parsed.outerHTML || parsed.innerHTML || '';
+        patchedTypes.add('drawer');
+      } else {
+        liveContainer.innerHTML = parsed.innerHTML || '';
+        if (entry.type) patchedTypes.add(entry.type);
+      }
+      applied = true;
+    });
+
+    if (meta && typeof meta === 'object') {
+      meta.applied = applied;
+      meta.patchedTypes = patchedTypes;
+      meta.patchedDrawer = patchedTypes.has('drawer');
+    }
+
+    return applied;
+  }
+
+  async function requestAndApplySections(sectionIds, sections, sectionsUrl, sourceLabel) {
+    if (!sectionIds || !sectionIds.length || !sections || !sections.length) return false;
+    const urlBase = sectionsUrl || (window.location ? window.location.pathname + window.location.search : '/');
+    const joiner = urlBase.includes('?') ? '&' : '?';
+    const fetchUrl = `${urlBase}${joiner}sections=${sectionIds.join(',')}`;
+
+    log('requesting sections', { source: sourceLabel, sectionIds, fetchUrl });
+
+    let data = null;
+    try {
+      const res = await fetch(fetchUrl, {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+          'X-BL-INTERNAL': '1',
+          [CFG.internalHeader]: '1'
+        }
+      });
+      if (res.ok) data = await res.json();
+    } catch (e) {
+      log('sections fetch error', e);
+    }
+
+    const sectionHtmls = data && (data.sections || data);
+    if (!sectionHtmls) return false;
+
+    const meta = { patchedTypes: new Set() };
+    const applied = patchSections(sectionHtmls, sections, meta);
+    if (applied) {
+      log('sections applied', { source: sourceLabel, drawerExists: !!getDrawerElement(), itemsHost: !!getDrawerItemsElement() });
+    }
+    return meta;
+  }
+
+  async function refreshCartUI(reason) {
+    const reasonLabel = reason || 'guard';
+
+    const apiCandidates = [
+      { el: getDrawerItemsElement(), label: 'cart-drawer-items', methods: ['updateCart', 'renderContents', 'refresh'] },
+      { el: getDrawerElement(), label: 'cart-drawer', methods: ['updateCart', 'renderContents', 'refresh'] }
+    ];
+
+    for (const candidate of apiCandidates) {
+      if (!candidate.el) continue;
+      const fnName = candidate.methods.find((m) => typeof candidate.el[m] === 'function');
+      if (!fnName) continue;
+      try {
+        log('refreshCartUI via theme API', { reason: reasonLabel, target: candidate.label, fn: fnName });
+        candidate.el[fnName]();
+        return true;
+      } catch (e) {
+        log('theme API refresh failed', e);
+      }
+    }
+
+    const { sections, sectionsUrl } = collectSectionTargets();
+    if (!sections.length) return false;
+
+    const sectionIds = sections.map((s) => s.section || s.id).filter(Boolean);
+    const meta = await requestAndApplySections(sectionIds, sections, sectionsUrl, reasonLabel || 'refresh');
+
+    return !!(meta && meta.applied);
+  }
+
+  BL.refreshCartUI = refreshCartUI;
+
+  function getDrawerQtyByKey(lineKey) {
+    const drawer = getDrawerElement();
+    if (!drawer || !lineKey) return null;
+
+    const safeKey = window.CSS && window.CSS.escape ? window.CSS.escape(lineKey) : lineKey;
+    const item = drawer.querySelector(`[data-line-key="${safeKey}"]`);
+    if (!item) return null;
+
+    const input = item.querySelector('input[name="updates[]"], input[name="updates"]');
+    if (!input) return null;
+
+    const parsed = Number(input.value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function logAndHandleDrawerDesync(cart, reason) {
+    if (!debug || !cart || !Array.isArray(cart.items)) return false;
+
+    let desynced = false;
+    cart.items.forEach((item) => {
+      const cls = classifyItem(item);
+      if (!cls.isAddonFinal) return;
+
+      const cartQty = Number(item.quantity || 0);
+      const drawerQty = getDrawerQtyByKey(item.key);
+      log('post-verify qty check', { key: item.key, cartQty, drawerQty });
+
+      if (drawerQty !== null && drawerQty !== cartQty) {
+        desynced = true;
+        console.warn('[BL:guard] UI DESYNC: drawer shows', drawerQty, 'cart.js shows', cartQty, { key: item.key });
+      }
+    });
+
+    if (desynced) {
+      log('UI desync detected; refreshing drawer UI');
+      refreshCartUI(reason || 'desync');
+    }
+
+    return desynced;
+  }
+
+  async function changeLineByKey(lineKey, quantity, sectionsPayload) {
+    const body = Object.assign({ id: lineKey, quantity }, sectionsPayload || {});
+
+    const res = await fetch('/cart/change.js', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        [CFG.internalHeader]: '1'
+      },
+      body: JSON.stringify(body)
+    });
+
+    let data = null;
+    if (res.ok) {
+      try { data = await res.json(); } catch (e) {}
+    } else {
+      try {
+        const txt = await res.text();
+        log('changeLineByKey failed', { status: res.status, statusText: res.statusText, body: txt });
+      } catch (e) {
+        log('changeLineByKey failed (no body)', { status: res.status, statusText: res.statusText });
+      }
+    }
+
+    log('changeLineByKey response', { key: lineKey, quantity, status: res.status, ok: res.ok });
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  async function changeLineByIndex(lineIndex, quantity, sectionsPayload) {
+    const body = Object.assign({ line: lineIndex, quantity }, sectionsPayload || {});
+
+    const res = await fetch('/cart/change.js', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        [CFG.internalHeader]: '1'
+      },
+      body: JSON.stringify(body)
+    });
+
+    let data = null;
+    if (res.ok) {
+      try { data = await res.json(); } catch (e) {}
+    } else {
+      try {
+        const txt = await res.text();
+        log('changeLineByIndex failed', { status: res.status, statusText: res.statusText, body: txt });
+      } catch (e) {
+        log('changeLineByIndex failed (no body)', { status: res.status, statusText: res.statusText });
+      }
+    }
+
+    log('changeLineByIndex response', { line: lineIndex, quantity, status: res.status, ok: res.ok });
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  function mapKeyToLine(cart) {
+    const map = {};
+    if (!cart || !Array.isArray(cart.items)) return map;
+    cart.items.forEach((item, idx) => {
+      map[item && item.key] = idx + 1; // Shopify line index is 1-based
+    });
+    return map;
+  }
+
+  function summarizePlan(plan, label) {
+    if (!debug || !plan) return;
+    log(label || 'plan', {
+      parentUnits: plan.parentUnits,
+      addonUnits: plan.addonUnits,
+      changes: plan.changes
+    });
+  }
+
+  // Build an action plan based on current cart snapshot
+  function getPreferredAddonKeyFromCart(cart, addonLines) {
+    const storedKey = getLastTouchedAddonKey();
+    if (!storedKey) return null;
+    return addonLines.some((ln) => ln.key === storedKey) ? storedKey : null;
+  }
+
+  function buildPlan(cart, preClassifications) {
+    const items = (cart && cart.items) ? cart.items : [];
+    const classifications = preClassifications || items.map((it) => classifyItem(it));
+
+    let parentUnits = 0;
+    let addonLines = []; // { key, qty, url, title }
+    const keyToItem = {};
+
+    classifications.forEach((c, idx) => {
+      const src = items[idx] || {};
+      if (src && src.key) keyToItem[src.key] = src;
+      if (c.isAddonFinal) {
+        addonLines.push({ key: src.key, qty: c.quantity, url: c.url || '', title: src.title || '' });
+      } else {
+        parentUnits += c.quantity;
+      }
+    });
+
+    const addonUnits = addonLines.reduce((s, x) => s + (x.qty || 0), 0);
+
+    // Core rule: addonUnits <= parentUnits
+    if (addonUnits <= parentUnits) {
+      return {
+        parentUnits,
+        addonUnits,
+        changes: [],
+        message: null,
+        classifications,
+        addonUnitsAfter: addonUnits,
+        preferredKeyUsed: false,
+        removed: []
+      };
+    }
+
+    let toRemove = addonUnits - parentUnits;
+    let changes = [];
+
+    const preferredKey = getPreferredAddonKeyFromCart(cart, addonLines);
+
+    // Deterministic removal policy
+    let ordered = (CFG.removePolicy === 'last')
+      ? addonLines.slice().reverse()
+      : addonLines.slice(); // 'first'
+
+    if (preferredKey) {
+      const preferred = addonLines.find((l) => l.key === preferredKey);
+      ordered = [preferred, ...ordered.filter((l) => l && l.key !== preferredKey)];
+    }
+
+    for (const ln of ordered) {
+      if (toRemove <= 0) break;
+      if (!ln.qty) continue;
+
+      const reduceBy = Math.min(ln.qty, toRemove);
+      const newQty = ln.qty - reduceBy;
+
+      changes.push({
+        key: ln.key,
+        quantity: newQty,
+        fromQty: ln.qty,
+        toQty: newQty,
+        title: ln.title
+      });
+      toRemove -= reduceBy;
+    }
+
+    const removedUnits = (addonUnits - parentUnits) - toRemove;
+    const addonUnitsAfter = addonUnits - removedUnits;
+    const removed = changes.map((ch) => ({ key: ch.key, title: ch.title, fromQty: ch.fromQty, toQty: ch.toQty }));
+
+    let message = WARNING_TEXT;
+
+    return {
+      parentUnits,
+      addonUnits,
+      changes,
+      message,
+      classifications,
+      addonUnitsAfter,
+      preferredKeyUsed: !!preferredKey,
+      removed
+    };
+  }
+
+  async function applyPlan(plan) {
+    if (!plan.changes || !plan.changes.length) return false;
+
+    const drawerWasOpen = isDrawerOpen();
+
+    // Important: applying changes triggers cart mutation requests -> stable -> guard again
+    // We mute internal stable events briefly to avoid loops.
+    muteInternal();
+    guardMutated = true;
+
+    const changeResults = [];
+    log('mutation payload', { changes: plan.changes });
+
+    const { sections, sectionsUrl } = collectSectionTargets();
+    const sectionIds = sections.map((s) => s.section || s.id).filter(Boolean);
+    if (sectionIds.length) {
+      log('requesting sections with mutation', { sectionIds, sectionsUrl });
+    }
+    const sectionsPayload = sectionIds.length ? { sections: sectionIds, sections_url: sectionsUrl } : null;
+    let patchedSections = false;
+    let fallbackSectionsApplied = false;
+    let patchedDrawer = false;
+    let mutationIndicatedEmpty = false;
+    let fallbackMeta = null;
+
+    // Apply sequentially to avoid race conditions with line indexing
+    for (let i = 0; i < plan.changes.length; i++) {
+      const ch = plan.changes[i];
+      log('changeLine', ch);
+      const res = await changeLineByKey(ch.key, ch.quantity, (i === plan.changes.length - 1) ? sectionsPayload : null);
+      changeResults.push({ key: ch.key, ok: !!(res && res.ok), status: res && res.status });
+
+      if (res && res.data && res.data.item_count === 0) {
+        mutationIndicatedEmpty = true;
+      }
+
+      if (res && res.ok && res.data && res.data.sections && sectionsPayload) {
+        const meta = { patchedTypes: new Set() };
+        const applied = patchSections(res.data.sections, sections, meta);
+        patchedSections = applied || patchedSections;
+        patchedDrawer = patchedDrawer || !!(meta && meta.patchedDrawer);
+        if (applied) {
+          log('sections applied from mutation response');
+        }
+      }
+    }
+
+    if (sectionsPayload && sectionIds.length && !patchedSections) {
+      fallbackMeta = await requestAndApplySections(sectionIds, sections, sectionsUrl, 'mutation_fallback_fetch');
+      fallbackSectionsApplied = !!(fallbackMeta && fallbackMeta.applied);
+      patchedSections = patchedSections || fallbackSectionsApplied;
+      patchedDrawer = patchedDrawer || !!(fallbackMeta && fallbackMeta.patchedDrawer);
+      log('fallback section fetch attempted', { applied: fallbackSectionsApplied });
+    }
+
+    const verified = await verifyAndRepair({
+      usedFallback: false,
+      changeResults,
+      sections,
+      sectionsUrl,
+      sectionIds,
+      mutationIndicatedEmpty,
+      sectionsPatched: patchedSections || fallbackSectionsApplied,
+      drawerWasOpen,
+      patchedDrawer: patchedDrawer || !!(fallbackMeta && fallbackMeta.patchedDrawer)
+    });
+    if (verified && !patchedSections) {
+      await refreshCartUI('applied_plan');
+    }
+
+    ensureDrawerOpenAfterPatch(drawerWasOpen);
+
+    return verified;
+  }
+
+  async function applyPlanWithLineIndexes(plan, keyToLine) {
+    if (!plan.changes || !plan.changes.length) return false;
+
+    muteInternal();
+    guardMutated = true;
+
+    for (const ch of plan.changes) {
+      const line = keyToLine[ch.key];
+      if (!line) continue;
+      log('changeLine(fallback)', { line, quantity: ch.quantity, key: ch.key });
+      await changeLineByIndex(line, ch.quantity);
+    }
+
+    return true;
+  }
+
+  async function verifyAndRepair(opts) {
+    const options = Object.assign({ usedFallback: false, changeResults: [], sections: null, sectionIds: [], sectionsUrl: null, mutationIndicatedEmpty: false, sectionsPatched: false, drawerWasOpen: false, patchedDrawer: false }, opts || {});
+    const cartAfter = await getCart();
+    latestCartSnapshot = cartAfter;
+    const cartNowEmpty = !!(cartAfter && ((cartAfter.item_count === 0) || (Array.isArray(cartAfter.items) && cartAfter.items.length === 0)));
+    const postPlan = buildPlan(cartAfter);
+
+    if (cartAfter && Array.isArray(cartAfter.items)) {
+      latestClassificationsByKey = {};
+      cartAfter.items.forEach((it) => {
+        const cls = classifyItem(it);
+        if (it && it.key) latestClassificationsByKey[it.key] = cls;
+      });
+    }
+
+    summarizePlan(postPlan, 'post-mutation snapshot');
+
+    if (guardMutated && (cartNowEmpty || options.mutationIndicatedEmpty)) {
+      log('cart empty after guard mutation; refreshing drawer UI');
+      const targets = (options.sections && options.sections.length) ? { sections: options.sections, sectionsUrl: options.sectionsUrl } : collectSectionTargets();
+      const ids = (options.sectionIds && options.sectionIds.length) ? options.sectionIds : (targets.sections || []).map((s) => s.section || s.id).filter(Boolean);
+      let applied = false;
+      let patchedDrawer = false;
+      if (ids.length && targets.sections && targets.sections.length) {
+        const meta = await requestAndApplySections(ids, targets.sections, targets.sectionsUrl, 'empty_after_guard');
+        applied = !!(meta && meta.applied);
+        patchedDrawer = !!(meta && meta.patchedDrawer);
+      }
+      if (!applied || !patchedDrawer) {
+        await refreshCartUI('empty_after_guard');
+      } else {
+        log('drawer re-rendered after empty cart', { drawerExists: !!getDrawerElement(), bubbleExists: !!document.getElementById('cart-icon-bubble') });
+      }
+      ensureDrawerOpenAfterPatch(options.drawerWasOpen);
+      guardMutated = false;
+    }
+
+    if (postPlan.addonUnits <= postPlan.parentUnits || !postPlan.changes.length) {
+      log('post-mutation verified');
+      logAndHandleDrawerDesync(cartAfter, options.reason || 'verify');
+      guardMutated = false;
+      ensureDrawerOpenAfterPatch(options.drawerWasOpen);
+      return true;
+    }
+
+    const hadFailedMutation = Array.isArray(options.changeResults) && options.changeResults.some((r) => r && r.ok === false);
+
+    if (options.usedFallback) {
+      log('post-mutation quota still violated after fallback; giving up to avoid loop', postPlan);
+      ensureDrawerOpenAfterPatch(options.drawerWasOpen);
+      guardMutated = false;
+      return false;
+    }
+
+    // Retry once using latest cart snapshot and line indexes
+    const keyToLine = mapKeyToLine(cartAfter);
+    const filteredChanges = postPlan.changes.filter((ch) => keyToLine[ch.key]);
+    if (!filteredChanges.length) {
+      log('no fallback candidates found; aborting retry');
+      ensureDrawerOpenAfterPatch(options.drawerWasOpen);
+      guardMutated = false;
+      return false;
+    }
+
+    const fallbackReason = hadFailedMutation ? 'retry_after_failed_mutation' : 'retry_after_invalid_quota';
+    log('retrying with line indexes', { filteredChanges, keyToLine, reason: fallbackReason });
+    await applyPlanWithLineIndexes(Object.assign({}, postPlan, { changes: filteredChanges }), keyToLine);
+    await refreshCartUI('fallback_apply');
+
+    // Verify once more and stop (no further retries to avoid loops)
+    const finalResult = await verifyAndRepair({ usedFallback: true, drawerWasOpen: options.drawerWasOpen });
+    guardMutated = false;
+    return finalResult;
+  }
+
+  function emitMessage(text, plan) {
+    if (!text) return;
+
+    const planData = plan || {};
+    const sig = JSON.stringify({
+      parentUnits: planData.parentUnits,
+      addonBefore: planData.addonUnits,
+      addonAfter: planData.addonUnitsAfter,
+      removedKeys: (planData.removed || []).map((r) => r.key)
+    });
+
+    const now = Date.now();
+    if ((now - lastMsgTs < 1500) && sig === lastMsgSig) return;
+    lastMsgTs = now;
+    lastMsgSig = sig;
+
+    document.dispatchEvent(new CustomEvent('bl:cartguard:message', {
+      detail: {
+        type: 'warning',
+        text,
+        parentUnits: planData.parentUnits,
+        addonUnitsBefore: planData.addonUnits,
+        addonUnitsAfter: planData.addonUnitsAfter,
+        removed: planData.removed || [],
+        reason: 'quota_exceeded',
+        preferredKeyUsed: !!planData.preferredKeyUsed
+      }
+    }));
+  }
+
+  // =========================
+  // MAIN GUARD RUNNER
+  // =========================
+  async function runGuard(reason, txnId) {
+    // Ignore stable events immediately after the guard itself changed the cart
+    if (isMuted() && reason !== 'queued') {
+      if (!rerunTimer) {
+        const delay = Math.max(80, internalMuteUntil - Date.now() + 30);
+        rerunTimer = setTimeout(() => {
+          rerunTimer = null;
+          runGuard('queued', txnId || lastTxnId);
+        }, delay);
+      }
+      return;
+    }
+
+    if (txnId && txnId < lastTxnId) {
+      return;
+    }
+    if (txnId) {
+      lastTxnId = txnId;
+    }
+
+    if (running) { queued = true; return; }
+    running = true;
+    queued = false;
+
+    try {
+      const cart = await getCart();
+      const classifications = (cart && cart.items ? cart.items : []).map((it) => classifyItem(it));
+      latestCartSnapshot = cart;
+      latestClassificationsByKey = {};
+      classifications.forEach((cls, idx) => {
+        const item = cart && cart.items ? cart.items[idx] : null;
+        if (item && item.key) latestClassificationsByKey[item.key] = cls;
+      });
+
+      const currentAddonKeys = [];
+      classifications.forEach((cls, idx) => {
+        if (!cls || !cls.isAddonFinal) return;
+        const item = cart.items[idx];
+        if (item && item.key) currentAddonKeys.push(item.key);
+      });
+
+      const currentAddonSet = new Set(currentAddonKeys);
+      const newKeys = currentAddonKeys.filter((k) => !prevAddonKeys.has(k));
+      if (newKeys.length) {
+        for (let i = currentAddonKeys.length - 1; i >= 0; i--) {
+          const candidate = currentAddonKeys[i];
+          if (newKeys.includes(candidate)) {
+            writeLastAddonKey(candidate, { source: 'cart_new_line', action: 'add' });
+            break;
+          }
+        }
+      }
+      prevAddonKeys = currentAddonSet;
+
+      const plan = buildPlan(cart, classifications);
+
+      summarizePlan(plan, 'cart snapshot');
+      log({ reason, txnId, parentUnits: plan.parentUnits, addonUnits: plan.addonUnits, changes: plan.changes });
+
+      if (plan.changes.length) {
+        emitMessage(plan.message, plan);
+        await applyPlan(plan);
+      }
+    } catch (e) {
+      console.warn('[BL:guard] error', e);
+    } finally {
+      running = false;
+      if (queued) {
+        // Run once more after queued changes settle
+        setTimeout(() => runGuard('queued', lastTxnId), 180);
+      }
+    }
+  }
+
+  // Run only at the correct time: after cart mutation + drawer settled
+  document.addEventListener('bl:cart:stable', (e) => {
+    const detail = (e && e.detail) || {};
+    const reason = detail.reason || 'stable';
+    const txnId = detail.txnId ? Number(detail.txnId) : 0;
+
+    if (detail.internal) {
+      log('skip internal stable event', detail);
+      return;
+    }
+
+    runGuard(reason, txnId);
+  });
+
+  document.addEventListener('bl:cart:mutated', (e) => {
+    const detail = (e && e.detail) || {};
+    if (detail.internal) return;
+
+    const reason = detail.reason || 'mutated';
+    const txnId = detail.txnId ? Number(detail.txnId) : 0;
+    runGuard(reason, txnId);
+  });
+
+  function findLineKeyWrapper(target) {
+    if (!target || !target.closest) return null;
+    return target.closest('[data-line-key]');
+  }
+
+  function deriveActionFromButton(el) {
+    if (!el) return null;
+    const name = (el.getAttribute && el.getAttribute('name')) || '';
+    const aria = (el.getAttribute && el.getAttribute('aria-label')) || '';
+    const label = `${name} ${aria}`.toLowerCase();
+
+    if (label.includes('remove') || label.includes('delete') || label.includes('trash')) return 'remove';
+    if (label.includes('plus') || label.includes('increase') || label.includes('add') || label.includes('increment')) return 'inc';
+    if (label.includes('minus') || label.includes('decrease') || label.includes('decrement')) return 'dec';
+    return null;
+  }
+
+  function recordAddonIntent(lineKey, meta, wrapper) {
+    if (!lineKey) return;
+    if (isAddonWrapper(wrapper, lineKey)) {
+      writeLastAddonKey(lineKey, Object.assign({ ts: Date.now() }, meta));
+    }
+  }
+
+  function onAnyClickCapture(event) {
+    try {
+      const target = event.target;
+      const wrapper = findLineKeyWrapper(target);
+      if (!wrapper) return;
+
+      const drawer = getDrawerElement();
+      if (!drawer || !drawer.contains(wrapper)) return;
+
+      const btn = target && target.closest ? target.closest('button') : null;
+      const action = deriveActionFromButton(btn);
+
+      const lineKey = wrapper.getAttribute('data-line-key');
+      const meta = { source: 'drawer_click', action: action || 'set' };
+      recordAddonIntent(lineKey, meta, wrapper);
+    } catch (e) {}
+  }
+
+  function onAnyChangeCapture(event) {
+    try {
+      const target = event.target;
+      const wrapper = findLineKeyWrapper(target);
+      if (!wrapper) return;
+
+      const drawer = getDrawerElement();
+      if (!drawer || !drawer.contains(wrapper)) return;
+
+      const lineKey = wrapper.getAttribute('data-line-key');
+      const meta = { source: 'drawer_change', action: 'set' };
+      recordAddonIntent(lineKey, meta, wrapper);
+    } catch (e) {}
+  }
+
+  document.addEventListener('click', onAnyClickCapture, true);
+  document.addEventListener('change', onAnyChangeCapture, true);
+
+  // =========================
+  // PREFLIGHT & UI HELPERS
+  // =========================
+  function isAddonKey(lineKey) {
+    if (!lineKey) return false;
+    const cls = latestClassificationsByKey[lineKey];
+    return !!(cls && cls.isAddonFinal);
+  }
+
+  function isAddonWrapper(wrapper, lineKey) {
+    if (!wrapper) return false;
+    if (isAddonKey(lineKey)) return true;
+
+    const clsName = wrapper.className || '';
+    if (addonHandleList.length) {
+      const handleMatch = clsName.match(/cart-item--product-([\w-]+)/);
+      const handle = handleMatch ? handleMatch[1].toLowerCase() : '';
+      if (handle && addonHandleList.includes(handle)) return true;
+    }
+
+    return false;
+  }
+
+  function getDrawerQtyFromInput(wrapper) {
+    if (!wrapper) return null;
+    const input = wrapper.querySelector('input[name="updates[]"], input[name="updates"]');
+    if (!input) return null;
+    const parsed = Number(input.value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function getCartQtyFromSnapshot(lineKey) {
+    if (!latestCartSnapshot || !Array.isArray(latestCartSnapshot.items)) return null;
+    const found = latestCartSnapshot.items.find((i) => i && i.key === lineKey);
+    return found ? Number(found.quantity || 0) : null;
+  }
+
+  function computeProjectedTotals(lineKey, action, desiredQty) {
+    if (!latestCartSnapshot || !Array.isArray(latestCartSnapshot.items)) return null;
+    let parentUnits = 0;
+    let addonUnits = 0;
+    const cls = latestClassificationsByKey[lineKey];
+    const currentQty = getCartQtyFromSnapshot(lineKey);
+
+    latestCartSnapshot.items.forEach((it) => {
+      const c = latestClassificationsByKey[it.key];
+      if (!c) return;
+      if (c.isAddonFinal) addonUnits += Number(it.quantity || 0);
+      else parentUnits += Number(it.quantity || 0);
+    });
+
+    if (!cls || currentQty === null) return { parentUnits, addonUnits };
+
+    let nextQty = currentQty;
+    if (action === 'inc') nextQty = currentQty + 1;
+    if (action === 'dec') nextQty = Math.max(0, currentQty - 1);
+    if (action === 'remove') nextQty = 0;
+    if (action === 'set' && Number.isFinite(desiredQty)) nextQty = desiredQty;
+
+    if (cls.isAddonFinal) {
+      addonUnits = addonUnits - currentQty + nextQty;
+    } else {
+      parentUnits = parentUnits - currentQty + nextQty;
+    }
+
+    return { parentUnits, addonUnits, nextQty, currentQty, isAddon: cls.isAddonFinal };
+  }
+
+  const WARNING_TEXT = 'Add-ons can’t exceed the number of figures in your cart. Add another figure to increase add-ons.';
+
+  function findDrawerMessageHost() {
+    const drawer = getDrawerElement();
+    if (!drawer) return null;
+
+    let host = drawer.querySelector('.bl-cart-guard-banner');
+    if (host) return host;
+
+    host = drawer.querySelector('.bl-cart-guard-msg');
+    if (host) return host;
+
+    host = document.createElement('div');
+    host.className = 'bl-cart-guard-banner bl-cart-guard-msg';
+    host.style.display = 'none';
+    host.style.padding = '8px 12px';
+    host.style.background = '#fff3cd';
+    host.style.color = '#664d03';
+    host.style.fontSize = '0.9rem';
+    host.style.border = '1px solid #ffe69c';
+    host.style.borderRadius = '6px';
+    host.style.margin = '8px 16px';
+    host.style.opacity = '0';
+    host.style.transition = 'opacity 200ms ease';
+    host.setAttribute('aria-live', 'polite');
+
+    const totals = drawer.querySelector('.cart-drawer__totals');
+    const parent = (totals && totals.parentElement) || drawer.querySelector('.drawer__footer') || drawer.querySelector('.drawer__inner') || drawer;
+    const anchor = totals ? totals.nextElementSibling : parent.firstElementChild;
+    parent.insertBefore(host, anchor || parent.firstChild);
+    return host;
+  }
+
+  let guardMsgTimer = null;
+  function showDrawerMessage(text) {
+    const host = findDrawerMessageHost();
+    if (!host || !text) return;
+
+    host.textContent = text;
+    host.style.display = 'block';
+    requestAnimationFrame(() => { host.classList?.add('is-visible'); host.style.opacity = '1'; });
+
+    try { persistedMessage = { text, ts: Date.now() }; sessionStorage.setItem(CFG.messageStorage, JSON.stringify(persistedMessage)); } catch (e) {}
+
+    if (guardMsgTimer) clearTimeout(guardMsgTimer);
+    guardMsgTimer = setTimeout(() => {
+      host.classList?.remove('is-visible');
+      host.style.opacity = '0';
+      setTimeout(() => {
+        host.style.display = 'none';
+        host.textContent = '';
+      }, 300);
+      try { sessionStorage.removeItem(CFG.messageStorage); } catch (e) {}
+    }, 4200);
+  }
+
+  (function hydratePersistedMessage() {
+    try {
+      const raw = sessionStorage.getItem(CFG.messageStorage);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.text || !parsed.ts) return;
+      if (Date.now() - parsed.ts < 2200) {
+        persistedMessage = parsed;
+        showDrawerMessage(parsed.text);
+      } else {
+        sessionStorage.removeItem(CFG.messageStorage);
+      }
+    } catch (e) {}
+  })();
+
+  document.addEventListener('bl:cartguard:message', (e) => {
+    const detail = (e && e.detail) || {};
+    if (detail && detail.text) {
+      showDrawerMessage(detail.text);
+    }
+  });
+
+  function warnAndBlock(event, payload) {
+    log('preflight block', payload || {});
+    event.preventDefault();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    const text = WARNING_TEXT;
+    document.dispatchEvent(new CustomEvent('bl:cartguard:message', { detail: { type: 'warning', text } }));
+    showDrawerMessage(text);
+  }
+
+  function preflightIntercept(event) {
+    try {
+      const target = event.target;
+      const wrapper = findLineKeyWrapper(target);
+      if (!wrapper) return;
+      const drawer = getDrawerElement();
+      if (!drawer || !drawer.contains(wrapper)) return;
+
+      const lineKey = wrapper.getAttribute('data-line-key');
+      const cls = latestClassificationsByKey[lineKey];
+      if (!cls) return;
+
+      if (event.type === 'click') {
+        const btn = target && target.closest ? target.closest('button') : null;
+        const action = deriveActionFromButton(btn);
+        if (!action) return;
+
+        const projected = computeProjectedTotals(lineKey, action);
+        if (!projected) return;
+
+        const isAddonAction = !!(cls.isAddonFinal);
+        const isIncrease = action === 'inc' || action === 'add';
+        const wouldBreak = projected.addonUnits > projected.parentUnits;
+
+        if (isAddonAction && isIncrease && wouldBreak) {
+          if (cls.isAddonFinal) {
+            recordAddonIntent(lineKey, { source: 'preflight_click', action: 'inc_blocked' }, wrapper);
+          }
+          warnAndBlock(event, { lineKey, action, projected });
+          const input = wrapper.querySelector('input[name="updates[]"], input[name="updates"]');
+          if (input && Number.isFinite(projected.currentQty)) input.value = projected.currentQty;
+        }
+      } else if (event.type === 'change') {
+        const input = target;
+        if (!input || input.tagName?.toLowerCase() !== 'input') return;
+        const newQty = Number(input.value);
+        if (!Number.isFinite(newQty)) return;
+
+        const projected = computeProjectedTotals(lineKey, 'set', newQty);
+        if (!projected) return;
+        const isAddonAction = !!projected.isAddon;
+        const isIncrease = isAddonAction && projected.nextQty > projected.currentQty;
+
+        if (isAddonAction && isIncrease && projected.addonUnits > projected.parentUnits) {
+          const otherUnits = projected.isAddon ? projected.addonUnits - projected.nextQty : projected.addonUnits;
+          const allowedQty = projected.isAddon
+            ? Math.max(0, projected.parentUnits - otherUnits)
+            : Math.max(projected.parentUnits, otherUnits);
+          input.value = projected.isAddon ? allowedQty : projected.currentQty;
+          if (projected.isAddon) {
+            recordAddonIntent(lineKey, { source: 'preflight_change', action: 'set_blocked' }, wrapper);
+          }
+          warnAndBlock(event, { lineKey, newQty, allowedQty, projected });
+        }
+      }
+    } catch (e) {}
+  }
+
+  document.addEventListener('click', preflightIntercept, true);
+  document.addEventListener('change', preflightIntercept, true);
+
+  /*
+   * How to test (with ?cart_guard_debug=1 for console logs)
+   * 1) Add a parent product with qty=3 and add-on qty=3.
+   * 2) Increase add-on to qty=4; expect guard to log changeLine + fallback retry (if needed) and final qty clamped to 3.
+   * 3) Repeat with multiple add-on lines; last lines should be reduced first.
+   * 4) If a change request fails, debug log will include status/body; guard retries once using line indexes.
+   */
+
+})();

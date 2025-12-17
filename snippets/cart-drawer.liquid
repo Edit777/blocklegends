@@ -24,6 +24,25 @@
       background: {{ section.settings.footer_bg_color }};
     }
   {% endif %}
+
+  .bl-cart-guard-banner {
+    display: none;
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    background: #fff3cd;
+    color: #664d03;
+    border: 1px solid #ffe69c;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    line-height: 1.35;
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+
+  .bl-cart-guard-banner.is-visible {
+    display: block;
+    opacity: 1;
+  }
 </style>
 
 <cart-drawer class="drawer{% if cart == empty %} is-empty{% endif %}{% if section.settings.test_mode %} active{% endif %} cart-drawer--desktop-width-{{ section.settings.desktop_width }} cart-drawer--mobile-width-{{ section.settings.mobile_width }}" data-type='modal'>
@@ -69,7 +88,7 @@
             </div>
           {%- endif -%}
         </div>
-      {%- endif -%}
+      {%- else -%}
       <div class="drawer__header" style='--alignment:{{ section.settings.heading_alignment }}'>
         <h2 class="drawer__heading">
           {% liquid
@@ -128,11 +147,12 @@
                       <div class="drawer__cart-items-wrapper">
                         <ul class="cart-items list-unstyled">
                           {%- for item in cart.items -%}
-                            <li 
-                              id="CartDrawer-Item-{{ item.index | plus: 1 }}" 
-                              class="cart-drawer-item cart-item cart-item--product-{{ item.product.handle }}" 
+                            <li
+                              id="CartDrawer-Item-{{ item.index | plus: 1 }}"
+                              class="cart-drawer-item cart-item cart-item--product-{{ item.product.handle }}"
                               role="row" data-index="{{ item.index | plus: 1 }}"
                               data-quantity="{{ item.quantity }}"
+                              data-line-key="{{ item.key }}"
                             >
                               <div class="loading-overlay hidden">
                                 <div class="loading-overlay__spinner">
@@ -555,6 +575,7 @@
                     </p>
                   {% endif %}
                 </div>
+                <div class="bl-cart-guard-banner" aria-live="polite"></div>
                 {%- if block.settings.display_discounts and cart.cart_level_discount_applications.size > 0 -%}
                   <div class="cart-drawer__discounts cart-drawer__footer__discounts list-unstyled" style='--alignment:{{ block.settings.discounts_alignment }};' role="list" aria-label="{{ 'customer.order.discount' | t }}">
                     <span class='cart-drawer__discounts__label'>{{ block.settings.discounts_label }}</span>
@@ -765,6 +786,7 @@
         {% endfor %}
         <!-- end footer -->
       </div>
+      {%- endif -%}
     </div>
   </div>
 </cart-drawer>

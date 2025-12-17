@@ -694,10 +694,13 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
         // Persist what user selected (tier) vs what they got (actual)
         upsertHidden(form, M.CFG.propSelectedMode, mode);
-        upsertHidden(form, M.CFG.propPreferredCollection,
-          (mode === M.CFG.modePreferredLabel) ? (requestedCollection || '') : ''
-        );
+        var preferredCollectionSafe = (mode === M.CFG.modePreferredLabel) ? (requestedCollection || '') : '';
+        upsertHidden(form, M.CFG.propPreferredCollection, preferredCollectionSafe);
         upsertHidden(form, M.CFG.propRequestedTier, isAny ? M.CFG.anyRarityKey : rarity);
+        // Supplemental properties for storefront tracking
+        upsertHidden(form, '_bl_mode', mode === M.CFG.modePreferredLabel ? 'preferred' : 'random');
+        upsertHidden(form, '_bl_locked_collection', preferredCollectionSafe);
+        upsertHidden(form, '_bl_requested_rarity', isAny ? M.CFG.anyRarityKey : rarity);
 
         // Assigned payload (internal)
         upsertHidden(form, M.CFG.propAssignedHandle, chosen.handle);
@@ -884,4 +887,187 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
     U.log('[BL Mystery] Engine init');
   };
+})();
+
+(function () {
+  window.BL = window.BL || {};
+  var M = window.BL.mysteryEngine;
+  if (!M || !M.CFG) return;
+
+  function qs(root, sel){ return (root || document).querySelector(sel); }
+  function qsa(root, sel){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+  // Adjust these selectors to your actual markup:
+  var SEL = {
+    form: 'form[action^="/cart/add"], product-form form, form[data-type="add-to-cart-form"]',
+    modePreferredBtn: '[data-bl-mode="preferred"], [data-mode="preferred"], button[name="mode"][value="preferred"]',
+    modeRandomBtn: '[data-bl-mode="random"], [data-mode="random"], button[name="mode"][value="random"]',
+    rarityBtns: '[data-bl-rarity]', // every rarity button should have data-bl-rarity="common|rare|epic|legendary|any"
+    prefWrap: '[data-bl-pref-collection-wrap]',
+    prefSelect: '[data-bl-pref-collection]',
+    prefNotice: '[data-bl-pref-notice]'
+  };
+
+  function getActiveMode(root){
+    // Implement this based on your existing mode state.
+    // Easiest: check for .is-active on mode buttons.
+    var p = qs(root, SEL.modePreferredBtn);
+    if (p && p.classList.contains('is-active')) return 'preferred';
+    return 'random';
+  }
+
+  function getSelectedRarity(root){
+    // Implement based on your current rarity selection UI.
+    var active = qsa(root, SEL.rarityBtns).find(function (b) { return b.classList.contains('is-active'); });
+    if (!active) return M.CFG.anyRarityKey || 'any';
+    return String(active.getAttribute('data-bl-rarity') || '').toLowerCase() || (M.CFG.anyRarityKey || 'any');
+  }
+
+  function setSelectedRarity(root, rarity){
+    var btns = qsa(root, SEL.rarityBtns);
+    btns.forEach(function (b) {
+      var r = String(b.getAttribute('data-bl-rarity') || '').toLowerCase();
+      b.classList.toggle('is-active', r === rarity);
+    });
+    // also update hidden input / form property if your engine uses one
+    // e.g. ensureHidden(form, '_bl_requested_rarity', rarity)
+  }
+
+  function setNotice(root, msg){
+    var el = qs(root, SEL.prefNotice);
+    if (!el) return;
+    if (!msg) { el.textContent = ''; el.style.display = 'none'; return; }
+    el.textContent = msg;
+    el.style.display = '';
+    clearTimeout(el.__t);
+    el.__t = setTimeout(function(){ el.textContent=''; el.style.display='none'; }, 4500);
+  }
+
+  function disableRaritiesByCounts(root, counts){
+    var min = Number(M.CFG.preferredMinPerRarity || 0);
+    var anyKey = String(M.CFG.anyRarityKey || 'any').toLowerCase();
+
+    qsa(root, SEL.rarityBtns).forEach(function (btn) {
+      var r = String(btn.getAttribute('data-bl-rarity') || '').toLowerCase();
+      var eligible = true;
+
+      if (r && r !== anyKey) {
+        eligible = Number(counts[r] || 0) >= min;
+      }
+
+      btn.setAttribute('aria-disabled', eligible ? 'false' : 'true');
+      btn.classList.toggle('is-disabled', !eligible);
+    });
+  }
+
+  function pickFallbackRarity(root){
+    var anyKey = String(M.CFG.anyRarityKey || 'any').toLowerCase();
+    var btns = qsa(root, SEL.rarityBtns);
+    var anyBtn = btns.find(function(b){ return String(b.getAttribute('data-bl-rarity')||'').toLowerCase() === anyKey; });
+    if (anyBtn && anyBtn.getAttribute('aria-disabled') !== 'true') return anyKey;
+
+    var firstOk = btns.find(function(b){ return b.getAttribute('aria-disabled') !== 'true'; });
+    return firstOk ? String(firstOk.getAttribute('data-bl-rarity')||anyKey).toLowerCase() : anyKey;
+  }
+
+  function applyPreferredEligibility(root, collectionHandle){
+    return M.fetchPoolAllPages(collectionHandle).then(function(){
+      var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(collectionHandle) : null;
+      if (!counts) return;
+
+      disableRaritiesByCounts(root, counts);
+
+      var current = getSelectedRarity(root);
+      var currentBtn = qsa(root, SEL.rarityBtns).find(function(b){
+        return String(b.getAttribute('data-bl-rarity')||'').toLowerCase() === current;
+      });
+
+      if (currentBtn && currentBtn.getAttribute('aria-disabled') === 'true') {
+        var fb = pickFallbackRarity(root);
+        setSelectedRarity(root, fb);
+        setNotice(root, 'Some rarities are not available for this collection right now. Switched to an available option.');
+      } else {
+        setNotice(root, '');
+      }
+
+      // Trigger your existing “recompute assignment” path
+      // so variant/line-item props update instantly.
+      var form = qs(root, SEL.form);
+      if (form && typeof M.computeAndApplyAssignment === 'function') {
+        M.computeAndApplyAssignment(form, M.CFG.mysteryFigureHandle || 'mystery-figure').catch(function(){});
+      }
+    });
+  }
+
+  function syncPreferredUI(root){
+    var wrap = qs(root, SEL.prefWrap);
+    var sel = qs(root, SEL.prefSelect);
+    if (!wrap || !sel) return;
+
+    var mode = getActiveMode(root);
+    var isPreferred = (mode === 'preferred');
+
+    wrap.style.display = isPreferred ? '' : 'none';
+    if (!isPreferred) return;
+
+    var handle = String(sel.value || '').trim();
+    if (!handle) return;
+
+    applyPreferredEligibility(root, handle);
+  }
+
+  function bind(root){
+    root = root || document;
+
+    // when dropdown changes
+    var sel = qs(root, SEL.prefSelect);
+    if (sel && !sel.__bound) {
+      sel.__bound = true;
+      sel.addEventListener('change', function(){
+        syncPreferredUI(root);
+      });
+    }
+
+    // when mode buttons clicked
+    var mp = qs(root, SEL.modePreferredBtn);
+    var mr = qs(root, SEL.modeRandomBtn);
+
+    if (mp && !mp.__bound) {
+      mp.__bound = true;
+      mp.addEventListener('click', function(){
+        mp.classList.add('is-active');
+        if (mr) mr.classList.remove('is-active');
+        syncPreferredUI(root);
+      });
+    }
+    if (mr && !mr.__bound) {
+      mr.__bound = true;
+      mr.addEventListener('click', function(){
+        mr.classList.add('is-active');
+        if (mp) mp.classList.remove('is-active');
+        syncPreferredUI(root);
+      });
+    }
+
+    // when rarity clicked, re-check eligibility (prevent selecting disabled via keyboard edge cases)
+    qsa(root, SEL.rarityBtns).forEach(function(btn){
+      if (btn.__bound) return;
+      btn.__bound = true;
+      btn.addEventListener('click', function(){
+        if (btn.getAttribute('aria-disabled') === 'true') return;
+        qsa(root, SEL.rarityBtns).forEach(function(b){ b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        syncPreferredUI(root);
+      });
+    });
+
+    // initial
+    syncPreferredUI(root);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ bind(document); });
+  } else {
+    bind(document);
+  }
 })();

@@ -486,6 +486,15 @@
   {% endif %}
 </div>
 
+<div
+  class="bl-addon-notice"
+  data-bl-addon-notice
+  role="status"
+  aria-live="polite"
+  aria-atomic="true"
+  style="display:none;"
+></div>
+
 {%- if bl_pool_total > 0 and bl_pool_total == hidden_products -%}
   <style>
     #UpsellsBlock-{{ section.id }}-{{ block.id }} { display: none !important; }

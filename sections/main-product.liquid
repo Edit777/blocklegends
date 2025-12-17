@@ -644,14 +644,45 @@
               %}
 
             {%- when 'variant_picker' -%}
-              {% render 'product-variant-picker', 
-                product: product, 
-                block: block, 
-                product_form_id: product_form_id, 
-                sizing_chart_append: sizing_chart_append, 
+              {% render 'product-variant-picker',
+                product: product,
+                block: block,
+                product_form_id: product_form_id,
+                sizing_chart_append: sizing_chart_append,
                 sizing_chart_html: sizing_chart_html,
                 has_filtering: has_filtering
               %}
+              {% if product.handle == 'mystery-figure' %}
+                {%- capture bl_collections_json -%}
+                  [
+                  {%- assign is_first = true -%}
+                  {%- for link in linklists['all-collections'].links -%}
+                    {%- if link.type == 'collection_link' -%}
+                      {%- unless is_first -%},{%- endunless -%}
+                      {"handle":"{{ link.object.handle | escape }}","title":"{{ link.object.title | escape_once }}"}
+                      {%- assign is_first = false -%}
+                    {%- endif -%}
+                  {%- endfor -%}
+                  ]
+                {%- endcapture -%}
+                <div
+                  class="bl-pref-collection"
+                  data-bl-pref-collection-wrap
+                  data-bl-collections='{{ bl_collections_json | strip_newlines | escape }}'
+                  style="display:none;"
+                >
+                  <label class="bl-pref-collection__label" for="BLPreferredCollection">Collection</label>
+                  <select id="BLPreferredCollection" class="bl-pref-collection__select" data-bl-pref-collection>
+                    {%- for link in linklists['all-collections'].links -%}
+                      {%- if link.type == 'collection_link' -%}
+                        <option value="{{ link.object.handle }}">{{ link.object.title }}</option>
+                      {%- endif -%}
+                    {%- endfor -%}
+                  </select>
+
+                  <div class="bl-pref-collection__notice" data-bl-pref-notice style="display:none;"></div>
+                </div>
+              {% endif %}
             {%- when 'buy_buttons' -%}
               {%- render 'buy-buttons',
                  block: block,

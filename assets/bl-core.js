@@ -49,14 +49,142 @@
     };
   };
 
-  U.money = function (cents, fmt) {
+  var moneyEnvCache = null;
+
+  function pickLocale() {
+    try { if (document && document.documentElement && document.documentElement.lang) return document.documentElement.lang; } catch (e) {}
+    try { if (typeof navigator !== 'undefined' && navigator.language) return navigator.language; } catch (e2) {}
+    return 'en';
+  }
+
+  function detectMoneyFormatFromDom() {
     try {
-      if (window.Shopify && typeof window.Shopify.formatMoney === 'function') {
-        return window.Shopify.formatMoney(Number(cents || 0), fmt || window.Shopify.money_format);
+      var el = document && document.querySelector('[data-money-format]');
+      if (!el) return { moneyFormat: null, currency: null };
+      return {
+        moneyFormat: el.getAttribute('data-money-format') || (el.dataset ? el.dataset.moneyFormat : null),
+        currency: el.getAttribute('data-currency') || (el.dataset ? el.dataset.currency : null),
+        source: 'data-money-format'
+      };
+    } catch (e) {
+      return { moneyFormat: null, currency: null };
+    }
+  }
+
+  function formatWithDelimiters(cents, precision, thousand, decimal) {
+    precision = typeof precision === 'number' ? precision : 2;
+    thousand = typeof thousand === 'string' ? thousand : ',';
+    decimal = typeof decimal === 'string' ? decimal : '.';
+
+    var number = Number(cents || 0) / 100;
+    var fixed = number.toFixed(precision);
+    var parts = fixed.split('.');
+    var dollars = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousand);
+    var centsPart = parts[1] ? decimal + parts[1] : '';
+    return dollars + centsPart;
+  }
+
+  function parseAndRenderMoney(cents, format) {
+    var templateMatch = format && format.match(/\{\{\s*(\w+)\s*\}\}/);
+    var token = templateMatch ? templateMatch[1] : 'amount';
+    var tokenMap = {
+      amount: { precision: 2, thousand: ',', decimal: '.' },
+      amount_no_decimals: { precision: 0, thousand: ',', decimal: '.' },
+      amount_with_comma_separator: { precision: 2, thousand: '.', decimal: ',' },
+      amount_no_decimals_with_comma_separator: { precision: 0, thousand: '.', decimal: ',' },
+      amount_with_space_separator: { precision: 2, thousand: '\u00A0', decimal: '.' },
+      amount_no_decimals_with_space_separator: { precision: 0, thousand: '\u00A0', decimal: '.' }
+    };
+    var settings = tokenMap[token] || tokenMap.amount;
+    var rendered = formatWithDelimiters(cents, settings.precision, settings.thousand, settings.decimal);
+    return (format || '{{amount}}').replace(templateMatch ? templateMatch[0] : '{{amount}}', rendered);
+  }
+
+  function resolveMoneyEnvironment() {
+    var env = { currency: null, moneyFormat: null, formatter: null, source: '' };
+
+    try {
+      if (window.Shopify) {
+        if (window.Shopify.currency && window.Shopify.currency.active) env.currency = window.Shopify.currency.active;
+        if (window.Shopify.currency && window.Shopify.currency.money_formats) {
+          var fmtInfo = window.Shopify.currency.money_formats[env.currency];
+          if (fmtInfo && fmtInfo.money_format) {
+            env.moneyFormat = fmtInfo.money_format;
+            env.source = env.source || 'Shopify.currency.money_formats';
+          } else if (fmtInfo) {
+            env.moneyFormat = fmtInfo;
+            env.source = env.source || 'Shopify.currency.money_formats';
+          }
+        }
+        if (typeof window.Shopify.formatMoney === 'function') {
+          env.formatter = function (cents, fmt) { return window.Shopify.formatMoney(Number(cents || 0), fmt || window.Shopify.money_format); };
+          env.source = env.source || 'Shopify.formatMoney';
+        }
+        if (window.Shopify.money_format) {
+          env.moneyFormat = window.Shopify.money_format;
+          env.source = env.source || 'Shopify.money_format';
+        }
+        if (!env.currency && window.Shopify.shop_currency) env.currency = window.Shopify.shop_currency;
       }
     } catch (e) {}
-    var n = (Number(cents || 0) / 100);
-    return '$' + n.toFixed(2);
+
+    try {
+      if (!env.moneyFormat && window.theme) {
+        var themeFmt = window.theme.moneyFormat || (window.theme.settings && window.theme.settings.moneyFormat);
+        if (themeFmt) {
+          env.moneyFormat = themeFmt;
+          env.source = env.source || 'theme.moneyFormat';
+        }
+        if (!env.currency && window.theme.currency) env.currency = window.theme.currency;
+      }
+    } catch (e2) {}
+
+    if (!env.moneyFormat) {
+      var domInfo = detectMoneyFormatFromDom();
+      if (domInfo.moneyFormat) {
+        env.moneyFormat = domInfo.moneyFormat;
+        env.source = env.source || domInfo.source || 'data-money-format';
+      }
+      if (domInfo.currency && !env.currency) env.currency = domInfo.currency;
+    }
+
+    if (!env.currency) env.currency = 'USD';
+    if (!env.moneyFormat) env.moneyFormat = '{{amount}}';
+    if (!env.source) env.source = 'fallback';
+    moneyEnvCache = env;
+    return env;
+  }
+
+  U.getMoneyEnvironment = resolveMoneyEnvironment;
+
+  U.money = function (cents, opts) {
+    var options = {};
+    if (typeof opts === 'string') {
+      options.moneyFormat = opts;
+    } else if (opts && typeof opts === 'object') {
+      options = opts;
+    }
+
+    var env = resolveMoneyEnvironment();
+    var moneyFormat = options.moneyFormat || env.moneyFormat;
+    var currency = options.currency || env.currency;
+    var locale = options.locale || pickLocale();
+    var value = Number(cents || 0);
+
+    if (env.formatter) {
+      try { return env.formatter(value, moneyFormat); } catch (e) {}
+    }
+
+    if (moneyFormat && moneyFormat.indexOf('{{') !== -1) {
+      try { return parseAndRenderMoney(value, moneyFormat); } catch (e2) {}
+    }
+
+    try {
+      return new Intl.NumberFormat(locale, { style: 'currency', currency: currency }).format(value / 100);
+    } catch (e3) {}
+
+    var fallback = (value / 100).toFixed(2);
+    return (currency ? currency + ' ' : '') + fallback;
   };
 
   U.productHandleFromUrl = function () {

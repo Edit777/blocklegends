@@ -81,105 +81,100 @@
 }
 
 /* =======================================================
-   MYTHICAL — STABLE CREEPY BLOOD (WORD-LEVEL, NOT PER-LETTER)
-   Works whether you have .piht__hl-char spans or not.
+   MYTHICAL — SATURATED BLOOD RED WITH GOOEY DROPS
    ======================================================= */
 
 .piht__hl--mythical{
   position: relative;
   display: inline-block;
-  color:#dc2626;
-  text-shadow:
-    0 0 2px rgba(220,38,38,.85),
-    0 0 10px rgba(127,29,29,.55);
+  color:#ff1b1b;
+  letter-spacing: -.02em;
+  font-weight:800;
+  font-size:1.05em;
+  text-shadow:none;
+  filter:none;
   overflow: visible;
-  animation: bl-myth-glow 3.4s ease-in-out infinite;
+  animation: none;
 }
 
-/* the blood under the word + a few drips */
-.piht__hl--mythical::after{
-  content:"";
+.piht__hl--mythical .piht__hl-char{
+  position:relative;
+  display:inline-block;
+  animation: bl-myth-wobble 1.8s ease-in-out infinite;
+  animation-delay: calc(var(--piht-char-index, 1) * 90ms);
+}
+
+
+.piht--pill .piht__hl--mythical{
+  background:none;
+  padding:0;
+  border-radius:0;
+  box-shadow:none;
+}
+
+.piht__hl--mythical .piht__hl-drop{
   position:absolute;
-  left: -2px;
-  right: -2px;
-  top: calc(100% - 1px);
-  height: 18px;
-  pointer-events:none;
-  opacity: .9;
-  transform-origin: top;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
-
-  /* Layer 1: a thin “wet shelf” under the word
-     Layer 2-4: three drips (fixed positions, clean look) */
-  background-image:
-    linear-gradient(to bottom,
-      rgba(220,38,38,.95) 0%,
-      rgba(127,29,29,.70) 55%,
-      rgba(127,29,29,0) 100%),
-
-    linear-gradient(to bottom,
-      rgba(220,38,38,0) 0%,
-      rgba(220,38,38,.95) 22%,
-      rgba(127,29,29,.85) 65%,
-      rgba(127,29,29,0) 100%),
-
-    linear-gradient(to bottom,
-      rgba(220,38,38,0) 0%,
-      rgba(220,38,38,.90) 28%,
-      rgba(127,29,29,.80) 70%,
-      rgba(127,29,29,0) 100%),
-
-    linear-gradient(to bottom,
-      rgba(220,38,38,0) 0%,
-      rgba(220,38,38,.92) 24%,
-      rgba(127,29,29,.82) 68%,
-      rgba(127,29,29,0) 100%);
-
-  /* sizes: shelf full width, drips narrow */
-  background-size:
-    100% 5px,
-    6px 18px,
-    4px 14px,
-    5px 16px;
-
-  /* positions: shelf at top, drips at 28/58/82% */
-  background-position:
-    0 0,
-    28% 0,
-    58% 0,
-    82% 0;
-
-  background-repeat: no-repeat;
-  border-radius: 9999px;
-
-  animation: bl-myth-drip 4.2s ease-in-out infinite;
+  width:.18em;
+  height:.18em;
+  border-radius:0 100% 100% 100%;
+  background-color: currentColor;
+  top:68%;
+  transform: translateY(0) scaleX(.9) rotate(45deg);
+  animation: bl-myth-drop 2.6s infinite both;
 }
+
+.piht__hl--mythical .piht__hl-drop--1{ left:14%; }
+.piht__hl--mythical .piht__hl-drop--2{ left:38%; animation-delay:-.4s; }
+.piht__hl--mythical .piht__hl-drop--3{ left:55%; animation-delay:-1.3s; }
+.piht__hl--mythical .piht__hl-drop--4{ left:78%; animation-delay:-.8s; }
+.piht__hl--mythical .piht__hl-drop--5{ left:94%; animation-delay:-1.6s; }
 
 @keyframes bl-myth-glow{
   0%,100%{
     text-shadow:
-      0 0 2px rgba(220,38,38,.78),
-      0 0 10px rgba(127,29,29,.50);
+      0 0 4px rgba(255,80,80,.98),
+      0 0 10px rgba(210,0,20,.98);
   }
-  50%{
+  45%{
     text-shadow:
-      0 0 3px rgba(220,38,38,.95),
-      0 0 14px rgba(127,29,29,.68);
+      0 0 8px rgba(255,105,105,1),
+      0 0 16px rgba(215,0,25,.98);
   }
 }
 
-/* subtle “alive” movement, not chaotic */
 @keyframes bl-myth-drip{
-  0%,100%{
-    opacity: .80;
-    transform: translateY(0) scaleY(.92);
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+  0%,100%{ transform:translateX(-50%) scaleY(.86); opacity:.8; }
+  35%{ transform:translateX(-50%) scaleY(1.05); opacity:1; }
+  70%{ transform:translateX(-50%) scaleY(.9); opacity:.85; }
+}
+
+@keyframes bl-myth-drop{
+  0%{
+    transform: translateY(0) scaleX(.9) rotate(45deg);
+    animation-timing-function: ease-out;
   }
-  55%{
-    opacity: .95;
-    transform: translateY(1px) scaleY(1);
-    filter: drop-shadow(0 2px 3px rgba(0,0,0,.42));
+  38%{
+    transform: translateY(140%) scaleX(.9) rotate(45deg);
+    animation-timing-function: ease-in;
   }
+  62%{
+    transform: translateY(280%) scaleX(.9) rotate(45deg);
+    opacity:1;
+  }
+  88%{
+    transform: translateY(420%) scaleX(.9) rotate(45deg);
+    opacity:.92;
+  }
+  100%{
+    transform: translateY(480%) scaleX(.9) rotate(45deg);
+    opacity:0;
+  }
+}
+
+@keyframes bl-myth-wobble{
+  0%,100%{ transform: translateY(0) rotate(0deg) scale(1); }
+  30%{ transform: translateY(-1px) rotate(-1.2deg) scale(1.02); }
+  60%{ transform: translateY(1px) rotate(1.2deg) scale(.99); }
 }
 
 /* =======================================================
@@ -229,8 +224,10 @@
   }
 
   .piht__hl--legendary::after,
+  .piht__hl--mythical::before,
+  .piht__hl--mythical::after,
   .piht__hl--mythical .piht__hl-char::before,
-  .piht__hl--mythical .piht__hl-char::after{
+  .piht__hl--mythical .piht__hl-drop{
     animation:none !important;
     opacity:0 !important;
     height:0 !important;
