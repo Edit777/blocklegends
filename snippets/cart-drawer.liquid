@@ -88,7 +88,7 @@
             </div>
           {%- endif -%}
         </div>
-      {%- endif -%}
+      {%- else -%}
       <div class="drawer__header" style='--alignment:{{ section.settings.heading_alignment }}'>
         <h2 class="drawer__heading">
           {% liquid
@@ -786,6 +786,7 @@
         {% endfor %}
         <!-- end footer -->
       </div>
+      {%- endif -%}
     </div>
   </div>
 </cart-drawer>
