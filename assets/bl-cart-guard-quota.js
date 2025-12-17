@@ -213,6 +213,38 @@
     return { sections: targets, sectionsUrl };
   }
 
+  function getSectionsPayload(cachedTargets) {
+    const collected = cachedTargets || collectSectionTargets();
+    const sections = (collected && collected.sections) || [];
+    const sectionsUrl = (collected && collected.sectionsUrl) || (window.location ? window.location.pathname + window.location.search : '/');
+    const ids = new Set(sections.map((s) => s.section || s.id).filter(Boolean));
+
+    const candidates = [getDrawerItemsElement(), getDrawerElement()];
+    candidates.forEach((el) => {
+      if (!el || typeof el.getSectionsToRender !== 'function') return;
+      try {
+        const rendered = el.getSectionsToRender();
+        if (Array.isArray(rendered)) {
+          rendered.forEach((entry) => {
+            const id = entry && (entry.id || entry.section);
+            if (id) ids.add(id);
+          });
+        }
+      } catch (e) {}
+    });
+
+    const liveRegion = document.getElementById('cart-live-region-text');
+    if (liveRegion) {
+      const liveId = resolveSectionIdFromDom(liveRegion, 'cart-live-region-text');
+      if (liveId) ids.add(liveId);
+    }
+
+    const sectionIds = Array.from(ids).filter(Boolean);
+    if (!sectionIds.length) return null;
+
+    return { sections: sectionIds, sections_url: sectionsUrl };
+  }
+
   function patchSections(sectionHtmls, sections) {
     if (!sectionHtmls || !sections || !sections.length) return false;
 
@@ -246,6 +278,27 @@
       if (!parsed) return;
 
       liveContainer.innerHTML = parsed.innerHTML || '';
+      applied = true;
+    });
+
+    return applied;
+  }
+
+  function applySectionsFromResponse(sectionHtmls, cachedTargets) {
+    if (!sectionHtmls) return false;
+
+    const collected = cachedTargets || collectSectionTargets();
+    const targets = (collected && collected.sections) || [];
+    let applied = false;
+
+    if (targets.length) {
+      applied = patchSections(sectionHtmls, targets) || applied;
+    }
+
+    Object.keys(sectionHtmls).forEach((secId) => {
+      const host = document.getElementById(`shopify-section-${secId}`);
+      if (!host) return;
+      host.innerHTML = sectionHtmls[secId];
       applied = true;
     });
 
@@ -348,7 +401,8 @@
   }
 
   async function changeLineByKey(lineKey, quantity, sectionsPayload) {
-    const body = Object.assign({ id: lineKey, quantity }, sectionsPayload || {});
+    const payload = sectionsPayload || getSectionsPayload();
+    const body = Object.assign({ id: lineKey, quantity }, payload || {});
 
     const res = await fetch('/cart/change.js', {
       method: 'POST',
@@ -356,6 +410,7 @@
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        'X-BL-INTERNAL': '1',
         [CFG.internalHeader]: '1'
       },
       body: JSON.stringify(body)
@@ -378,7 +433,8 @@
   }
 
   async function changeLineByIndex(lineIndex, quantity, sectionsPayload) {
-    const body = Object.assign({ line: lineIndex, quantity }, sectionsPayload || {});
+    const payload = sectionsPayload || getSectionsPayload();
+    const body = Object.assign({ line: lineIndex, quantity }, payload || {});
 
     const res = await fetch('/cart/change.js', {
       method: 'POST',
@@ -386,6 +442,7 @@
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        'X-BL-INTERNAL': '1',
         [CFG.internalHeader]: '1'
       },
       body: JSON.stringify(body)
@@ -526,26 +583,35 @@
     const changeResults = [];
     log('mutation payload', { changes: plan.changes });
 
-    const { sections, sectionsUrl } = collectSectionTargets();
-    const sectionIds = sections.map((s) => s.section || s.id).filter(Boolean);
-    const sectionsPayload = sectionIds.length ? { sections: sectionIds, sections_url: sectionsUrl } : null;
+    const collected = collectSectionTargets();
+    const sectionsPayload = getSectionsPayload(collected);
     let patchedSections = false;
 
     // Apply sequentially to avoid race conditions with line indexing
     for (let i = 0; i < plan.changes.length; i++) {
       const ch = plan.changes[i];
       log('changeLine', ch);
-      const res = await changeLineByKey(ch.key, ch.quantity, (i === plan.changes.length - 1) ? sectionsPayload : null);
+      const res = await changeLineByKey(ch.key, ch.quantity, sectionsPayload);
       changeResults.push({ key: ch.key, ok: !!(res && res.ok), status: res && res.status });
 
-      if (res && res.ok && res.data && res.data.sections && sectionsPayload && !patchedSections) {
-        const applied = patchSections(res.data.sections, sections);
-        patchedSections = applied || patchedSections;
+      if (res && res.ok && res.data) {
+        const sectionHtmls = res.data.sections;
+        if (sectionHtmls && sectionsPayload) {
+          const applied = applySectionsFromResponse(sectionHtmls, collected);
+          patchedSections = applied || patchedSections;
+          if (debug) {
+            log('mutation sections applied', { appliedFromMutation: true, sectionIds: Object.keys(sectionHtmls || {}) });
+            if (typeof res.data.item_count === 'number' && res.data.item_count === 0) {
+              log('cart empty after mutation', { cartEmpty: true, sectionIds: Object.keys(sectionHtmls || {}) });
+            }
+          }
+        }
       }
     }
 
     const verified = await verifyAndRepair({ usedFallback: false, changeResults });
     if (verified && !patchedSections) {
+      if (debug) log('mutation sections missing; fallback refresh', { appliedFromMutation: false, fallbackRefresh: true });
       await refreshCartUI('applied_plan');
     }
 
@@ -557,12 +623,32 @@
 
     muteInternal();
 
+    const collected = collectSectionTargets();
+    const sectionsPayload = getSectionsPayload(collected);
+    let patchedSections = false;
+
     for (const ch of plan.changes) {
       const line = keyToLine[ch.key];
       if (!line) continue;
       log('changeLine(fallback)', { line, quantity: ch.quantity, key: ch.key });
-      await changeLineByIndex(line, ch.quantity);
+      const res = await changeLineByIndex(line, ch.quantity, sectionsPayload);
+      if (res && res.ok && res.data && res.data.sections && sectionsPayload) {
+        const applied = applySectionsFromResponse(res.data.sections, collected);
+        patchedSections = applied || patchedSections;
+        if (debug) {
+          log('mutation sections applied', { appliedFromMutation: true, sectionIds: Object.keys(res.data.sections || {}) });
+          if (typeof res.data.item_count === 'number' && res.data.item_count === 0) {
+            log('cart empty after mutation', { cartEmpty: true, sectionIds: Object.keys(res.data.sections || {}) });
+          }
+        }
+      }
     }
+
+    if (!patchedSections && debug) {
+      log('mutation sections missing; fallback refresh', { appliedFromMutation: false, fallbackRefresh: true });
+    }
+
+    if (!patchedSections) await refreshCartUI('fallback_apply');
 
     return true;
   }
@@ -607,7 +693,6 @@
     const fallbackReason = hadFailedMutation ? 'retry_after_failed_mutation' : 'retry_after_invalid_quota';
     log('retrying with line indexes', { filteredChanges, keyToLine, reason: fallbackReason });
     await applyPlanWithLineIndexes(Object.assign({}, postPlan, { changes: filteredChanges }), keyToLine);
-    await refreshCartUI('fallback_apply');
 
     // Verify once more and stop (no further retries to avoid loops)
     return verifyAndRepair({ usedFallback: true });
