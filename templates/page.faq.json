@@ -1,1 +1,246 @@
-{"sections":{"main":{"type":"main-page","disabled":true,"settings":{"padding_top":36,"padding_bottom":36}},"9c121ec4-42cd-4c8e-82a2-935e073db7d7":{"type":"collapsible-content","blocks":{"template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-0":{"type":"collapsible_row","settings":{"heading":"Collapsible row","icon":"check_box","filled_icon":false,"row_content":"","page":""}},"template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-1":{"type":"collapsible_row","settings":{"heading":"Collapsible row","icon":"check_box","filled_icon":false,"row_content":"","page":""}},"template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-2":{"type":"collapsible_row","settings":{"heading":"Collapsible row","icon":"check_box","filled_icon":false,"row_content":"","page":""}},"template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-3":{"type":"collapsible_row","settings":{"heading":"Collapsible row","icon":"check_box","filled_icon":false,"row_content":"","page":""}}},"block_order":["template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-0","template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-1","template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-2","template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-3"],"settings":{"caption":"Frequently asked questions","heading_size":"h0","heading_alignment":"center","layout":"none","color_scheme":"background-1","container_color_scheme":"background-2","open_first_collapsible_row":false,"image_ratio":"adapt","desktop_layout":"image_second","padding_top":36,"padding_bottom":36}}},"order":["main","9c121ec4-42cd-4c8e-82a2-935e073db7d7"]}
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "type": "main-page",
+      "disabled": true,
+      "settings": {
+        "padding_top": 36,
+        "padding_bottom": 36
+      }
+    },
+    "9c121ec4-42cd-4c8e-82a2-935e073db7d7": {
+      "type": "collapsible-content",
+      "blocks": {
+        "template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-0": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "What’s included in the box?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Each set includes:</p><ul><li>All building parts<br/></li><li>A step-by-step instruction guide <strong>or</strong> a QR code to the online instructions<br/><br/>Some figures also include a small pack of <strong>spare parts</strong> (when applicable).</li></ul>",
+            "page": ""
+          }
+        },
+        "template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-1": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How difficult is the build, and how long does it take?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>The builds are designed to be straightforward, with clear instructions.</p><ul><li><strong>Standard & Legendary figures:</strong> typically <strong>40–60 minutes</strong></li><li><strong>Mythic & Special figures:</strong> typically <strong>60+ minutes</strong> (often more than an hour)</li></ul>",
+            "page": ""
+          }
+        },
+        "template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-2": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "What age is this for?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>These sets contain <strong>small parts</strong>.</p><ul><li><strong>Not suitable for children under 3 years</strong> (choking hazard)<br/></li><li>Recommended for <strong>ages 14+</strong> as a collectible building set<br/><br/>If an adult is supervising, older kids can enjoy it too—but small parts safety always applies.</li></ul>",
+            "page": ""
+          }
+        },
+        "template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-3": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "Where do you ship?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>We ship <strong>worldwide</strong>.</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_H89Tpc": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How long does delivery take?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Estimated delivery time is <strong>7–14 business days</strong> worldwide.<br/><br/>(Delivery times are estimates and can vary slightly due to local carrier handling and peak seasons.)</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_YdUxLw": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How fast do you ship orders?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Orders are processed within <strong>24 hours</strong> before dispatch.</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_wpj3Jp": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How much is shipping?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Shipping is <strong>free worldwide</strong>.</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_xrR7Jn": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "Will I get tracking?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Yes—<strong>every order includes tracking</strong>.<br/><br/>You’ll receive:</p><ul><li>Order confirmation by email right after checkout<br/></li><li>A tracking link by email <strong>as soon as the order ships</strong> (typically within 24 hours)</li></ul>",
+            "page": ""
+          }
+        },
+        "collapsible_row_zyd4rc": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "Which carrier do you use?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Shipping is handled by our international fulfillment partner, which selects the most suitable carrier for your destination. Your tracking link will show the carrier and status updates.</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_rwhXqT": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "Can I change my shipping address after ordering?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>No—address changes are <strong>not possible</strong> after the order is placed. Please double-check your details at checkout.</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_LdrJpC": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "What is your return policy?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p><strong>30-day returns</strong> (from the delivery date)</p><p>Returned items must be in <strong>full complect / complete set</strong> (all parts included)</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_pfywdE": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "Who pays for return shipping?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Return shipping is paid by <strong>the customer</strong>.</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_dLdawM": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How long do refunds take?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Refunds are issued to the <strong>same card/payment method</strong> used at checkout within <strong>14 days</strong> (after the return is received and checked).</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_UEXMCE": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "What if my item arrives damaged or incorrect?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Contact us within <strong>48 hours of delivery</strong>.<br/><br/>Please include:</p><ul><li>Your order number<br/></li><li>Photos of the issue (and the shipping box if relevant)<br/></li></ul><p>We will review and resolve the case as quickly as possible.</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_XxyBAa": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "What if my package is not delivered?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>If your order hasn’t been delivered within <strong>30 days</strong>, contact support with your order number. We will issue a <strong>refund</strong> after verification.</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_dJLKtN": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "Will I need to pay extra taxes or customs fees?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Prices include all required taxes for our standard checkout flow, and we aim to ensure you <strong>won’t be charged extra on delivery</strong>.<br/><br/>If you receive any unexpected payment request related to delivery, contact support immediately and include a screenshot/notice so we can help.</p>",
+            "page": ""
+          }
+        },
+        "collapsible_row_HaiNqq": {
+          "type": "collapsible_row",
+          "settings": {
+            "heading": "How can I contact support?",
+            "icon": "check_box",
+            "filled_icon": false,
+            "row_content": "<p>Email: <a><strong>support@blocklegends.store</strong></a><br/><br/>Response time: <strong>within 24 hours</strong> (business days).</p>",
+            "page": ""
+          }
+        }
+      },
+      "block_order": [
+        "template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-0",
+        "template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-1",
+        "template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-2",
+        "template--19742927749415__9c121ec4-42cd-4c8e-82a2-935e073db7d7-16889993318614e07a-3",
+        "collapsible_row_H89Tpc",
+        "collapsible_row_YdUxLw",
+        "collapsible_row_wpj3Jp",
+        "collapsible_row_xrR7Jn",
+        "collapsible_row_zyd4rc",
+        "collapsible_row_rwhXqT",
+        "collapsible_row_LdrJpC",
+        "collapsible_row_pfywdE",
+        "collapsible_row_dLdawM",
+        "collapsible_row_UEXMCE",
+        "collapsible_row_XxyBAa",
+        "collapsible_row_dJLKtN",
+        "collapsible_row_HaiNqq"
+      ],
+      "settings": {
+        "display_id": false,
+        "visibility": "always-display",
+        "caption": "Frequently asked questions",
+        "title": "",
+        "title_highlight_color": "#6d388b",
+        "heading_size": "h0",
+        "heading_alignment": "center",
+        "layout": "none",
+        "color_scheme": "background-1",
+        "container_color_scheme": "background-2",
+        "open_first_collapsible_row": false,
+        "video_muted_autoplay": true,
+        "image_ratio": "adapt",
+        "desktop_layout": "image_second",
+        "row_heading_size": "medium",
+        "collapse_icon": "carret",
+        "display_top_border": true,
+        "padding_top": 36,
+        "padding_bottom": 36,
+        "custom_colors_background": "#ffffff",
+        "custom_gradient_background": "",
+        "custom_colors_text": "#2e2a39",
+        "custom_contaner_colors_background": "#ffffff",
+        "custom_container_gradient_background": "",
+        "custom_contaner_colors_text": "#2e2a39"
+      }
+    }
+  },
+  "order": [
+    "main",
+    "9c121ec4-42cd-4c8e-82a2-935e073db7d7"
+  ]
+}
