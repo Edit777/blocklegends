@@ -450,10 +450,10 @@ function ensureCssOnce() {
       img.removeAttribute('sizes');
     }
 
-    // precompute assignment (so add is instant)
+    // Sync requested state but defer assignment until add-to-cart
     try {
       if (M && form && typeof M.computeAndApplyAssignment === 'function') {
-        M.computeAndApplyAssignment(form, M.CFG.mysteryAddonHandle).catch(function () {});
+        M.computeAndApplyAssignment(form, M.CFG.mysteryAddonHandle, { assign: false }).catch(function () {});
       }
     } catch (e) {}
   }
@@ -609,11 +609,7 @@ function ensureCssOnce() {
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
         if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
 
-        try {
-          if (M && typeof M.computeAndApplyAssignment === 'function') {
-            M.computeAndApplyAssignment(form, M.CFG.mysteryAddonHandle, { force: true }).catch(function () {});
-          }
-        } catch (e) {}
+        // assignment happens in engine submit safety; keep flags in sync
       });
     }
 

@@ -308,7 +308,9 @@
     return 'bl-uid-' + Math.random().toString(16).slice(2) + Date.now().toString(16);
   }
 
-  function ensureAssignmentUid(form, signature) {
+  function ensureAssignmentUid(form, signature, opts) {
+    opts = opts || {};
+    var alwaysNew = !!opts.alwaysNew;
     var currentSig = '';
     var existing = '';
     try {
@@ -317,7 +319,7 @@
     } catch (e) {}
 
     var uid = existing;
-    if (!uid || currentSig !== signature) {
+    if (alwaysNew || !uid || currentSig !== signature) {
       uid = generateUid();
     }
 
@@ -349,6 +351,32 @@
     return props;
   }
 
+  function mirrorPropertiesToItems(form, props) {
+    if (!form || !props) return;
+
+    var idInputs = form.querySelectorAll('input[name^="items["][name$="[id]"]');
+    if (!idInputs || !idInputs.length) return;
+
+    Array.prototype.slice.call(idInputs || []).forEach(function (idInput) {
+      var name = idInput.getAttribute('name') || '';
+      var m = name.match(/^items\[(\d+)\]\[id\]$/);
+      if (!m || m.length < 2) return;
+      var idx = m[1];
+
+      Object.keys(props).forEach(function (key) {
+        var propName = 'items[' + idx + '][properties[' + key + ']]';
+        var existing = form.querySelector('input[name="' + propName.replace(/"/g, '\\"') + '"]');
+        if (!existing) {
+          existing = document.createElement('input');
+          existing.type = 'hidden';
+          existing.name = propName;
+          form.appendChild(existing);
+        }
+        existing.value = props[key] || '';
+      });
+    });
+  }
+
   function getAssignedSku(variantId, chosen) {
     if (chosen && chosen.sku) return chosen.sku;
     if (chosen && chosen.variant_sku) return chosen.variant_sku;
@@ -372,12 +400,37 @@
       var p = list[i];
       if (!p) continue;
 
-      var excluded =
+      var excludeFlag =
         p.exclude_from_mystery === true ||
-        String(p.exclude_from_mystery).toLowerCase() === 'true';
+        String(p.exclude_from_mystery).toLowerCase() === 'true' ||
+        (p.metafields && p.metafields.custom && (p.metafields.custom.exclude_from_mystery === true || String(p.metafields.custom.exclude_from_mystery || '').toLowerCase() === 'true'));
+
+      var tagExclude = false;
+      try {
+        if (Array.isArray(p.tags)) {
+          tagExclude = p.tags.some(function (t) {
+            var tl = String(t || '').trim().toLowerCase();
+            return tl === 'exclude_mystery' || tl === 'bl_exclude_mystery';
+          });
+        }
+      } catch (eTag) {}
+
+      var excluded = excludeFlag || tagExclude;
 
       if (excluded) {
-        U.warn('[BL Mystery] REJECT exclude_from_mystery:', p.handle);
+        U.warn('[BL Mystery] REJECT exclude_from_mystery true:', p.handle);
+        continue;
+      }
+
+      var soldOut = false;
+      if (p && (p.available === false || String(p.available || '').toLowerCase() === 'false')) soldOut = true;
+      if (p && (p.variant_available === false || String(p.variant_available || '').toLowerCase() === 'false')) soldOut = true;
+      if (!soldOut && p && Array.isArray(p.variants) && p.variants.length) {
+        var matchVar = p.variants.find(function (v) { return v && (String(v.id) === String(p.variant_id)); });
+        if (matchVar && (matchVar.available === false || String(matchVar.available || '').toLowerCase() === 'false')) soldOut = true;
+      }
+      if (soldOut) {
+        U.warn('[BL Mystery] REJECT sold-out:', p.handle);
         continue;
       }
 
@@ -688,6 +741,9 @@ function chooseAssignedProductAny(poolHandle) {
     debugLog(label, meta);
   }
 
+  // Expose helper for other modules if needed
+  M.mirrorPropertiesToItems = mirrorPropertiesToItems;
+
   /* -----------------------------
      ASSIGNMENT (CORE)
      Critical decision: NO silent fallback to ALL for rarity tiers.
@@ -697,6 +753,7 @@ function chooseAssignedProductAny(poolHandle) {
 M.computeAndApplyAssignment = function (form, productHandle, opts) {
   opts = opts || {};
   var force = !!opts.force;
+  var assignNow = !!opts.force || opts.assign === true;
 
   var handle = String(productHandle || '').trim();
   if (!form) return Promise.resolve(false);
@@ -708,8 +765,8 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
     form.dataset.blMysteryComputing = '1';
   } catch (e) {}
 
-  // Ensure caches
-  var pAll = M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle);
+  // Ensure caches (pool only when we actually assign)
+  var pAll = assignNow ? M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle) : Promise.resolve(null);
   var pMap = M.fetchVariantMap();
 
   // Wrap everything so we ALWAYS release the computing lock
@@ -738,6 +795,51 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
       var sig = buildSignature(handle, mode, rarity, requestedCollection) + '|' + currentVariantId;
 
+      var preferredCollectionSafe = (mode === M.CFG.modePreferredLabel) ? (requestedCollection || '') : '';
+
+      // If not assigning now, just persist requested state and clear stale assignment
+      if (!assignNow) {
+        // Persist requested state only
+        upsertHidden(form, M.CFG.propSelectedMode, mode);
+        upsertHidden(form, M.CFG.propPreferredCollection, preferredCollectionSafe);
+        upsertHidden(form, M.CFG.propRequestedTier, isAny ? M.CFG.anyRarityKey : rarity);
+        upsertHidden(form, '_bl_mode', mode === M.CFG.modePreferredLabel ? 'preferred' : 'random');
+        upsertHidden(form, '_bl_locked_collection', preferredCollectionSafe);
+        upsertHidden(form, '_bl_requested_rarity', isAny ? M.CFG.anyRarityKey : rarity);
+
+        // Clear any previous assignment to avoid reuse
+        [
+          M.CFG.propAssignedHandle,
+          M.CFG.propAssignedTitle,
+          M.CFG.propAssignedVariantId,
+          M.CFG.propAssignedRarity,
+          M.CFG.propVisibleAssignedTitle,
+          M.CFG.propVisibleAssignedRarity,
+          M.CFG.propVisibleRequestedTier,
+          M.CFG.propVisiblePoolUsed,
+          M.CFG.propVisibleMode,
+          '_bl_assignment_uid',
+          '_bl_assigned_variant_id',
+          '_bl_assigned_variant_gid',
+          '_bl_assigned_sku'
+        ].forEach(function (k) { removeHidden(form, k); });
+
+        ['DEBUG Assignment UID','DEBUG Assigned Variant ID','DEBUG Assigned Variant GID','DEBUG Assigned SKU','DEBUG Requested Mode','DEBUG Requested Rarity','DEBUG Locked/Preferred Collection'].forEach(function (k) { removeHidden(form, k); });
+        try { form.dataset.blAssignedSig = ''; form.dataset.blAssignmentUid = ''; } catch (eSig) {}
+
+        logDebugState('assignment-deferred', {
+          handle: handle,
+          role: handle === M.CFG.mysteryAddonHandle ? 'addon' : 'parent',
+          mode: mode,
+          rarity: rarity,
+          requestedCollection: requestedCollection,
+          poolUsed: poolHandleUsed,
+          variantId: currentVariantId,
+          signature: sig
+        });
+        return true;
+      }
+
       // Reuse only when NOT forcing and signature matches and assigned exists
       var assignedInput = form.querySelector('[name="properties[' + M.CFG.propAssignedVariantId + ']"]');
       var canonicalInput = form.querySelector('[name="properties[_bl_assigned_variant_id]"]');
@@ -751,7 +853,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           assignedSku: existingProps._bl_assigned_sku || '',
           mode: mode,
           rarity: isAny ? M.CFG.anyRarityKey : rarity,
-          collection: requestedCollection
+          collection: preferredCollectionSafe
         });
         logDebugState('assignment-reuse', {
           handle: handle,
@@ -820,8 +922,6 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
         // Persist what user selected (tier) vs what they got (actual)
         upsertHidden(form, M.CFG.propSelectedMode, mode);
-        var preferredCollectionSafe = (mode === M.CFG.modePreferredLabel) ? (requestedCollection || '') : '';
-        upsertHidden(form, M.CFG.propPreferredCollection, preferredCollectionSafe);
         upsertHidden(form, M.CFG.propRequestedTier, isAny ? M.CFG.anyRarityKey : rarity);
         // Supplemental properties for storefront tracking
         upsertHidden(form, '_bl_mode', mode === M.CFG.modePreferredLabel ? 'preferred' : 'random');
@@ -841,7 +941,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         upsertHidden(form, M.CFG.propVisiblePoolUsed, poolHandleUsed);
         upsertHidden(form, M.CFG.propVisibleMode, mode);
 
-        var assignmentUid = ensureAssignmentUid(form, sig);
+        var assignmentUid = ensureAssignmentUid(form, sig, { alwaysNew: force });
         var assignedGid = buildVariantGid(chosen.variant_id);
         var assignedSku = getAssignedSku(chosen.variant_id, chosen);
 
@@ -1009,6 +1109,23 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           if (!ok) return;
 
           var propsSnapshot = collectProperties(form);
+          var role = handle === M.CFG.mysteryAddonHandle ? 'addon' : 'parent';
+
+          if (isDebug() && (!propsSnapshot._bl_assignment_uid || !propsSnapshot._bl_assigned_variant_id)) {
+            console.error('[BL Mystery][' + role + '] BLOCKED: missing swap properties');
+            logDebugState('blocked', {
+              handle: handle,
+              role: role,
+              reason: 'missing-properties',
+              signature: form.dataset.blAssignedSig || '',
+              properties: propsSnapshot
+            });
+            form.dataset.blMysteryAssigning = '0';
+            if (btn) btn.removeAttribute('disabled');
+            return;
+          }
+
+          mirrorPropertiesToItems(form, propsSnapshot);
           logDebugState('pre-submit', {
             handle: handle,
             role: handle === M.CFG.mysteryAddonHandle ? 'addon' : 'parent',
