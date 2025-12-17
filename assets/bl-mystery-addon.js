@@ -5,7 +5,7 @@
    - Injects compact <select>
    - Disables ineligible rarities for locked collection
    - Updates price/image/variant-id in place
-   - NO DOM re-parenting / NO layout rebuilding
+   - Minimal DOM tweaks (keeps price aligned with add button)
    ======================================================= */
 
 (function () {
@@ -58,9 +58,9 @@
       '.upsell[data-upsell-addon="true"] .upsell__title h3{white-space:normal;word-break:normal;overflow-wrap:anywhere;margin:0;}',
 
       '.upsell[data-upsell-addon="true"] .bl-addon-right{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;white-space:nowrap;}',
-      '.upsell[data-upsell-addon="true"] .upsell__price{margin:0;padding:0;display:flex;align-items:center;justify-content:center;line-height:1;white-space:nowrap;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-right .upsell__price{margin:0;display:flex;align-items:center;justify-content:center;line-height:1;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-right .upsell__price .regular-price{display:inline-block;line-height:1;margin:0;padding:0;font-weight:700;}',
       '.upsell[data-upsell-addon="true"] .upsell__price--separate{margin:0;}',
-      '.upsell[data-upsell-addon="true"] .upsell__price .regular-price{display:inline-block;line-height:1;margin:0;padding:0;font-weight:700;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-right button{display:flex;align-items:center;justify-content:center;}',
       '.upsell[data-upsell-addon="true"] .upsell__price,.upsell[data-upsell-addon="true"] .upsell__price *{vertical-align:middle;}',
 
@@ -74,6 +74,19 @@
       '.upsell[data-upsell-addon="true"] .upsell__variant-picker{display:none !important;}'
     ].join('');
     document.head.appendChild(st);
+  }
+
+  function ensureLayout(card) {
+    if (!card) return;
+    var main = card.querySelector('.bl-addon-main');
+    if (!main) return;
+
+    var right = main.querySelector('.bl-addon-right');
+    var price = card.querySelector('.upsell__price');
+
+    if (price && right && price.parentNode !== right) {
+      try { right.insertBefore(price, right.firstChild); } catch (e) {}
+    }
   }
 
   function refreshMoneyAttributes(card) {
@@ -371,6 +384,7 @@
     if (!variants.length) return;
 
     ensureCssOnce();
+    ensureLayout(card);
     removePills(card);
     refreshMoneyAttributes(card);
 
@@ -433,6 +447,7 @@
         var mo = new MutationObserver(U.debounce(function () {
           if (!card.isConnected) { mo.disconnect(); return; }
           removePills(card);
+          ensureLayout(card);
           // do NOT rebuild layout; only keep price/hint accurate
           if (selectEl) {
             refreshMoneyAttributes(card);
