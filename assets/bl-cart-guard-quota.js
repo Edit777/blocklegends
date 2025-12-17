@@ -113,16 +113,82 @@
     return res.json();
   }
 
-  async function changeLineByKey(lineKey, quantity) {
-    await fetch('/cart/change.js', {
+  function getSectionsPayload() {
+    const payload = { sections: [], sections_url: window.location ? window.location.pathname : '/' };
+
+    const cartDrawerId = document.getElementById('cart-drawer');
+    const drawerEl = cartDrawerId || document.querySelector('#CartDrawer') || document.querySelector('cart-drawer');
+    if (drawerEl) payload.sections.push('cart-drawer');
+
+    if (document.getElementById('cart-icon-bubble')) payload.sections.push('cart-icon-bubble');
+
+    // Cart page support
+    if (document.getElementById('main-cart-items')) payload.sections.push('main-cart-items');
+    if (document.getElementById('main-cart-footer')) payload.sections.push('main-cart-footer');
+    if (document.getElementById('cart-live-region-text')) payload.sections.push('cart-live-region-text');
+
+    return payload.sections.length ? payload : null;
+  }
+
+  async function changeLineByKey(lineKey, quantity, sectionsPayload) {
+    const body = Object.assign({ id: lineKey, quantity }, sectionsPayload || {});
+
+    const res = await fetch('/cart/change.js', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
+        Accept: 'application/json',
         [CFG.internalHeader]: '1'
       },
-      body: JSON.stringify({ id: lineKey, quantity })
+      body: JSON.stringify(body)
     });
+
+    if (!res.ok && debug) {
+      try {
+        const txt = await res.text();
+        log('changeLineByKey failed', { status: res.status, statusText: res.statusText, body: txt });
+      } catch (e) {
+        log('changeLineByKey failed (no body)', { status: res.status, statusText: res.statusText });
+      }
+    }
+
+    return res;
+  }
+
+  async function changeLineByIndex(lineIndex, quantity, sectionsPayload) {
+    const body = Object.assign({ line: lineIndex, quantity }, sectionsPayload || {});
+
+    const res = await fetch('/cart/change.js', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        [CFG.internalHeader]: '1'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok && debug) {
+      try {
+        const txt = await res.text();
+        log('changeLineByIndex failed', { status: res.status, statusText: res.statusText, body: txt });
+      } catch (e) {
+        log('changeLineByIndex failed (no body)', { status: res.status, statusText: res.statusText });
+      }
+    }
+
+    return res;
+  }
+
+  function mapKeyToLine(cart) {
+    const map = {};
+    if (!cart || !Array.isArray(cart.items)) return map;
+    cart.items.forEach((item, idx) => {
+      map[item && item.key] = idx + 1; // Shopify line index is 1-based
+    });
+    return map;
   }
 
   // Build an action plan based on current cart snapshot
@@ -186,6 +252,8 @@
   async function applyPlan(plan) {
     if (!plan.changes || !plan.changes.length) return false;
 
+    const sectionsPayload = getSectionsPayload();
+
     // Important: applying changes triggers cart mutation requests -> stable -> guard again
     // We mute internal stable events briefly to avoid loops.
     muteInternal();
@@ -193,9 +261,52 @@
     // Apply sequentially to avoid race conditions with line indexing
     for (const ch of plan.changes) {
       log('changeLine', ch);
-      await changeLineByKey(ch.key, ch.quantity);
+      await changeLineByKey(ch.key, ch.quantity, sectionsPayload);
     }
+
+    const verified = await verifyAndRepair({ usedFallback: false, sectionsPayload });
+    return verified;
+  }
+
+  async function applyPlanWithLineIndexes(plan, keyToLine, sectionsPayload) {
+    if (!plan.changes || !plan.changes.length) return false;
+
+    muteInternal();
+
+    for (const ch of plan.changes) {
+      const line = keyToLine[ch.key];
+      if (!line) continue;
+      log('changeLine(fallback)', { line, quantity: ch.quantity, key: ch.key });
+      await changeLineByIndex(line, ch.quantity, sectionsPayload);
+    }
+
     return true;
+  }
+
+  async function verifyAndRepair(opts) {
+    const options = Object.assign({ usedFallback: false, sectionsPayload: null }, opts || {});
+    const cartAfter = await getCart();
+    const postPlan = buildPlan(cartAfter);
+
+    if (postPlan.addonUnits <= postPlan.parentUnits || !postPlan.changes.length) {
+      return true;
+    }
+
+    if (options.usedFallback) {
+      log('post-mutation quota still violated after fallback; giving up to avoid loop', postPlan);
+      return false;
+    }
+
+    // Retry once using line indexes from freshest cart snapshot
+    const keyToLine = mapKeyToLine(cartAfter);
+    const filteredChanges = postPlan.changes.filter((ch) => keyToLine[ch.key]);
+    if (!filteredChanges.length) return false;
+
+    log('retrying with line indexes', { filteredChanges, keyToLine });
+    await applyPlanWithLineIndexes(Object.assign({}, postPlan, { changes: filteredChanges }), keyToLine, options.sectionsPayload || getSectionsPayload());
+
+    // Verify once more and stop (no further retries to avoid loops)
+    return verifyAndRepair({ usedFallback: true, sectionsPayload: options.sectionsPayload });
   }
 
   function emitMessage(text) {
@@ -260,5 +371,13 @@
     const txnId = (e && e.detail && e.detail.txnId) ? Number(e.detail.txnId) : 0;
     runGuard(reason, txnId);
   });
+
+  /*
+   * How to test (with ?cart_guard_debug=1 for console logs)
+   * 1) Add a parent product with qty=3 and add-on qty=3.
+   * 2) Increase add-on to qty=4; expect guard to log changeLine + fallback retry (if needed) and final qty clamped to 3.
+   * 3) Repeat with multiple add-on lines; last lines should be reduced first.
+   * 4) If a change request fails, debug log will include status/body; guard retries once using line indexes.
+   */
 
 })();
