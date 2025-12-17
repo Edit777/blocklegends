@@ -19,36 +19,46 @@
           "settings": {
             "heading": "Quick links",
             "menu": "footer",
-            "width_desktop": 3,
+            "width_desktop": 6,
             "width_mobile": "2"
           }
         },
         "24f208fd-0898-43eb-af23-d74f8420ab37": {
           "type": "email_signup",
           "settings": {
-            "heading": "Subscribe to our emails",
-            "subtext": "<p>Join our email list for exclusive offers and the latest news.</p>",
+            "heading": "Get Drop Alerts",
+            "subtext": "<p>Be the first to know about new figures, limited releases, and restocks.<br/>No spam — unsubscribe anytime.</p>",
             "button_type": "solid",
             "button_label": "Sign up",
             "button_style_secondary": false,
-            "width_desktop": 4,
+            "width_desktop": 6,
+            "width_mobile": "2"
+          }
+        },
+        "text_mzdkKf": {
+          "type": "text",
+          "settings": {
+            "heading": "",
+            "subtext": "<p><a><strong>support@blocklegends.store</strong></a></p><p><strong>Reply within 24 hours (business days)</strong></p>",
+            "width_desktop": 6,
             "width_mobile": "2"
           }
         }
       },
       "block_order": [
         "link_list_BijCMC",
-        "24f208fd-0898-43eb-af23-d74f8420ab37"
+        "24f208fd-0898-43eb-af23-d74f8420ab37",
+        "text_mzdkKf"
       ],
       "settings": {
         "color_scheme": "accent-1",
         "enable_follow_on_shop": false,
-        "show_social": false,
-        "enable_country_selector": false,
+        "show_social": true,
+        "enable_country_selector": true,
         "enable_language_selector": true,
         "payment_enable": true,
-        "enabled_payment_types": "",
-        "show_policy": false,
+        "enabled_payment_types": "american_express, apple_pay, google_pay, master, visa, paypal",
+        "show_policy": true,
         "branding_text": "",
         "margin_top": 0,
         "padding_top": 32,
