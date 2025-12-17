@@ -58,7 +58,8 @@
       '.upsell[data-upsell-addon="true"] .upsell__title h3{white-space:normal;word-break:normal;overflow-wrap:anywhere;margin:0;}',
 
       '.upsell[data-upsell-addon="true"] .bl-addon-right{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;white-space:nowrap;}',
-      '.upsell[data-upsell-addon="true"] .upsell__price{margin:0;display:flex;align-items:center;justify-content:center;line-height:1;}',
+      '.upsell[data-upsell-addon="true"] .upsell__price{margin:0;padding:0;display:flex;align-items:center;justify-content:center;line-height:1;white-space:nowrap;}',
+      '.upsell[data-upsell-addon="true"] .upsell__price--separate{margin:0;}',
       '.upsell[data-upsell-addon="true"] .upsell__price .regular-price{display:inline-block;line-height:1;margin:0;padding:0;font-weight:700;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-right button{display:flex;align-items:center;justify-content:center;}',
       '.upsell[data-upsell-addon="true"] .upsell__price,.upsell[data-upsell-addon="true"] .upsell__price *{vertical-align:middle;}',
