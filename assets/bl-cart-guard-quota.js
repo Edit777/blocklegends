@@ -306,6 +306,29 @@
     let applied = false;
     const patchedTypes = new Set();
 
+    const findDrawerHost = (root) => {
+      if (!root) return null;
+      if (root.matches?.('cart-drawer, #CartDrawer')) return root;
+      return root.querySelector?.('cart-drawer, #CartDrawer');
+    };
+
+    const findDrawerInner = (root) => {
+      if (!root) return null;
+      const selectors = [
+        '.cart-drawer__inner',
+        '.drawer__inner',
+        '.drawer__content',
+        '.cart-drawer__content',
+        '.drawer__body',
+        '.cart-drawer__wrapper'
+      ];
+      for (const sel of selectors) {
+        const found = root.querySelector(sel);
+        if (found) return found;
+      }
+      return null;
+    };
+
     function findParsedSection(dom, secId) {
       return dom.getElementById(`shopify-section-${secId}`) || dom.querySelector(`#shopify-section-${secId}`) || dom.querySelector(`section[id^="shopify-section-${secId}"]`);
     }
@@ -319,6 +342,25 @@
       if (!liveContainer) return;
 
       const dom = new DOMParser().parseFromString(html, 'text/html');
+
+      if (entry.type === 'drawer') {
+        const parsedSection = findParsedSection(dom, secId) || dom.body;
+        const liveDrawer = findDrawerHost(liveContainer) || liveContainer;
+        const parsedDrawer = findDrawerHost(parsedSection) || parsedSection;
+        const liveInner = findDrawerInner(liveDrawer) || findDrawerInner(liveContainer);
+        const parsedInner = findDrawerInner(parsedDrawer) || findDrawerInner(parsedSection);
+
+        if (liveInner && parsedInner) {
+          liveInner.innerHTML = parsedInner.innerHTML;
+          patchedTypes.add('drawer');
+          applied = true;
+        } else if (liveDrawer && parsedDrawer) {
+          liveDrawer.innerHTML = parsedDrawer.innerHTML;
+          patchedTypes.add('drawer');
+          applied = true;
+        }
+        return;
+      }
 
       if (entry.type === 'bubble') {
         const parsedBubble = dom.querySelector('#cart-icon-bubble');
@@ -709,7 +751,7 @@
       drawerWasOpen,
       patchedDrawer: patchedDrawer || !!(fallbackMeta && fallbackMeta.patchedDrawer)
     });
-    if (verified && (!patchedSections || !patchedDrawer)) {
+    if (verified && !patchedSections) {
       await refreshCartUI('applied_plan');
     }
 
