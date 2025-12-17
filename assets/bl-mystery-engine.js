@@ -357,14 +357,13 @@
     var idInputs = form.querySelectorAll('input[name^="items["][name$="[id]"]');
     if (!idInputs || !idInputs.length) return;
 
-    Array.prototype.slice.call(idInputs || []).forEach(function (idInput) {
+    Array.prototype.slice.call(idInputs || []).forEach(function (idInput, autoIdx) {
       var name = idInput.getAttribute('name') || '';
-      var m = name.match(/^items\[(\d+)\]\[id\]$/);
-      if (!m || m.length < 2) return;
-      var idx = m[1];
+      var m = name.match(/^(items\[[^\]]*\])\[id\]$/);
+      var itemKey = (m && m[1]) ? m[1] : 'items[' + autoIdx + ']';
 
       Object.keys(props).forEach(function (key) {
-        var propName = 'items[' + idx + '][properties[' + key + ']]';
+        var propName = itemKey + '[properties[' + key + ']]';
         var existing = form.querySelector('input[name="' + propName.replace(/"/g, '\\"') + '"]');
         if (!existing) {
           existing = document.createElement('input');
