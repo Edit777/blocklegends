@@ -39,13 +39,14 @@
     data-upsell-addon="true"
     data-parent-handle="{{ current_product.handle }}"
     data-locked-collection="{{ bl_primary_collection }}"
+    data-money-format="{{ shop.money_format }}"
+    data-currency="{{ localization.country.currency.iso_code | default: cart.currency.iso_code | default: shop.currency }}"
     {% if block.settings.update_prices %}
       data-update-prices='true'
       data-price="{{ addon_price }}"
       data-compare-price="{% if addon_compare_price > addon_price %}{{ addon_price }}{% else %}{{ addon_compare_price }}{% endif %}"
       data-percentage-left="{{ addon_percentage_left }}"
       data-fixed-discount="{{ addon_fixed_discount }}"
-      data-money-format="{{ shop.money_format }}"
     {% endif %}
   >
     <div class='upsell__container{% if block.settings.toggle_element == "container" and block.settings.style != "add_button" %} upsell-toggle-btn{% endif %}'>
@@ -105,19 +106,6 @@
         {%- endunless -%}
 
         {%- unless addon_product.has_only_default_variant -%}
-          <div class="bl-addon-variants" data-bl-addon-variants-ui>
-            {%- for v in addon_product.variants -%}
-              <button
-                type="button"
-                class="bl-addon-pill{% if v.id == addon_product.first_available_variant.id %} is-active{% endif %}"
-                data-bl-addon-variant="{{ v.id }}"
-                {% unless v.available %}disabled{% endunless %}
-              >
-                {{ v.title }}
-              </button>
-            {%- endfor -%}
-          </div>
-
           <script type="application/json" data-bl-addon-variants>
             [
               {%- for v in addon_product.variants -%}
@@ -132,14 +120,6 @@
               {%- endfor -%}
             ]
           </script>
-
-          <style>
-            .upsell[data-upsell-addon="true"] .upsell__variant-picker { display:none !important; }
-            .bl-addon-variants { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
-            .bl-addon-pill { padding:6px 10px; border:1px solid rgba(0,0,0,.2); border-radius:10px; background:#fff; font-size:13px; line-height:1; }
-            .bl-addon-pill.is-active { border-color:#000; }
-            .bl-addon-pill:disabled { opacity:.5; cursor:not-allowed; }
-          </style>
         {%- endunless -%}
 
         {% if block.settings.price_position == 'separate' %}

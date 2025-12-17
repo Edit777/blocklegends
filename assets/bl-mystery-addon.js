@@ -16,13 +16,21 @@
 
   var observer = null;
   var moneyEnvLogged = false;
-
+  
   function getAddonHandle() {
     try {
       return M && M.CFG && M.CFG.mysteryAddonHandle ? String(M.CFG.mysteryAddonHandle) : 'mystery-add-on';
     } catch (e) {
       return 'mystery-add-on';
     }
+  }
+
+  function refreshMoneyAttributes(card) {
+    if (!card || !U || typeof U.getMoneyEnvironment !== 'function') return { moneyFormat: null, currency: null };
+    var env = U.getMoneyEnvironment();
+    if (env.moneyFormat) card.setAttribute('data-money-format', env.moneyFormat);
+    if (env.currency) card.setAttribute('data-currency', env.currency);
+    return env;
   }
 
   function isMysteryAddonCard(card) {
@@ -108,6 +116,8 @@
 
     logMoneyEnvironment(card);
 
+    var env = refreshMoneyAttributes(card);
+
     // keep data-id in sync (some themes read it)
     card.setAttribute('data-id', String(v.id));
 
@@ -122,8 +132,8 @@
     }
 
     // price
-    var moneyFormat = card.getAttribute('data-money-format') || null;
-    var moneyCurrency = card.getAttribute('data-currency') || null;
+    var moneyFormat = card.getAttribute('data-money-format') || (env && env.moneyFormat) || null;
+    var moneyCurrency = card.getAttribute('data-currency') || (env && env.currency) || null;
     var priceEl = card.querySelector('.upsell__price .regular-price');
     var compareEl = card.querySelector('.upsell__price .compare-price');
 
@@ -201,7 +211,7 @@
     var anyKey = '';
     try { anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase(); } catch (e) { anyKey = 'any'; }
 
-    if (r === anyKey) return 'Get a random figure from any rarity.';
+    if (r === anyKey) return 'Get a random figure.';
     if (r === 'common') return 'Get a random Common figure.';
     if (r === 'rare') return 'Get a random Rare figure.';
     if (r === 'epic') return 'Get a random Epic figure.';
@@ -242,6 +252,8 @@
       var variants = [];
       try { variants = JSON.parse(variantsScript.textContent || '[]') || []; } catch (e) { variants = []; }
       if (!variants.length) return;
+
+      refreshMoneyAttributes(card);
 
       var form =
         card.querySelector('form[data-type="add-to-cart-form"]') ||
@@ -300,13 +312,11 @@
       var statusEl = card.querySelector('[data-bl-addon-status]');
       var hintEl = card.querySelector('[data-bl-addon-hint]');
 
-      function hidePills() {
+      function removePills() {
         if (!isMysteryAddon) return;
         var pillWrap = card.querySelector('.bl-addon-variants');
-        if (pillWrap) {
-          pillWrap.style.display = 'none';
-          pillWrap.setAttribute('data-bl-addon-pills-hidden', '1');
-        }
+        if (pillWrap) pillWrap.remove();
+        U.qsa(card, '.bl-addon-pill').forEach(function (btn) { btn.remove(); });
       }
 
       function ensureHint() {
@@ -403,24 +413,44 @@
         });
       }
 
+      var syncing = false;
+
       function sync() {
-        if (!selectEl) return;
+        if (!selectEl || syncing) return;
+        syncing = true;
+        refreshMoneyAttributes(card);
         var vid = String(selectEl.value || '').trim();
         applyVariant(card, variants, vid);
         updateHint();
+        syncing = false;
+      }
+
+      function ensureCardObserver() {
+        if (card.__blAddonObserver || typeof MutationObserver === 'undefined' || !U || typeof U.debounce !== 'function') return;
+        try {
+          var mo = new MutationObserver(U.debounce(function () {
+            if (!card.isConnected) { mo.disconnect(); return; }
+            removePills();
+            sync();
+          }, 80));
+          mo.observe(card, { childList: true, subtree: true, characterData: true });
+          card.__blAddonObserver = mo;
+        } catch (e) {}
       }
 
       // Initial selection
       var initialId = card.getAttribute('data-id') || (variants[0] && variants[0].id);
       if (selectEl && initialId) selectEl.value = String(initialId);
 
-      hidePills();
+      removePills();
 
       // Ensure variant map is ready then disable + sync
       (M.fetchVariantMap ? M.fetchVariantMap() : Promise.resolve())
         .then(function () { return disableIneligibleOptions(); })
         .then(function () { sync(); })
         .catch(function () { sync(); });
+
+      ensureCardObserver();
 
       // Change handler
       if (selectEl) {
