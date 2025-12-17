@@ -144,7 +144,7 @@ function ensureCssOnce() {
     '@media (max-width: 356px){' +
       '.upsell[data-upsell-addon="true"] .upsell__title h3{font-size:11.3px;line-height:1.14;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:90px;min-width:78px;height:27px;min-height:27px;padding:3px 6px;font-size:10.3px;}' +
-      '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:9.9px;line-height:1.14;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:8.2px;line-height:1.14;}' +
     '}'
   ].join('');
 
