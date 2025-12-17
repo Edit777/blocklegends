@@ -57,9 +57,10 @@
       '.upsell[data-upsell-addon="true"] .upsell__content{min-width:0;}',
       '.upsell[data-upsell-addon="true"] .upsell__title h3{white-space:normal;word-break:normal;overflow-wrap:anywhere;margin:0;}',
 
-      '.upsell[data-upsell-addon="true"] .bl-addon-right{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;white-space:nowrap;flex:0 0 auto;}',
-      '.upsell[data-upsell-addon="true"] .upsell__price{margin:0;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;line-height:1.15;}',
-      '.upsell[data-upsell-addon="true"] .upsell__price .regular-price{font-weight:700;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-right{display:flex;align-items:center;justify-content:flex-end;gap:10px;white-space:nowrap;flex:0 0 auto;}',
+      '.upsell[data-upsell-addon="true"] .upsell__price{margin:0;display:flex;align-items:center;justify-content:center;line-height:1;}',
+      '.upsell[data-upsell-addon="true"] .upsell__price .regular-price{font-weight:700;display:inline-flex;align-items:center;line-height:1;}',
+      '.upsell[data-upsell-addon="true"] .upsell__price,.upsell[data-upsell-addon="true"] .upsell__price *{vertical-align:middle;}',
 
       '.upsell[data-upsell-addon="true"] .bl-addon-meta{margin-top:.25rem;display:flex;flex-direction:column;gap:.25rem;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-controls{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}',
