@@ -116,7 +116,17 @@
     {%- if ch == ' ' -%}
       {{ ' ' }}
     {%- else -%}
-      <span class="piht__hl-char">{{ ch }}</span>
+      {%- assign tilt_mod = forloop.index0 | modulo: 4 -%}
+      {%- case tilt_mod -%}
+        {%- when 0 -%}{%- assign tilt = '-4deg' -%}
+        {%- when 1 -%}{%- assign tilt = '2.5deg' -%}
+        {%- when 2 -%}{%- assign tilt = '0deg' -%}
+        {%- else -%}{%- assign tilt = '1deg' -%}
+      {%- endcase -%}
+      <span
+        class="piht__hl-char"
+        style="--piht-char-index: {{ forloop.index }}; --piht-char-tilt: {{ tilt }};"
+      >{{ ch }}</span>
     {%- endif -%}
   {%- endfor -%}
   {%- for i in (1..5) -%}
