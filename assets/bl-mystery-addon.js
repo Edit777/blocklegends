@@ -71,7 +71,8 @@
       '.upsell[data-upsell-addon="true"] .bl-addon-select option:disabled{color:rgba(0,0,0,.35);}',
       '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:12px;line-height:1.35;opacity:.85;}',
       '.bl-addon-notice{margin-top:0.75rem;font-size:13px;line-height:1.4;color:#b33;padding:.6rem .8rem;border:1px solid rgba(179,51,51,.35);border-radius:8px;background:rgba(179,51,51,.08);width:100%;display:block;}',
-      '.upsell[data-upsell-addon="true"] .upsell__variant-picker{display:none !important;}'
+      '.upsell[data-upsell-addon="true"] .upsell__variant-picker{display:none !important;}',
+      '@media (max-width: 640px){.upsell[data-upsell-addon="true"] .bl-addon-controls{flex-wrap:nowrap;}.upsell[data-upsell-addon="true"] .bl-addon-controls label{white-space:nowrap;}.upsell[data-upsell-addon="true"] .bl-addon-select{min-width:0;width:116px;max-width:50vw;}}'
     ].join('');
     document.head.appendChild(st);
   }
@@ -369,7 +370,10 @@
 
     var rarity = selectEl ? getVariantRarity(String(selectEl.value)) : '';
     var collectionName = formatCollectionName(card);
-    hintEl.textContent = hintForRarity(rarity, collectionName);
+    var nextText = hintForRarity(rarity, collectionName);
+    if (hintEl.textContent !== nextText) {
+      hintEl.textContent = nextText;
+    }
   }
 
   function bindCard(card) {
@@ -454,7 +458,7 @@
             updateHint(card, selectEl);
           }
         }, 120));
-        mo.observe(card, { childList: true, subtree: true, characterData: true });
+        mo.observe(card, { childList: true, subtree: true });
         card.__blAddonObserver = mo;
       } catch (e) {}
     }
