@@ -87,26 +87,35 @@
     } catch (e) { return ''; }
   }
 
+  function readStorage(store, key) {
+    try { return store.getItem(key); } catch (e) { return null; }
+  }
+
+  function writeStorage(store, key, value) {
+    try { store.setItem(key, value); } catch (e) {}
+  }
+
   function readLastAddonKey() {
-    try {
-      const key = localStorage.getItem(CFG.lastAddonKeyStorage);
-      lastTouchedAddonKey = key || null;
-      return lastTouchedAddonKey;
-    } catch (e) {
-      return null;
+    const storages = [sessionStorage, localStorage];
+    for (const store of storages) {
+      const val = readStorage(store, CFG.lastAddonKeyStorage);
+      if (val) {
+        lastTouchedAddonKey = val;
+        return val;
+      }
     }
+    return null;
   }
 
   function writeLastAddonKey(key, meta) {
-    try {
-      if (!key) return;
-      const ts = Date.now();
-      localStorage.setItem(CFG.lastAddonKeyStorage, key);
-      localStorage.setItem(CFG.lastAddonTsStorage, String(ts));
-      const payload = Object.assign({ ts, key }, meta || {});
-      localStorage.setItem(CFG.lastAddonMetaStorage, JSON.stringify(payload));
-      lastTouchedAddonKey = key;
-    } catch (e) {}
+    if (!key) return;
+    const ts = Date.now();
+    const payload = Object.assign({ ts, key }, meta || {});
+    lastTouchedAddonKey = key;
+    try { sessionStorage.setItem(CFG.lastAddonKeyStorage, key); } catch (e) {}
+    try { localStorage.setItem(CFG.lastAddonKeyStorage, key); } catch (e) {}
+    try { localStorage.setItem(CFG.lastAddonTsStorage, String(ts)); } catch (e) {}
+    try { localStorage.setItem(CFG.lastAddonMetaStorage, JSON.stringify(payload)); } catch (e) {}
   }
 
   function getLastTouchedAddonKey() {
@@ -179,47 +188,29 @@
       const section = entry.section || entry.id;
       if (!id || !section || seen.has(id)) return;
       const selector = entry.selector || null;
-      let target = entry.target || null;
+      const target = entry.target || (selector ? document.querySelector(selector) : null) || document.getElementById(id);
+      if (!target) return;
 
-      if (!target && selector) {
-        target = (document.getElementById(id) && document.getElementById(id).querySelector(selector)) || document.querySelector(selector);
-      }
-      if (!target) {
-        target = document.getElementById(`shopify-section-${id}`) || document.getElementById(id);
-      }
-
-      targets.push({ id, section, selector, target });
+      targets.push({ id, section, selector, target, type: entry.type || null });
       seen.add(id);
     }
 
-    function importFrom(owner, label) {
-      if (!owner || typeof owner.getSectionsToRender !== 'function') return;
-      try {
-        const arr = owner.getSectionsToRender();
-        if (!Array.isArray(arr)) return;
-        arr.forEach((entry) => addTarget(entry));
-      } catch (e) {
-        log('collectSectionTargets error from', label, e);
-      }
+    const drawer = getDrawerElement();
+    if (drawer) {
+      const drawerId = resolveSectionIdFromDom(drawer, 'cart-drawer');
+      addTarget({ id: drawerId, section: drawerId, selector: drawer.id ? `#${drawer.id}` : null, target: drawer, type: 'drawer' });
     }
 
-    importFrom(getDrawerItemsElement(), 'cart-drawer-items');
-    importFrom(getDrawerElement(), 'cart-drawer');
+    const drawerItems = getDrawerItemsElement();
+    if (drawerItems) {
+      const drawerItemsId = resolveSectionIdFromDom(drawerItems, 'cart-drawer');
+      addTarget({ id: drawerItemsId, section: drawerItemsId, selector: drawerItems.id ? `#${drawerItems.id}` : null, target: drawerItems, type: 'items' });
+    }
 
-    if (!targets.length) {
-      const drawer = getDrawerElement();
-      const drawerId = resolveSectionIdFromDom(drawer, 'cart-drawer');
-      if (drawer) {
-        const selector = drawer.id ? `#${drawer.id}` : null;
-        addTarget({ id: drawerId, section: drawerId, selector, target: drawer });
-      }
-
-      const bubble = document.getElementById('cart-icon-bubble');
-      if (bubble) {
-        const bubbleId = resolveSectionIdFromDom(bubble, 'cart-icon-bubble');
-        const selector = bubble.id ? `#${bubble.id}` : null;
-        addTarget({ id: bubbleId, section: bubbleId, selector, target: bubble });
-      }
+    const bubble = document.getElementById('cart-icon-bubble');
+    if (bubble) {
+      const bubbleId = resolveSectionIdFromDom(bubble, 'cart-icon-bubble');
+      addTarget({ id: bubbleId, section: bubbleId, selector: '#cart-icon-bubble', target: bubble, type: 'bubble' });
     }
 
     return { sections: targets, sectionsUrl };
@@ -234,41 +225,31 @@
       const html = sectionHtmls[secId];
       if (!html) return;
 
-      const liveContainer = entry.target
-        || (entry.selector && ((document.getElementById(entry.id) && document.getElementById(entry.id).querySelector(entry.selector)) || document.querySelector(entry.selector)))
-        || document.getElementById(`shopify-section-${entry.id}`)
-        || document.getElementById(entry.id);
+      const liveContainer = entry.target;
       if (!liveContainer) return;
 
       const dom = new DOMParser().parseFromString(html, 'text/html');
-      const parsed = entry.selector ? dom.querySelector(entry.selector) : dom.body.firstElementChild;
+
+      if (entry.type === 'bubble') {
+        const parsedBubble = dom.querySelector('#cart-icon-bubble');
+        if (parsedBubble) {
+          liveContainer.outerHTML = parsedBubble.outerHTML;
+          applied = true;
+        }
+        return;
+      }
+
+      const selector = entry.selector || null;
+      let parsed = null;
+      if (selector) parsed = dom.querySelector(selector);
       if (!parsed) {
-        log('refreshCartUI selector missing in HTML', { selector: entry.selector, id: entry.id, secId });
-        console.warn('[BL:guard] cart UI refresh skipped; selector not found', entry.selector);
-        return;
+        const tag = (liveContainer.tagName || '').toLowerCase();
+        parsed = dom.querySelector(tag) || dom.body.firstElementChild;
       }
+      if (!parsed) return;
 
-      const targetTag = (liveContainer.tagName || '').toLowerCase();
-      const isDrawerItems = targetTag === 'cart-drawer-items' || liveContainer.classList?.contains('cart-items');
-      const isBubble = liveContainer.id === 'cart-icon-bubble';
-      const isDrawer = targetTag === 'cart-drawer';
-
-      if (entry.selector && liveContainer.matches && liveContainer.matches(entry.selector)) {
-        liveContainer.replaceWith(parsed);
-        applied = true;
-        return;
-      }
-
-      if (entry.selector) {
-        liveContainer.innerHTML = parsed.innerHTML || '';
-        applied = true;
-        return;
-      }
-
-      if (isDrawerItems || isBubble || isDrawer) {
-        liveContainer.innerHTML = parsed.innerHTML || html;
-        applied = true;
-      }
+      liveContainer.innerHTML = parsed.innerHTML || '';
+      applied = true;
     });
 
     return applied;
@@ -776,8 +757,9 @@
     const aria = (el.getAttribute && el.getAttribute('aria-label')) || '';
     const label = `${name} ${aria}`.toLowerCase();
 
+    if (label.includes('remove') || label.includes('delete') || label.includes('trash')) return 'remove';
     if (label.includes('plus') || label.includes('increase') || label.includes('add') || label.includes('increment')) return 'inc';
-    if (label.includes('minus') || label.includes('decrease') || label.includes('remove') || label.includes('decrement')) return 'dec';
+    if (label.includes('minus') || label.includes('decrease') || label.includes('decrement')) return 'dec';
     return null;
   }
 
@@ -855,30 +837,41 @@
     return Number.isFinite(parsed) ? parsed : null;
   }
 
-  function calculatePreflightTotals(lineKey, currentQty) {
+  function getCartQtyFromSnapshot(lineKey) {
+    if (!latestCartSnapshot || !Array.isArray(latestCartSnapshot.items)) return null;
+    const found = latestCartSnapshot.items.find((i) => i && i.key === lineKey);
+    return found ? Number(found.quantity || 0) : null;
+  }
+
+  function computeProjectedTotals(lineKey, action, desiredQty) {
     if (!latestCartSnapshot || !Array.isArray(latestCartSnapshot.items)) return null;
     let parentUnits = 0;
     let addonUnits = 0;
+    const cls = latestClassificationsByKey[lineKey];
+    const currentQty = getCartQtyFromSnapshot(lineKey);
+
     latestCartSnapshot.items.forEach((it) => {
-      const cls = latestClassificationsByKey[it.key];
-      if (!cls) return;
-      const qty = it.quantity || 0;
-      if (cls.isAddonFinal) {
-        addonUnits += qty;
-      } else {
-        parentUnits += qty;
-      }
+      const c = latestClassificationsByKey[it.key];
+      if (!c) return;
+      if (c.isAddonFinal) addonUnits += Number(it.quantity || 0);
+      else parentUnits += Number(it.quantity || 0);
     });
 
-    if (lineKey && Number.isFinite(currentQty)) {
-      const cls = latestClassificationsByKey[lineKey];
-      if (cls && cls.isAddonFinal) {
-        const recordedQty = latestCartSnapshot.items.find((i) => i && i.key === lineKey)?.quantity || 0;
-        addonUnits = addonUnits - recordedQty + currentQty;
-      }
+    if (!cls || currentQty === null) return { parentUnits, addonUnits };
+
+    let nextQty = currentQty;
+    if (action === 'inc') nextQty = currentQty + 1;
+    if (action === 'dec') nextQty = Math.max(0, currentQty - 1);
+    if (action === 'remove') nextQty = 0;
+    if (action === 'set' && Number.isFinite(desiredQty)) nextQty = desiredQty;
+
+    if (cls.isAddonFinal) {
+      addonUnits = addonUnits - currentQty + nextQty;
+    } else {
+      parentUnits = parentUnits - currentQty + nextQty;
     }
 
-    return { parentUnits, addonUnits };
+    return { parentUnits, addonUnits, nextQty, currentQty, isAddon: cls.isAddonFinal };
   }
 
   const WARNING_TEXT = 'Add-ons can’t exceed the number of figures in your cart. Add another figure to increase add-ons.';
@@ -930,24 +923,14 @@
       setTimeout(() => {
         host.style.display = 'none';
         host.textContent = '';
-      }, 250);
-    }, 3800);
+      }, 300);
+    }, 4200);
   }
 
   document.addEventListener('bl:cartguard:message', (e) => {
     const detail = (e && e.detail) || {};
     if (detail && detail.text) {
       showDrawerMessage(detail.text);
-    }
-  });
-
-  document.addEventListener('bl:cart:stable', () => {
-    const host = findDrawerMessageHost();
-    if (host) {
-      host.classList?.remove('is-visible');
-      host.style.display = 'none';
-      host.style.opacity = '0';
-      host.textContent = '';
     }
   });
 
@@ -969,21 +952,25 @@
       if (!drawer || !drawer.contains(wrapper)) return;
 
       const lineKey = wrapper.getAttribute('data-line-key');
-      if (!isAddonWrapper(wrapper, lineKey)) return;
+      const cls = latestClassificationsByKey[lineKey];
+      if (!cls) return;
 
       if (event.type === 'click') {
         const btn = target && target.closest ? target.closest('button') : null;
         const action = deriveActionFromButton(btn);
-        if (action !== 'inc') return;
+        if (!action) return;
 
-        const qty = getDrawerQtyFromInput(wrapper);
-        const totals = calculatePreflightTotals(lineKey, qty);
-        if (!totals) return;
-        const projectedAddonUnits = totals.addonUnits + 1;
+        const projected = computeProjectedTotals(lineKey, action);
+        if (!projected) return;
 
-        if (projectedAddonUnits > totals.parentUnits) {
-          recordAddonIntent(lineKey, { source: 'preflight_click', action: 'inc_blocked' }, wrapper);
-          warnAndBlock(event, { lineKey, projectedAddonUnits, parentUnits: totals.parentUnits });
+        const wouldBreak = projected.addonUnits > projected.parentUnits;
+        if (wouldBreak) {
+          if (cls.isAddonFinal && action === 'inc') {
+            recordAddonIntent(lineKey, { source: 'preflight_click', action: 'inc_blocked' }, wrapper);
+          }
+          warnAndBlock(event, { lineKey, action, projected });
+          const input = wrapper.querySelector('input[name="updates[]"], input[name="updates"]');
+          if (input && Number.isFinite(projected.currentQty)) input.value = projected.currentQty;
         }
       } else if (event.type === 'change') {
         const input = target;
@@ -991,16 +978,18 @@
         const newQty = Number(input.value);
         if (!Number.isFinite(newQty)) return;
 
-        const totals = calculatePreflightTotals(lineKey, newQty);
-        if (!totals) return;
-        if (totals.addonUnits > totals.parentUnits) {
-          const otherAddonUnits = totals.addonUnits - newQty;
-          const allowedQty = Math.max(0, totals.parentUnits - otherAddonUnits);
-          if (newQty > allowedQty) {
-            input.value = allowedQty;
+        const projected = computeProjectedTotals(lineKey, 'set', newQty);
+        if (!projected) return;
+        if (projected.addonUnits > projected.parentUnits) {
+          const otherUnits = projected.isAddon ? projected.addonUnits - projected.nextQty : projected.addonUnits;
+          const allowedQty = projected.isAddon
+            ? Math.max(0, projected.parentUnits - otherUnits)
+            : Math.max(projected.parentUnits, otherUnits);
+          input.value = projected.isAddon ? allowedQty : projected.currentQty;
+          if (projected.isAddon) {
             recordAddonIntent(lineKey, { source: 'preflight_change', action: 'set_blocked' }, wrapper);
-            warnAndBlock(event, { lineKey, newQty, allowedQty, parentUnits: totals.parentUnits });
           }
+          warnAndBlock(event, { lineKey, newQty, allowedQty, projected });
         }
       }
     } catch (e) {}
