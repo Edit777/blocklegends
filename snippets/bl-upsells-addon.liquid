@@ -32,6 +32,8 @@
   elsif bl_primary_collection != blank
     assign bl_locked_collection_title = bl_primary_collection | replace: '-', ' ' | replace: '_', ' ' | capitalize
   endif
+
+  assign addon_clean_title = addon_product.title | replace: ' — Block Legends Figure', '' | replace: ' – Block Legends Figure', '' | replace: ' - Block Legends Figure', '' | replace: '— Block Legends Figure', '' | replace: '– Block Legends Figure', '' | replace: '- Block Legends Figure', '' | replace: ' — Block Legends', '' | replace: ' – Block Legends', '' | replace: ' - Block Legends', '' | replace: '— Block Legends', '' | replace: '– Block Legends', '' | replace: '- Block Legends', '' | strip
 -%}
 
 {%- capture bl_addon_card -%}
@@ -84,23 +86,7 @@
 
       <div class='upsell__content{% if block.settings.hide_compare_price %} hide-compare-price{% endif %}'>
         <div class='upsell__title'>
-          <h3>
-            {{ addon_product.title
-              | replace: ' — Block Legends Figure', ''
-              | replace: ' – Block Legends Figure', ''
-              | replace: ' - Block Legends Figure', ''
-              | replace: '— Block Legends Figure', ''
-              | replace: '– Block Legends Figure', ''
-              | replace: '- Block Legends Figure', ''
-              | replace: ' — Block Legends', ''
-              | replace: ' – Block Legends', ''
-              | replace: ' - Block Legends', ''
-              | replace: '— Block Legends', ''
-              | replace: '– Block Legends', ''
-              | replace: '- Block Legends', ''
-              | strip
-            }}
-          </h3>
+          <h3>{{ addon_clean_title }}</h3>
 
           {% if block.settings.price_position == 'next_to_title' %}
             <div class='upsell__price'>
