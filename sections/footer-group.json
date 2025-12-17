@@ -11,6 +11,22 @@
   "name": "t:sections.footer.name",
   "type": "footer",
   "sections": {
+    "section_divider_rCfPjb": {
+      "type": "section-divider",
+      "name": "Section divider",
+      "settings": {
+        "visibility": "always-display",
+        "shape": "waves_3",
+        "flip_horizontal": false,
+        "flip_vertical": false,
+        "shape_color": "accent-1",
+        "custom_shape_color": "#dd1d1d",
+        "background_color": "background-1",
+        "custom_background_color": "#FFFFFF",
+        "padding_top": 0,
+        "padding_bottom": 0
+      }
+    },
     "footer": {
       "type": "footer",
       "blocks": {
@@ -63,7 +79,7 @@
         "color_scheme": "accent-1",
         "enable_follow_on_shop": false,
         "show_social": false,
-        "enable_country_selector": true,
+        "enable_country_selector": false,
         "enable_language_selector": true,
         "payment_enable": true,
         "enabled_payment_types": "american_express, apple_pay, google_pay, master, visa, paypal",
@@ -82,6 +98,7 @@
     }
   },
   "order": [
+    "section_divider_rCfPjb",
     "footer"
   ]
 }
