@@ -164,6 +164,7 @@
       "block_order": [
         "heading_9CnaEc"
       ],
+      "disabled": true,
       "name": "t:sections.rich-text.presets.name",
       "settings": {
         "display_id": false,
