@@ -49,6 +49,9 @@
   let prevAddonKeys = new Set();
   let lastMsgTs = 0;
   let lastMsgSig = '';
+  let lastTouchedAddonKey = null;
+  let latestCartSnapshot = null;
+  let latestClassificationsByKey = {};
 
   function muteInternal() {
     internalMuteUntil = Date.now() + CFG.internalMuteMs;
@@ -87,7 +90,8 @@
   function readLastAddonKey() {
     try {
       const key = localStorage.getItem(CFG.lastAddonKeyStorage);
-      return key || null;
+      lastTouchedAddonKey = key || null;
+      return lastTouchedAddonKey;
     } catch (e) {
       return null;
     }
@@ -101,7 +105,12 @@
       localStorage.setItem(CFG.lastAddonTsStorage, String(ts));
       const payload = Object.assign({ ts, key }, meta || {});
       localStorage.setItem(CFG.lastAddonMetaStorage, JSON.stringify(payload));
+      lastTouchedAddonKey = key;
     } catch (e) {}
+  }
+
+  function getLastTouchedAddonKey() {
+    return lastTouchedAddonKey || readLastAddonKey();
   }
 
   function classifyItem(item) {
@@ -231,6 +240,11 @@
         || document.getElementById(entry.id);
       if (!liveContainer) return;
 
+      const targetTag = (liveContainer.tagName || '').toLowerCase();
+      const isDrawerItems = targetTag === 'cart-drawer-items' || liveContainer.classList?.contains('cart-items');
+      const isBubble = liveContainer.id === 'cart-icon-bubble';
+      const isDrawer = targetTag === 'cart-drawer';
+
       if (entry.selector) {
         const dom = new DOMParser().parseFromString(html, 'text/html');
         const parsed = dom.querySelector(entry.selector);
@@ -239,10 +253,16 @@
           applied = true;
           return;
         }
+
+        log('refreshCartUI selector missing in HTML', { selector: entry.selector, id: entry.id, secId });
+        console.warn('[BL:guard] cart UI refresh skipped; selector not found', entry.selector);
+        return;
       }
 
-      liveContainer.innerHTML = html;
-      applied = true;
+      if (isDrawerItems || isBubble || isDrawer) {
+        liveContainer.innerHTML = html;
+        applied = true;
+      }
     });
 
     return applied;
@@ -449,7 +469,7 @@
 
   // Build an action plan based on current cart snapshot
   function getPreferredAddonKeyFromCart(cart, addonLines) {
-    const storedKey = readLastAddonKey();
+    const storedKey = getLastTouchedAddonKey();
     if (!storedKey) return null;
     return addonLines.some((ln) => ln.key === storedKey) ? storedKey : null;
   }
@@ -500,7 +520,7 @@
 
     if (preferredKey) {
       const preferred = addonLines.find((l) => l.key === preferredKey);
-      ordered = [preferred, ...ordered.filter((l) => l.key !== preferredKey)];
+      ordered = [preferred, ...ordered.filter((l) => l && l.key !== preferredKey)];
     }
 
     for (const ln of ordered) {
@@ -595,7 +615,16 @@
   async function verifyAndRepair(opts) {
     const options = Object.assign({ usedFallback: false, changeResults: [] }, opts || {});
     const cartAfter = await getCart();
+    latestCartSnapshot = cartAfter;
     const postPlan = buildPlan(cartAfter);
+
+    if (cartAfter && Array.isArray(cartAfter.items)) {
+      latestClassificationsByKey = {};
+      cartAfter.items.forEach((it) => {
+        const cls = classifyItem(it);
+        if (it && it.key) latestClassificationsByKey[it.key] = cls;
+      });
+    }
 
     summarizePlan(postPlan, 'post-mutation snapshot');
 
@@ -689,6 +718,12 @@
     try {
       const cart = await getCart();
       const classifications = (cart && cart.items ? cart.items : []).map((it) => classifyItem(it));
+      latestCartSnapshot = cart;
+      latestClassificationsByKey = {};
+      classifications.forEach((cls, idx) => {
+        const item = cart && cart.items ? cart.items[idx] : null;
+        if (item && item.key) latestClassificationsByKey[item.key] = cls;
+      });
 
       const currentAddonKeys = [];
       classifications.forEach((cls, idx) => {
@@ -771,7 +806,9 @@
 
   function recordAddonIntent(lineKey, meta) {
     if (!lineKey) return;
-    writeLastAddonKey(lineKey, meta);
+    if (isAddonKey(lineKey)) {
+      writeLastAddonKey(lineKey, meta);
+    }
   }
 
   function onAnyClickCapture(event) {
@@ -809,6 +846,129 @@
 
   document.addEventListener('click', onAnyClickCapture, true);
   document.addEventListener('change', onAnyChangeCapture, true);
+
+  // =========================
+  // PREFLIGHT & UI HELPERS
+  // =========================
+  function isAddonKey(lineKey) {
+    if (!lineKey) return false;
+    const cls = latestClassificationsByKey[lineKey];
+    return !!(cls && cls.isAddonFinal);
+  }
+
+  function getDrawerQtyFromInput(wrapper) {
+    if (!wrapper) return null;
+    const input = wrapper.querySelector('input[name="updates[]"], input[name="updates"]');
+    if (!input) return null;
+    const parsed = Number(input.value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function calculatePreflightTotals(lineKey, currentQty) {
+    if (!latestCartSnapshot || !Array.isArray(latestCartSnapshot.items)) return null;
+    let parentUnits = 0;
+    let addonUnits = 0;
+    latestCartSnapshot.items.forEach((it) => {
+      const cls = latestClassificationsByKey[it.key];
+      if (!cls) return;
+      const qty = it.quantity || 0;
+      if (cls.isAddonFinal) {
+        addonUnits += qty;
+      } else {
+        parentUnits += qty;
+      }
+    });
+
+    if (lineKey && Number.isFinite(currentQty)) {
+      const cls = latestClassificationsByKey[lineKey];
+      if (cls && cls.isAddonFinal) {
+        const recordedQty = latestCartSnapshot.items.find((i) => i && i.key === lineKey)?.quantity || 0;
+        addonUnits = addonUnits - recordedQty + currentQty;
+      }
+    }
+
+    return { parentUnits, addonUnits };
+  }
+
+  function findDrawerMessageHost() {
+    const drawer = getDrawerElement();
+    if (!drawer) return null;
+    let host = drawer.querySelector('.bl-cart-guard-msg');
+    if (!host) {
+      host = document.createElement('div');
+      host.className = 'bl-cart-guard-msg';
+      host.style.display = 'none';
+      host.style.padding = '8px 12px';
+      host.style.background = '#fff3cd';
+      host.style.color = '#664d03';
+      host.style.fontSize = '0.9rem';
+      host.style.border = '1px solid #ffe69c';
+      host.style.borderRadius = '6px';
+      host.style.margin = '8px 16px';
+      const parent = drawer.querySelector('.drawer__inner') || drawer.querySelector('.drawer__scrollable') || drawer;
+      const anchor = parent.firstElementChild;
+      parent.insertBefore(host, anchor || parent.firstChild);
+    }
+    return host;
+  }
+
+  let guardMsgTimer = null;
+  function showDrawerMessage(text) {
+    const host = findDrawerMessageHost();
+    if (!host || !text) return;
+    host.textContent = text;
+    host.style.display = 'block';
+
+    if (guardMsgTimer) clearTimeout(guardMsgTimer);
+    guardMsgTimer = setTimeout(() => {
+      host.style.display = 'none';
+    }, 2500);
+  }
+
+  document.addEventListener('bl:cartguard:message', (e) => {
+    const detail = (e && e.detail) || {};
+    if (detail && detail.text) {
+      showDrawerMessage(detail.text);
+    }
+  });
+
+  document.addEventListener('bl:cart:stable', () => {
+    const host = findDrawerMessageHost();
+    if (host) host.style.display = 'none';
+  });
+
+  function preflightIntercept(event) {
+    try {
+      const target = event.target;
+      const btn = target && target.closest ? target.closest('button') : null;
+      const action = deriveActionFromButton(btn);
+      if (action !== 'inc') return;
+
+      const wrapper = findLineKeyWrapper(target);
+      if (!wrapper) return;
+      const drawer = getDrawerElement();
+      if (!drawer || !drawer.contains(wrapper)) return;
+
+      const lineKey = wrapper.getAttribute('data-line-key');
+      if (!isAddonKey(lineKey)) return;
+
+      const qty = getDrawerQtyFromInput(wrapper);
+      const totals = calculatePreflightTotals(lineKey, qty);
+      if (!totals) return;
+      const projectedAddonUnits = totals.addonUnits + 1;
+
+      if (projectedAddonUnits > totals.parentUnits) {
+        log('preflight block', { lineKey, projectedAddonUnits, parentUnits: totals.parentUnits });
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const text = 'Add-ons can’t exceed the number of figures in your cart. Add another figure to increase add-ons.';
+        document.dispatchEvent(new CustomEvent('bl:cartguard:message', { detail: { type: 'warning', text } }));
+        showDrawerMessage(text);
+      }
+    } catch (e) {}
+  }
+
+  document.addEventListener('click', preflightIntercept, true);
 
   /*
    * How to test (with ?cart_guard_debug=1 for console logs)
