@@ -199,6 +199,13 @@
       seen.add(id);
     }
 
+    const drawerEl = getDrawerElement();
+    if (drawerEl) {
+      const drawerSectionId = resolveSectionIdFromDom(drawerEl, 'cart-drawer');
+      const drawerSectionEl = drawerEl.closest('section[id^="shopify-section-"]');
+      addTarget({ id: drawerSectionId, section: drawerSectionId, selector: drawerSectionEl ? `#${drawerSectionEl.id}` : null, target: drawerSectionEl || drawerEl, type: 'drawer' });
+    }
+
     const drawerItems = getDrawerItemsElement();
     if (drawerItems) {
       const drawerItemsId = resolveSectionIdFromDom(drawerItems, 'cart-drawer');
@@ -218,6 +225,11 @@
     if (!sectionHtmls || !sections || !sections.length) return false;
 
     let applied = false;
+
+    function findParsedSection(dom, secId) {
+      return dom.getElementById(`shopify-section-${secId}`) || dom.querySelector(`#shopify-section-${secId}`) || dom.querySelector(`section[id^="shopify-section-${secId}"]`);
+    }
+
     sections.forEach((entry) => {
       const secId = entry.section || entry.id;
       const html = sectionHtmls[secId];
@@ -237,6 +249,14 @@
         return;
       }
 
+      const parsedSection = findParsedSection(dom, secId);
+      const liveSection = liveContainer.id?.startsWith('shopify-section-') ? liveContainer : liveContainer.closest?.('section[id^="shopify-section-"]');
+      if (parsedSection && liveSection) {
+        liveSection.outerHTML = parsedSection.outerHTML;
+        applied = true;
+        return;
+      }
+
       const selector = entry.selector || null;
       let parsed = null;
       if (selector) parsed = dom.querySelector(selector);
@@ -246,10 +266,47 @@
       }
       if (!parsed) return;
 
-      liveContainer.innerHTML = parsed.innerHTML || '';
+      if (entry.type === 'drawer') {
+        liveContainer.outerHTML = parsed.outerHTML || parsed.innerHTML || '';
+      } else {
+        liveContainer.innerHTML = parsed.innerHTML || '';
+      }
       applied = true;
     });
 
+    return applied;
+  }
+
+  async function requestAndApplySections(sectionIds, sections, sectionsUrl, sourceLabel) {
+    if (!sectionIds || !sectionIds.length || !sections || !sections.length) return false;
+    const urlBase = sectionsUrl || (window.location ? window.location.pathname + window.location.search : '/');
+    const joiner = urlBase.includes('?') ? '&' : '?';
+    const fetchUrl = `${urlBase}${joiner}sections=${sectionIds.join(',')}`;
+
+    log('requesting sections', { source: sourceLabel, sectionIds, fetchUrl });
+
+    let data = null;
+    try {
+      const res = await fetch(fetchUrl, {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+          'X-BL-INTERNAL': '1',
+          [CFG.internalHeader]: '1'
+        }
+      });
+      if (res.ok) data = await res.json();
+    } catch (e) {
+      log('sections fetch error', e);
+    }
+
+    const sectionHtmls = data && (data.sections || data);
+    if (!sectionHtmls) return false;
+
+    const applied = patchSections(sectionHtmls, sections);
+    if (applied) {
+      log('sections applied', { source: sourceLabel, drawerExists: !!getDrawerElement(), itemsHost: !!getDrawerItemsElement() });
+    }
     return applied;
   }
 
@@ -278,29 +335,7 @@
     if (!sections.length) return false;
 
     const sectionIds = sections.map((s) => s.section || s.id).filter(Boolean);
-    const urlBase = sectionsUrl || (window.location ? window.location.pathname + window.location.search : '/');
-    const joiner = urlBase.includes('?') ? '&' : '?';
-    const fetchUrl = `${urlBase}${joiner}sections=${sectionIds.join(',')}`;
-
-    let data = null;
-    try {
-      const res = await fetch(fetchUrl, {
-        credentials: 'same-origin',
-        headers: {
-          Accept: 'application/json',
-          'X-BL-INTERNAL': '1',
-          [CFG.internalHeader]: '1'
-        }
-      });
-      if (res.ok) data = await res.json();
-    } catch (e) {
-      log('refreshCartUI GET error', e);
-    }
-
-    const sectionHtmls = data && (data.sections || data);
-    if (!sectionHtmls) return false;
-
-    const applied = patchSections(sectionHtmls, sections);
+    const applied = await requestAndApplySections(sectionIds, sections, sectionsUrl, reasonLabel || 'refresh');
 
     return applied;
   }
@@ -530,8 +565,13 @@
 
     const { sections, sectionsUrl } = collectSectionTargets();
     const sectionIds = sections.map((s) => s.section || s.id).filter(Boolean);
+    if (sectionIds.length) {
+      log('requesting sections with mutation', { sectionIds, sectionsUrl });
+    }
     const sectionsPayload = sectionIds.length ? { sections: sectionIds, sections_url: sectionsUrl } : null;
     let patchedSections = false;
+    let fallbackSectionsApplied = false;
+    let mutationIndicatedEmpty = false;
 
     // Apply sequentially to avoid race conditions with line indexing
     for (let i = 0; i < plan.changes.length; i++) {
@@ -540,13 +580,34 @@
       const res = await changeLineByKey(ch.key, ch.quantity, (i === plan.changes.length - 1) ? sectionsPayload : null);
       changeResults.push({ key: ch.key, ok: !!(res && res.ok), status: res && res.status });
 
+      if (res && res.data && res.data.item_count === 0) {
+        mutationIndicatedEmpty = true;
+      }
+
       if (res && res.ok && res.data && res.data.sections && sectionsPayload && !patchedSections) {
         const applied = patchSections(res.data.sections, sections);
         patchedSections = applied || patchedSections;
+        if (applied) {
+          log('sections applied from mutation response');
+        }
       }
     }
 
-    const verified = await verifyAndRepair({ usedFallback: false, changeResults });
+    if (sectionsPayload && sectionIds.length && !patchedSections) {
+      fallbackSectionsApplied = await requestAndApplySections(sectionIds, sections, sectionsUrl, 'mutation_fallback_fetch');
+      patchedSections = patchedSections || fallbackSectionsApplied;
+      log('fallback section fetch attempted', { applied: fallbackSectionsApplied });
+    }
+
+    const verified = await verifyAndRepair({
+      usedFallback: false,
+      changeResults,
+      sections,
+      sectionsUrl,
+      sectionIds,
+      mutationIndicatedEmpty,
+      sectionsPatched: patchedSections || fallbackSectionsApplied
+    });
     if (verified && !patchedSections) {
       await refreshCartUI('applied_plan');
     }
@@ -571,7 +632,7 @@
   }
 
   async function verifyAndRepair(opts) {
-    const options = Object.assign({ usedFallback: false, changeResults: [] }, opts || {});
+    const options = Object.assign({ usedFallback: false, changeResults: [], sections: null, sectionIds: [], sectionsUrl: null, mutationIndicatedEmpty: false, sectionsPatched: false }, opts || {});
     const cartAfter = await getCart();
     latestCartSnapshot = cartAfter;
     const cartNowEmpty = !!(cartAfter && ((cartAfter.item_count === 0) || (Array.isArray(cartAfter.items) && cartAfter.items.length === 0)));
@@ -587,10 +648,19 @@
 
     summarizePlan(postPlan, 'post-mutation snapshot');
 
-    if (guardMutated && cartNowEmpty) {
+    if (guardMutated && (cartNowEmpty || options.mutationIndicatedEmpty)) {
       log('cart empty after guard mutation; refreshing drawer UI');
-      // When guard removes last items, drawer must re-render full empty-cart template.
-      await refreshCartUI('empty_after_guard');
+      const targets = (options.sections && options.sections.length) ? { sections: options.sections, sectionsUrl: options.sectionsUrl } : collectSectionTargets();
+      const ids = (options.sectionIds && options.sectionIds.length) ? options.sectionIds : (targets.sections || []).map((s) => s.section || s.id).filter(Boolean);
+      let applied = false;
+      if (ids.length && targets.sections && targets.sections.length) {
+        applied = await requestAndApplySections(ids, targets.sections, targets.sectionsUrl, 'empty_after_guard');
+      }
+      if (!applied) {
+        await refreshCartUI('empty_after_guard');
+      } else {
+        log('drawer re-rendered after empty cart', { drawerExists: !!getDrawerElement(), bubbleExists: !!document.getElementById('cart-icon-bubble') });
+      }
       guardMutated = false;
     }
 
