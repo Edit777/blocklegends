@@ -68,26 +68,9 @@
     return null;
   }
 
-  function mapRarityInputs(form) {
-    var mapped = [];
-    if (!form) return mapped;
-
-    var radios = Array.prototype.slice.call(form.querySelectorAll('input[type="radio"]'));
-    radios.forEach(function (input) {
-      var rarity = normalizeRarityValue(input.value || input.getAttribute('data-value'));
-      if (!rarity) return;
-      var label = input.id ? form.querySelector('label[for="' + input.id + '"]') : null;
-      input.dataset.blRarity = rarity;
-      if (label) label.dataset.blRarity = rarity;
-      mapped.push({ input: input, label: label, rarity: rarity });
-    });
-
-    return mapped;
-  }
-
   function setRarityDisabled(entry, disabled) {
     if (!entry || !entry.input) return;
-    var label = entry.label;
+    var label = entry.label || entry.input;
     if (entry.input.disabled !== !!disabled) {
       entry.input.disabled = !!disabled;
     }
@@ -106,18 +89,33 @@
     return first ? first.rarity : null;
   }
 
+  function markRarityActive(entries, rarity) {
+    entries.forEach(function (entry) {
+      var isActive = (entry.rarity || '').toLowerCase() === String(rarity || '').toLowerCase();
+      entry.input.classList.toggle('is-active', isActive);
+      entry.input.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      entry.input.checked = isActive;
+    });
+  }
+
   function selectRarity(entries, rarity) {
     var match = entries.find(function (e) { return e.rarity === rarity; });
     if (!match || !match.input || match.input.disabled) return false;
-    if (!match.input.checked) {
-      match.input.checked = true;
+    markRarityActive(entries, rarity);
+    if (match.input.tagName === 'BUTTON') {
+      match.input.dispatchEvent(new Event('click', { bubbles: true }));
+    } else {
       match.input.dispatchEvent(new Event('change', { bubbles: true }));
     }
     return true;
   }
 
   function getCurrentRarity(entries) {
-    var active = entries.find(function (e) { return e.input && e.input.checked; });
+    var active = entries.find(function (e) {
+      if (!e.input) return false;
+      if (e.input.classList && e.input.classList.contains('is-active')) return true;
+      return !!e.input.checked;
+    });
     return active ? active.rarity : null;
   }
 
@@ -135,6 +133,31 @@
       }
     } catch (e) {}
     return availability;
+  }
+
+  function buildRarityEntries(container) {
+    var entries = [];
+    if (!container) return entries;
+
+    if (!container.childElementCount) {
+      var allowed = (M.CFG && M.CFG.allowedRarities) ? M.CFG.allowedRarities.slice() : ['common', 'rare', 'epic', 'legendary'];
+      if (allowed.indexOf(ANY_KEY) === -1) allowed.push(ANY_KEY);
+      allowed.forEach(function (rarity) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bl-mystery-pill';
+        btn.setAttribute('data-bl-rarity', rarity);
+        btn.textContent = rarity === ANY_KEY ? 'Any' : rarity.charAt(0).toUpperCase() + rarity.slice(1);
+        container.appendChild(btn);
+      });
+    }
+
+    entries = Array.prototype.slice.call(container.querySelectorAll('[data-bl-rarity]')).map(function (btn) {
+      var rarity = normalizeRarityValue(btn.getAttribute('data-bl-rarity'));
+      return rarity ? { input: btn, rarity: rarity, label: btn } : null;
+    }).filter(Boolean);
+
+    return entries;
   }
 
   function findVariantIdFor(mode, rarity, availabilityMap) {
@@ -200,10 +223,10 @@
   }
 
   function applyEligibility(root, form, entries, collectionHandle, selection, noticeEl) {
-    if (!form || !entries.length) return Promise.resolve();
+    if (!form || !entries.length) return Promise.resolve({ switched: false, rarity: selection.rarity });
     return M.fetchPoolAllPages(collectionHandle).then(function () {
       var counts = typeof M.getPoolCounts === 'function' ? M.getPoolCounts(collectionHandle) : null;
-      if (!counts) return;
+      if (!counts) return { switched: false, rarity: selection.rarity };
 
       entries.forEach(function (entry) {
         var rarityKey = (entry.rarity || '').toLowerCase();
@@ -214,15 +237,12 @@
       var currentRarity = getCurrentRarity(entries) || selection.rarity;
       var currentEntry = entries.find(function (e) { return (e.rarity || '').toLowerCase() === (currentRarity || '').toLowerCase(); });
       var requiresFallback = currentEntry && currentEntry.input.getAttribute('aria-disabled') === 'true';
+      var picked = currentRarity;
       if (requiresFallback) {
         var fallback = pickFallbackRarity(entries);
-        if (fallback && fallback !== currentRarity) {
-          var changed = selectRarity(entries, fallback);
-          if (!changed) {
-            var availability = findVariantAvailability(root);
-            var targetId = findVariantIdFor(selection.mode, fallback, availability);
-            if (targetId) setVariantId(form, targetId);
-          }
+        if (fallback) {
+          picked = fallback;
+          markRarityActive(entries, fallback);
         }
         safeText(noticeEl, 'Some rarities are not available right now. Switched to an available option.');
         setDisplay(noticeEl, true);
@@ -231,9 +251,7 @@
         setDisplay(noticeEl, false);
       }
 
-      if (typeof M.computeAndApplyAssignment === 'function') {
-        M.computeAndApplyAssignment(form, HANDLE).catch(function () {});
-      }
+      return { switched: requiresFallback, rarity: picked };
     });
   }
 
@@ -247,76 +265,136 @@
     if (!form) return;
 
     var dropdown = root.querySelector('[data-bl-pref-collection-select]');
-    var wrap = root.querySelector('[data-bl-pref-collection-wrap]');
+    var collectionRow = root.querySelector('[data-bl-collection-row]');
+    var rarityContainer = root.querySelector('[data-bl-rarity-options]');
+    var modeButtons = Array.prototype.slice.call(root.querySelectorAll('[data-bl-mode]'));
     var hintEl = root.querySelector('[data-bl-mystery-hint]');
     var noticeEl = root.parentElement ? root.parentElement.querySelector('[data-bl-mystery-notice]') : null;
-    var rarityEntries = mapRarityInputs(form);
+    var rarityEntries = buildRarityEntries(rarityContainer);
 
-    if (!dropdown || !wrap) return;
+    if (!dropdown || !collectionRow || !rarityEntries.length || !modeButtons.length) return;
 
     root.dataset.blMysteryBound = '1';
 
     var availability = findVariantAvailability(root);
-    var currentCollectionHandle = dropdown.value;
+    var state = {
+      mode: M.CFG.modeRandomLabel,
+      rarity: ANY_KEY,
+      collection: dropdown.value || ''
+    };
+
+    var initialSelection = getSelection(getVariantId(form));
+    state.mode = initialSelection.mode || state.mode;
+    state.rarity = initialSelection.rarity || state.rarity;
 
     function getCollectionTitle(handle) {
       var match = collections.find(function (c) { return c.handle === handle; });
       return match ? match.title : '';
     }
 
-    function syncState() {
-      var variantId = getVariantId(form);
-      var selection = getSelection(variantId);
-      var modePreferred = M.normalizeMode(selection.mode) === M.CFG.modePreferredLabel;
+    function updateModeButtons() {
+      modeButtons.forEach(function (btn) {
+        var key = btn.getAttribute('data-bl-mode');
+        var isActive = M.normalizeMode(key) === M.normalizeMode(state.mode);
+        btn.classList.toggle('is-active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+      setDisplay(collectionRow, M.normalizeMode(state.mode) === M.CFG.modePreferredLabel);
+    }
 
-      setDisplay(wrap, modePreferred);
-      currentCollectionHandle = dropdown.value || currentCollectionHandle;
+    function updateHelper() {
+      var label = M.normalizeMode(state.mode) === M.CFG.modePreferredLabel
+        ? getCollectionTitle(state.collection)
+        : M.CFG.modeRandomLabel;
+      updateHint(hintEl, state.rarity, label);
+    }
 
-      if (!modePreferred) {
+    function syncVariant() {
+      var targetId = findVariantIdFor(state.mode, state.rarity, availability);
+      if (targetId) setVariantId(form, targetId);
+      if (typeof M.computeAndApplyAssignment === 'function') {
+        M.computeAndApplyAssignment(form, HANDLE).catch(function () {});
+      }
+    }
+
+    function handleEligibility() {
+      if (M.normalizeMode(state.mode) !== M.CFG.modePreferredLabel) {
         clearRarityDisabled(rarityEntries);
-        safeText(noticeEl, '');
         setDisplay(noticeEl, false);
-        updateHint(hintEl, selection.rarity, M.CFG.modeRandomLabel);
-        if (typeof M.computeAndApplyAssignment === 'function') {
-          M.computeAndApplyAssignment(form, HANDLE).catch(function () {});
-        }
-        return;
+        safeText(noticeEl, '');
+        return Promise.resolve({ switched: false, rarity: state.rarity });
       }
 
-      updateHint(hintEl, selection.rarity, getCollectionTitle(currentCollectionHandle));
-      applyEligibility(root, form, rarityEntries, currentCollectionHandle, selection, noticeEl);
+      return applyEligibility(root, form, rarityEntries, state.collection || dropdown.value, state, noticeEl)
+        .then(function (result) {
+          if (result && result.rarity) {
+            state.rarity = normalizeRarityValue(result.rarity) || state.rarity;
+            markRarityActive(rarityEntries, state.rarity);
+          }
+          return result;
+        });
+    }
+
+    function refresh() {
+      updateModeButtons();
+      markRarityActive(rarityEntries, state.rarity);
+      updateHelper();
+      syncVariant();
     }
 
     dropdown.addEventListener('change', function () {
-      currentCollectionHandle = dropdown.value;
-      var variantId = getVariantId(form);
-      var selection = getSelection(variantId);
-      updateHint(hintEl, selection.rarity, getCollectionTitle(currentCollectionHandle));
-      applyEligibility(root, form, rarityEntries, currentCollectionHandle, selection, noticeEl);
+      state.collection = dropdown.value;
+      handleEligibility().then(function (res) {
+        if (res && res.rarity) state.rarity = res.rarity;
+        refresh();
+      });
     });
 
     rarityEntries.forEach(function (entry) {
       if (entry.input.__blBound) return;
       entry.input.__blBound = true;
-      entry.input.addEventListener('change', function () {
-        var variantId = getVariantId(form);
-        var selection = getSelection(variantId);
-        updateHint(hintEl, selection.rarity, getCollectionTitle(currentCollectionHandle));
-        if (typeof M.computeAndApplyAssignment === 'function') {
-          M.computeAndApplyAssignment(form, HANDLE).catch(function () {});
+      entry.input.addEventListener('click', function (evt) {
+        if (entry.input.disabled || entry.input.getAttribute('aria-disabled') === 'true') return;
+        state.rarity = entry.rarity;
+        markRarityActive(rarityEntries, state.rarity);
+        updateHelper();
+        syncVariant();
+      });
+    });
+
+    modeButtons.forEach(function (btn) {
+      if (btn.__blBound) return;
+      btn.__blBound = true;
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-bl-mode');
+        state.mode = key === 'preferred' ? M.CFG.modePreferredLabel : M.CFG.modeRandomLabel;
+        if (M.normalizeMode(state.mode) !== M.CFG.modePreferredLabel) {
+          setDisplay(noticeEl, false);
+          safeText(noticeEl, '');
         }
+        handleEligibility().then(function (res) {
+          if (res && res.rarity) state.rarity = res.rarity;
+          refresh();
+        });
       });
     });
 
     form.addEventListener('change', function () {
-      syncState();
+      var sel = getSelection(getVariantId(form));
+      state.mode = sel.mode || state.mode;
+      state.rarity = sel.rarity || state.rarity;
+      refresh();
     });
 
     Promise.all([
       (typeof M.fetchVariantMap === 'function') ? M.fetchVariantMap() : Promise.resolve(),
       (typeof M.fetchPoolAllPages === 'function') ? M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle) : Promise.resolve()
     ]).finally(function () {
-      syncState();
+      markRarityActive(rarityEntries, state.rarity);
+      handleEligibility().then(function (res) {
+        if (res && res.rarity) state.rarity = res.rarity;
+        refresh();
+      });
     });
   }
 

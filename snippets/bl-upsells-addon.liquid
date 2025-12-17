@@ -145,12 +145,14 @@
         </div>
 
         <div class="bl-addon-right">
-          {% if block.settings.price_position == 'separate' %}
-            <div class='upsell__price upsell__price--separate'>
-              <span class='regular-price'>{{ addon_price | money }}</span>
-              <span class='compare-price{% unless addon_compare_price > addon_price %} hidden{% endunless %}'>{{ addon_compare_price | money }}</span>
-            </div>
-          {% endif %}
+          <div class="bl-addon-price-wrap">
+            {% if block.settings.price_position == 'separate' %}
+              <div class='upsell__price upsell__price--separate'>
+                <span class='regular-price'>{{ addon_price | money }}</span>
+                <span class='compare-price{% unless addon_compare_price > addon_price %} hidden{% endunless %}'>{{ addon_compare_price | money }}</span>
+              </div>
+            {% endif %}
+          </div>
 
           {% if block.settings.style == 'toggle_switch' %}
             <button class='upsell__toggle-switch toggle-switch{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
