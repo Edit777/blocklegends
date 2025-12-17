@@ -39,8 +39,16 @@
           "type": "text",
           "settings": {
             "heading": "",
-            "subtext": "<p><a><strong>support@blocklegends.store</strong></a></p><p><strong>Reply within 24 hours (business days)</strong></p>",
+            "subtext": "<p><a><strong>support@blocklegends.store</strong></a></p><p>Reply within<strong> 24 hours (business days)</strong></p>",
             "width_desktop": 6,
+            "width_mobile": "2"
+          }
+        },
+        "brand_information_aNk8bB": {
+          "type": "brand_information",
+          "settings": {
+            "show_social": true,
+            "width_desktop": 3,
             "width_mobile": "2"
           }
         }
@@ -48,12 +56,13 @@
       "block_order": [
         "link_list_BijCMC",
         "24f208fd-0898-43eb-af23-d74f8420ab37",
-        "text_mzdkKf"
+        "text_mzdkKf",
+        "brand_information_aNk8bB"
       ],
       "settings": {
         "color_scheme": "accent-1",
         "enable_follow_on_shop": false,
-        "show_social": true,
+        "show_social": false,
         "enable_country_selector": true,
         "enable_language_selector": true,
         "payment_enable": true,
@@ -61,7 +70,7 @@
         "show_policy": true,
         "branding_text": "",
         "margin_top": 0,
-        "padding_top": 32,
+        "padding_top": 20,
         "padding_bottom": 20,
         "custom_colors_background": "#121212",
         "custom_gradient_background": "",
