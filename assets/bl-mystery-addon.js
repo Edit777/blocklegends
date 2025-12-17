@@ -201,6 +201,99 @@ function ensureCssOnce() {
     return el;
   }
 
+  function collectProperties(form) {
+    var props = {};
+    if (!form) return props;
+
+    try {
+      var inputs = form.querySelectorAll('input[name^="properties["]');
+      Array.prototype.slice.call(inputs || []).forEach(function (input) {
+        var name = input.getAttribute('name') || '';
+        var match = name.match(/^properties\[(.*)\]$/);
+        if (!match || match.length < 2) return;
+        var key = match[1];
+        props[key] = input.value || '';
+      });
+    } catch (e) {}
+
+    return props;
+  }
+
+  function mirrorPropertiesToItems(form, props) {
+    if (!form || !props) return;
+
+    var idInputs = form.querySelectorAll('input[name^="items["][name$="[id]"]');
+    if (!idInputs || !idInputs.length) return;
+
+    Array.prototype.slice.call(idInputs || []).forEach(function (idInput) {
+      var name = idInput.getAttribute('name') || '';
+      var m = name.match(/^items\[(\d+)\]\[id\]$/);
+      if (!m || m.length < 2) return;
+      var idx = m[1];
+
+      Object.keys(props).forEach(function (key) {
+        var propName = 'items[' + idx + '][properties[' + key + ']]';
+        var existing = form.querySelector('input[name="' + propName.replace(/"/g, '\\"') + '"]');
+        if (!existing) {
+          existing = document.createElement('input');
+          existing.type = 'hidden';
+          existing.name = propName;
+          form.appendChild(existing);
+        }
+        existing.value = props[key] || '';
+      });
+    });
+  }
+
+  function logAddonDebug(label, meta) {
+    if (!isDebug()) return;
+    debugLog(label, meta);
+  }
+
+  function patchCartDrawerProductForm(pfEl, form) {
+    if (!pfEl || !form) return;
+    if (pfEl.__blAddonPatched) return;
+    if (pfEl.dataset && pfEl.dataset.isCartUpsell !== 'true') return;
+
+    var originalSubmit = typeof pfEl.onSubmit === 'function' ? pfEl.onSubmit.bind(pfEl) : null;
+    if (!originalSubmit) return;
+
+    pfEl.__blAddonPatched = true;
+
+    pfEl.onSubmit = function (evt) {
+      var handle = getAddonHandle();
+
+      var computePromise = Promise.resolve(true);
+      try {
+        if (M && typeof M.computeAndApplyAssignment === 'function') {
+          computePromise = M.computeAndApplyAssignment(form, handle, { force: true });
+        }
+      } catch (e) {}
+
+      return computePromise.then(function (ok) {
+        if (!ok) {
+          logAddonDebug('pre-submit-skip', { role: 'addon', handle: handle, reason: 'compute-failed' });
+          return false;
+        }
+
+        var propsSnapshot = collectProperties(form);
+        mirrorPropertiesToItems(form, propsSnapshot);
+
+        logAddonDebug('pre-submit', {
+          role: 'addon',
+          handle: handle,
+          properties: propsSnapshot
+        });
+
+        if (isDebug() && (!propsSnapshot._bl_assigned_variant_id || !propsSnapshot._bl_assignment_uid)) {
+          console.error('[BL Mystery][addon] MISSING PROPERTIES - add-to-cart will not be swap-ready');
+        }
+
+        return originalSubmit(evt);
+      });
+    };
+  }
+
   function parseVariants(card) {
     var script = card.querySelector('script[data-bl-addon-variants]');
     if (!script) return [];
@@ -308,6 +401,8 @@ function ensureCssOnce() {
       card.querySelector('form[data-type="add-to-cart-form"]') ||
       card.querySelector('form[action^="/cart/add"]') ||
       card.querySelector('form');
+
+    var productFormEl = card.querySelector('product-form');
 
     if (form) {
       var idInput = form.querySelector('input[name="id"]') || form.querySelector('select[name="id"]');
@@ -508,6 +603,10 @@ function ensureCssOnce() {
           }
         } catch (e) {}
       });
+    }
+
+    if (productFormEl && form) {
+      patchCartDrawerProductForm(productFormEl, form);
     }
 
     var selectEl = buildSelect(card, variants);
