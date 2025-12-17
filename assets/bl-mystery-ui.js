@@ -1,8 +1,6 @@
 /* =======================================================
    BLOCK LEGENDS — MYSTERY UI (PRODUCT PAGE)
-   - Preferred collection selector (pills) + validation
-   - Prevent invalid rarity tiers for a preferred collection
-   - Optional copy blocks toggled by selection
+   Enhanced preferred collection gating for Mystery Figure
    ======================================================= */
 
 (function () {
@@ -13,20 +11,37 @@
   var M = window.BL.mysteryEngine;
   var UI = window.BL.mysteryUI;
 
+  if (!U || !M || !M.CFG) return;
+
+  var STORAGE_KEYS = {
+    mode: 'BL_MYSTERY_MODE',
+    collection: 'BL_MYSTERY_COLLECTION_HANDLE',
+    rarity: 'BL_MYSTERY_RARITY'
+  };
+
+  var ANY = (M.CFG.anyRarityKey || 'any').toLowerCase();
+  var MODE_LABELS = {
+    preferred: M.CFG.modePreferredLabel,
+    random: M.CFG.modeRandomLabel
+  };
+
   function ensureCssOnce() {
     if (document.getElementById('bl-preferred-css')) return;
     var st = document.createElement('style');
     st.id = 'bl-preferred-css';
     st.textContent = [
-      '.bl-preferred-wrap{margin-top:10px;}',
-      '.bl-preferred-label{font-size:12px;opacity:.9;margin-bottom:6px;}',
-      '.bl-preferred-pills{display:flex;gap:8px;flex-wrap:wrap;}',
-      '.bl-pill{padding:8px 10px;border:1px solid rgba(0,0,0,.2);border-radius:999px;background:#fff;font-size:13px;line-height:1;cursor:pointer;}',
-      '.bl-pill.is-active{border-color:#000;}',
+      '.bl-mystery-card{margin-top:12px;padding:12px;border:1px solid rgba(0,0,0,.12);border-radius:10px;background:#fff;}',
+      '.bl-mystery-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;}',
+      '.bl-mystery-label{font-size:13px;font-weight:600;min-width:96px;}',
+      '.bl-pill-group{display:flex;flex-wrap:wrap;gap:8px;}',
+      '.bl-pill{padding:9px 12px;border:1px solid rgba(0,0,0,.25);border-radius:999px;background:#fff;font-size:13px;line-height:1;cursor:pointer;transition:all .15s ease;}',
+      '.bl-pill.is-active{border-color:#000;box-shadow:0 0 0 1px #000;}',
       '.bl-pill[disabled]{opacity:.45;cursor:not-allowed;}',
-      '.bl-mystery-status{margin-top:8px;font-size:12px;opacity:.9;}',
-      '.bl-mystery-status.is-warn{opacity:1;}',
-      '@media (max-width: 749px){.bl-pill{padding:10px 12px;font-size:14px;}}'
+      '.bl-collection-row{display:flex;flex-direction:column;gap:6px;}',
+      '.bl-collection-select{min-width:200px;padding:8px 10px;border:1px solid rgba(0,0,0,.25);border-radius:8px;font-size:14px;}',
+      '.bl-mystery-helper{font-size:12px;opacity:.9;margin-top:4px;}',
+      '.bl-mystery-helper.is-warn{opacity:1;color:#a94442;}',
+      '@media (max-width: 749px){.bl-pill{padding:11px 14px;font-size:14px;}}'
     ].join('');
     document.head.appendChild(st);
   }
@@ -41,21 +56,22 @@
       input.name = name;
       form.appendChild(input);
     }
-    input.value = String(value || '');
+    input.value = String(value == null ? '' : value);
   }
 
   function getVariantId(form) {
     try {
       var el = form.querySelector('input[name="id"], select[name="id"]');
       return el ? String(el.value || '').trim() : '';
-    } catch (e) { return ''; }
+    } catch (e) {
+      return '';
+    }
   }
 
   function setVariantId(form, id) {
     id = String(id || '').trim();
     if (!id) return false;
 
-    // 1) select[name=id] (variant dropdown)
     var sel = form.querySelector('select[name="id"], select.variant-dropdown, select.sticky-atc__variant-select');
     if (sel) {
       if (String(sel.value) !== id) sel.value = id;
@@ -63,7 +79,6 @@
       return true;
     }
 
-    // 2) hidden input[name=id]
     var inp = form.querySelector('input[name="id"]');
     if (inp) {
       if (String(inp.value) !== id) inp.value = id;
@@ -78,7 +93,6 @@
     var mapped = (M && typeof M.getVariantSelection === 'function') ? M.getVariantSelection(vid) : null;
     if (mapped) return mapped;
 
-    // Fallback: parse selected option title
     var title = '';
     try {
       var sel = form.querySelector('select[name="id"]') || form.querySelector('select.variant-dropdown');
@@ -112,10 +126,6 @@
     var rarity = sel && sel.rarity ? String(sel.rarity) : '';
     var mode = sel && sel.mode ? String(sel.mode) : '';
 
-    // Any element with data-bl-mystery-copy toggles by attributes:
-    // - data-for-rarity="common|rare|epic|legendary|any"
-    // - data-for-mode="Random Collection|Preferred Collection"
-    // - data-for-collection="handle" (optional)
     var blocks = U.qsa(root, '[data-bl-mystery-copy]');
     if (!blocks.length) return;
 
@@ -132,19 +142,110 @@
     });
   }
 
-  UI.init = function (root) {
-    root = root || document;
-    if (!U || !M || !M.CFG) return;
+  function detectIsMysteryPage(root) {
+    var handle = '';
+    try { handle = U.productHandleFromUrl() || ''; } catch (e) {}
+    if (handle === M.CFG.mysteryFigureHandle) return true;
 
-    var handle = U.productHandleFromUrl();
-    if (handle !== M.CFG.mysteryFigureHandle) return;
+    var bodyHandle = '';
+    try { bodyHandle = (document.body && document.body.getAttribute('data-product-handle')) || ''; } catch (e2) {}
+    if (bodyHandle === M.CFG.mysteryFigureHandle) return true;
 
-    var form = U.qs(root, 'form[action^="/cart/add"]') || U.qs(root, 'form[data-type="add-to-cart-form"]');
-    if (!form) return;
+    var form = U.qs(root, 'form[action^="/cart/add"], form[data-type="add-to-cart-form"]');
+    try {
+      var formHandle = form ? (form.getAttribute('data-product-handle') || '') : '';
+      if (formHandle === M.CFG.mysteryFigureHandle) return true;
+    } catch (e3) {}
 
-    ensureCssOnce();
+    try {
+      if (window.location && /\/products\/mystery-figure/.test(window.location.pathname)) return true;
+    } catch (e4) {}
+    return false;
+  }
 
-    // Mount point near variant picker
+  function getCollections(root) {
+    var src = U.qs(root, '[data-bl-collections]');
+    var json = (src && src.getAttribute('data-bl-collections')) || '';
+    var parsed = [];
+    if (json) {
+      try { parsed = JSON.parse(json); } catch (e) { parsed = []; }
+    }
+    if (parsed && parsed.length) return parsed;
+
+    try {
+      var fallback = (window.BL && window.BL.mystery && window.BL.mystery.collections) ? window.BL.mystery.collections : [];
+      if (fallback && fallback.length) return fallback;
+    } catch (e2) {}
+    return [];
+  }
+
+  function getStored(key) {
+    try { return window.sessionStorage ? window.sessionStorage.getItem(key) : null; } catch (e) { return null; }
+  }
+
+  function setStored(key, val) {
+    try {
+      if (window.sessionStorage) {
+        if (val === null || typeof val === 'undefined') window.sessionStorage.removeItem(key);
+        else window.sessionStorage.setItem(key, val);
+      }
+    } catch (e) {}
+  }
+
+  function capitalize(str) {
+    var s = String(str || '');
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  }
+
+  function formatHelper(rarity, collectionTitle, modeIsPreferred) {
+    var label = collectionTitle || (modeIsPreferred ? 'this collection' : 'a random collection');
+    if (!rarity || rarity === ANY) return 'Get a random figure from ' + label + '.';
+    return 'Get a ' + capitalize(rarity) + ' figure from ' + label + '.';
+  }
+
+  function getPreferredCollectionFromForm(form) {
+    try {
+      var name = 'properties[' + M.CFG.propPreferredCollection + ']';
+      var input = form.querySelector('input[name="' + name.replace(/"/g, '\\"') + '"]');
+      return input ? String(input.value || '').trim() : '';
+    } catch (e) { return ''; }
+  }
+
+  function syncHiddenProps(form, state) {
+    var modeKey = state.mode === MODE_LABELS.preferred ? 'preferred' : 'random';
+    var collectionVal = (state.mode === MODE_LABELS.preferred) ? (state.collection || '') : '';
+    upsertHidden(form, M.CFG.propPreferredCollection, collectionVal);
+    upsertHidden(form, '_bl_mode', modeKey);
+    upsertHidden(form, '_bl_locked_collection', collectionVal);
+    upsertHidden(form, '_bl_requested_rarity', state.rarity || ANY);
+  }
+
+  function ensureVariantMapReady() {
+    return (M.fetchVariantMap ? M.fetchVariantMap() : Promise.resolve());
+  }
+
+  function syncVariantToState(form, state) {
+    return ensureVariantMapReady().then(function () {
+      var targetId = findVariantIdFor(state.rarity, state.mode);
+      if (!targetId && state.rarity !== ANY) {
+        targetId = findVariantIdFor(ANY, state.mode) || findVariantIdFor(state.rarity, MODE_LABELS.random);
+      }
+      if (!targetId) return;
+      setVariantId(form, targetId);
+    });
+  }
+
+  function computeCounts(collectionHandle) {
+    var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(collectionHandle) : null;
+    if (counts) return Promise.resolve(counts);
+
+    return M.fetchPoolAllPages(collectionHandle).then(function () {
+      var fallback = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(collectionHandle) : null;
+      return fallback || null;
+    });
+  }
+
+  function buildUI(root, form, collections) {
     var mount = U.qs(root, '[data-bl-mystery-preferred-mount]');
     if (!mount) {
       var variantSelect = U.qs(form, 'select[name="id"]') || U.qs(form, 'select.variant-dropdown');
@@ -154,195 +255,238 @@
         variantSelect.parentNode.insertBefore(mount, variantSelect.nextSibling);
       }
     }
-    if (!mount) return;
-    if (mount.dataset.blBuilt === 'true') return;
+    if (!mount || mount.dataset.blBuilt === 'true') return null;
     mount.dataset.blBuilt = 'true';
 
-    var collections = (window.BL && window.BL.mystery && window.BL.mystery.collections) ? window.BL.mystery.collections : [];
+    var card = document.createElement('div');
+    card.className = 'bl-mystery-card';
 
-    var wrap = document.createElement('div');
-    wrap.className = 'bl-preferred-wrap';
-    wrap.innerHTML = [
-      '<div class="bl-preferred-label">Choose collection</div>',
-      '<div class="bl-preferred-pills" data-bl-preferred-pills></div>',
-      '<div class="bl-mystery-status" data-bl-mystery-status style="display:none;"></div>'
+    card.innerHTML = [
+      '<div class="bl-mystery-row" data-bl-mode-row>\n',
+      '  <div class="bl-mystery-label">Mode</div>\n',
+      '  <div class="bl-pill-group" data-bl-mode-group>\n',
+      '    <button type="button" class="bl-pill" data-mode="random">' + MODE_LABELS.random + '</button>\n',
+      '    <button type="button" class="bl-pill" data-mode="preferred">' + MODE_LABELS.preferred + '</button>\n',
+      '  </div>\n',
+      '</div>\n',
+      '<div class="bl-mystery-row" data-bl-rarity-row>\n',
+      '  <div class="bl-mystery-label">Rarity</div>\n',
+      '  <div class="bl-pill-group" data-bl-rarity-group></div>\n',
+      '</div>\n',
+      '<div class="bl-mystery-row bl-collection-row" data-bl-collection-row style="display:none;">\n',
+      '  <div class="bl-mystery-label">Collection</div>\n',
+      '  <select class="bl-collection-select" data-bl-collection-select></select>\n',
+      '</div>\n',
+      '<div class="bl-mystery-helper" data-bl-helper role="status" aria-live="polite"></div>'
     ].join('');
 
-    var pills = wrap.querySelector('[data-bl-preferred-pills]');
-    var statusEl = wrap.querySelector('[data-bl-mystery-status]');
-    if (!pills) return;
+    mount.appendChild(card);
 
-    function setStatus(msg, warn) {
-      if (!statusEl) return;
-      if (!msg) {
-        statusEl.textContent = '';
-        statusEl.style.display = 'none';
-        statusEl.classList.remove('is-warn');
-        return;
-      }
-      statusEl.textContent = String(msg);
-      statusEl.style.display = '';
-      statusEl.classList.toggle('is-warn', !!warn);
-    }
+    var rarityGroup = card.querySelector('[data-bl-rarity-group]');
+    var rarities = ['common', 'rare', 'epic', 'legendary'];
+    if (rarities.indexOf(ANY) === -1) rarities.push(ANY);
+    rarities.forEach(function (r) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bl-pill';
+      btn.setAttribute('data-rarity', r);
+      btn.textContent = r === ANY ? 'Any' : capitalize(r);
+      rarityGroup.appendChild(btn);
+    });
 
-    function getPreferredCollection() {
-      try {
-        var name = 'properties[' + M.CFG.propPreferredCollection + ']';
-        var input = form.querySelector('input[name="' + name.replace(/"/g, '\\"') + '"]');
-        return input ? String(input.value || '').trim() : '';
-      } catch (e) { return ''; }
-    }
-
-    function setPreferredCollection(val) {
-      upsertHidden(form, M.CFG.propPreferredCollection, String(val || ''));
-    }
-
-    function setActive(val) {
-      U.qsa(pills, '.bl-pill').forEach(function (b) {
-        b.classList.toggle('is-active', String(b.getAttribute('data-collection') || '') === String(val || ''));
+    var select = card.querySelector('[data-bl-collection-select]');
+    if (select) {
+      var defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = 'Select a collection';
+      select.appendChild(defaultOpt);
+      (collections || []).forEach(function (c) {
+        if (!c || !c.handle) return;
+        var opt = document.createElement('option');
+        opt.value = c.handle;
+        opt.textContent = c.title || c.handle;
+        select.appendChild(opt);
       });
     }
 
-    // Build pills
-    var noneBtn = document.createElement('button');
-    noneBtn.type = 'button';
-    noneBtn.className = 'bl-pill is-active';
-    noneBtn.setAttribute('data-collection', '');
-    noneBtn.textContent = 'Any';
-    pills.appendChild(noneBtn);
+    return {
+      root: card,
+      modeButtons: U.qsa(card, '[data-mode]'),
+      rarityButtons: U.qsa(card, '[data-rarity]'),
+      collectionRow: card.querySelector('[data-bl-collection-row]'),
+      collectionSelect: select,
+      helper: card.querySelector('[data-bl-helper]')
+    };
+  }
 
-    collections.forEach(function (c) {
-      if (!c || !c.handle) return;
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'bl-pill';
-      b.setAttribute('data-collection', c.handle);
-      b.textContent = c.title || c.handle;
-      pills.appendChild(b);
-    });
+  UI.init = function (root) {
+    root = root || document;
+    if (!detectIsMysteryPage(root)) return;
 
-    function setVisibleForMode(sel) {
-      var mode = sel && sel.mode ? sel.mode : M.CFG.modeRandomLabel;
-      wrap.style.display = (mode === M.CFG.modePreferredLabel) ? '' : 'none';
-      if (mode !== M.CFG.modePreferredLabel) {
-        setPreferredCollection('');
-        setActive('');
-        setStatus('', false);
+    var form = U.qs(root, 'form[action^="/cart/add"], form[data-type="add-to-cart-form"]');
+    if (!form) return;
+
+    ensureCssOnce();
+
+    var collections = getCollections(root);
+    var ui = buildUI(root, form, collections);
+    if (!ui) return;
+
+    var state = { mode: MODE_LABELS.random, rarity: ANY, collection: '' };
+    var storedMode = getStored(STORAGE_KEYS.mode);
+    var storedCollection = getStored(STORAGE_KEYS.collection);
+    var storedRarity = getStored(STORAGE_KEYS.rarity);
+
+    var initialSel = getSelectionFromForm(form);
+    state.mode = M.normalizeMode(storedMode || initialSel.mode || MODE_LABELS.random);
+    state.rarity = M.normalizeRarity(storedRarity || initialSel.rarity || ANY);
+    state.collection = storedCollection || getPreferredCollectionFromForm(form) || '';
+
+    function persist() {
+      setStored(STORAGE_KEYS.mode, state.mode === MODE_LABELS.preferred ? 'preferred' : 'random');
+      setStored(STORAGE_KEYS.collection, state.collection || '');
+      setStored(STORAGE_KEYS.rarity, state.rarity || '');
+    }
+
+    function setHelper(msg, warn) {
+      if (!ui.helper) return;
+      ui.helper.textContent = msg || '';
+      ui.helper.classList.toggle('is-warn', !!warn);
+    }
+
+    function updateUIActive() {
+      ui.modeButtons.forEach(function (b) {
+        var key = b.getAttribute('data-mode');
+        b.classList.toggle('is-active', (key === 'preferred' && state.mode === MODE_LABELS.preferred) || (key === 'random' && state.mode === MODE_LABELS.random));
+      });
+      ui.rarityButtons.forEach(function (b) {
+        var r = String(b.getAttribute('data-rarity') || '').toLowerCase();
+        b.classList.toggle('is-active', r === state.rarity);
+      });
+      if (ui.collectionSelect) {
+        if (ui.collectionSelect.value !== state.collection) ui.collectionSelect.value = state.collection || '';
+      }
+      if (ui.collectionRow) {
+        ui.collectionRow.style.display = state.mode === MODE_LABELS.preferred ? '' : 'none';
       }
     }
 
-    function ensureVariantMapReady() {
-      return (M.fetchVariantMap ? M.fetchVariantMap() : Promise.resolve());
+    function findCollectionTitle(handle) {
+      var h = String(handle || '');
+      var match = (collections || []).find(function (c) { return c && String(c.handle) === h; });
+      return match ? (match.title || match.handle || '') : '';
     }
 
-    function recompute() {
-      M.computeAndApplyAssignment(form, M.CFG.mysteryFigureHandle).catch(function () {});
-    }
+    function applyEligibility() {
+      var modePreferred = state.mode === MODE_LABELS.preferred;
+      var rarityBtns = ui.rarityButtons || [];
 
-    function validateAndMaybeFix() {
-      var sel = getSelectionFromForm(form);
-      var mode = M.normalizeMode ? M.normalizeMode(sel.mode) : sel.mode;
-      var rarity = M.normalizeRarity ? M.normalizeRarity(sel.rarity) : sel.rarity;
-
-      setVisibleForMode(sel);
-
-      var preferred = (mode === M.CFG.modePreferredLabel) ? getPreferredCollection() : '';
-      applyCopy(root, { rarity: rarity, mode: mode }, preferred);
-
-      // Random mode => always OK
-      if (mode !== M.CFG.modePreferredLabel) {
-        setStatus('', false);
-        recompute();
-        return Promise.resolve(true);
+      if (!modePreferred || !state.collection) {
+        rarityBtns.forEach(function (btn) { btn.disabled = false; btn.classList.remove('is-disabled'); btn.setAttribute('aria-disabled', 'false'); });
+        return Promise.resolve();
       }
 
-      // Preferred mode + Any collection => OK
-      if (!preferred) {
-        setStatus('', false);
-        recompute();
-        return Promise.resolve(true);
-      }
-
-      // Ensure pool loaded for preferred collection then validate rarity
-      return M.fetchPoolAllPages(preferred).then(function () {
-        var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(preferred) : null;
-        if (!counts) {
-          setStatus('Pool data unavailable. Please try again.', true);
-          recompute();
-          return true;
-        }
-
-        // Any always passes
-        if (rarity === M.CFG.anyRarityKey) {
-          setStatus('', false);
-          recompute();
-          return true;
-        }
-
+      return computeCounts(state.collection).then(function (counts) {
         var min = Number(M.CFG.preferredMinPerRarity || 0);
-        if (Number(counts[rarity] || 0) >= min) {
-          setStatus('', false);
-          recompute();
-          return true;
+        rarityBtns.forEach(function (btn) {
+          var r = String(btn.getAttribute('data-rarity') || '').toLowerCase();
+          var eligible = (r === ANY) || (Number(counts && counts[r] || 0) >= min);
+          btn.disabled = !eligible;
+          btn.classList.toggle('is-disabled', !eligible);
+          btn.setAttribute('aria-disabled', eligible ? 'false' : 'true');
+        });
+
+        var currentBtn = rarityBtns.find(function (b) { return b.classList.contains('is-active'); });
+        if (currentBtn && currentBtn.getAttribute('aria-disabled') === 'true') {
+          var fallback = rarityBtns.find(function (b) { return b.getAttribute('aria-disabled') === 'false'; });
+          state.rarity = fallback ? String(fallback.getAttribute('data-rarity') || ANY).toLowerCase() : ANY;
         }
-
-        // Not eligible => switch to a safe fallback
-        setStatus('This collection does not have enough ' + rarity + ' figures right now. Switched to Any.', true);
-
-        return ensureVariantMapReady().then(function () {
-          var targetId =
-            findVariantIdFor(M.CFG.anyRarityKey, M.CFG.modePreferredLabel) ||
-            findVariantIdFor(rarity, M.CFG.modeRandomLabel) ||
-            findVariantIdFor(M.CFG.anyRarityKey, M.CFG.modeRandomLabel);
-
-          if (targetId) setVariantId(form, targetId);
-
-          // Ensure preferred collection property is preserved only if still preferred mode
-          var sel2 = getSelectionFromForm(form);
-          var mode2 = M.normalizeMode ? M.normalizeMode(sel2.mode) : sel2.mode;
-          if (mode2 !== M.CFG.modePreferredLabel) {
-            setPreferredCollection('');
-            setActive('');
-          }
-
-          recompute();
-          return true;
+      }).catch(function () {
+        rarityBtns.forEach(function (btn) {
+          btn.disabled = false;
+          btn.classList.remove('is-disabled');
+          btn.setAttribute('aria-disabled', 'false');
         });
       });
     }
 
-    // click pills
-    pills.addEventListener('click', function (e) {
-      var btn = e.target && e.target.closest ? e.target.closest('.bl-pill') : null;
-      if (!btn) return;
-      e.preventDefault();
+    function updateHelper() {
+      var title = findCollectionTitle(state.collection);
+      var modePreferred = state.mode === MODE_LABELS.preferred;
+      if (modePreferred && !state.collection) {
+        setHelper('Select a collection to continue.', true);
+        return;
+      }
+      var helper = formatHelper(state.rarity, modePreferred ? title || state.collection : '', modePreferred);
+      setHelper(helper, false);
+    }
 
-      var val = btn.getAttribute('data-collection') || '';
-      setPreferredCollection(val);
-      setActive(val);
-      validateAndMaybeFix();
+    function recompute() {
+      syncHiddenProps(form, state);
+      applyCopy(root, { rarity: state.rarity, mode: state.mode }, state.collection);
+      updateUIActive();
+      updateHelper();
+      persist();
+
+      return syncVariantToState(form, state)
+        .then(function () {
+          return M.computeAndApplyAssignment(form, M.CFG.mysteryFigureHandle).catch(function () {});
+        });
+    }
+
+    function setMode(key) {
+      state.mode = key === 'preferred' ? MODE_LABELS.preferred : MODE_LABELS.random;
+      if (state.mode === MODE_LABELS.random) {
+        state.collection = '';
+      }
+      return applyEligibility().then(recompute);
+    }
+
+    function setRarity(r) {
+      state.rarity = M.normalizeRarity(r);
+      return recompute();
+    }
+
+    function setCollection(handle) {
+      state.collection = handle || '';
+      return applyEligibility().then(recompute);
+    }
+
+    ui.modeButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-mode');
+        setMode(key);
+      });
     });
 
-    // variant changes (rarity/mode)
-    var debounced = U.debounce(function () {
-      validateAndMaybeFix();
-    }, 80);
-
-    form.addEventListener('change', debounced, true);
-    document.addEventListener('change', function (e) {
-      if (form.contains(e.target)) debounced();
-    }, true);
-
-    // mount
-    mount.appendChild(wrap);
-
-    // defaults
-    setPreferredCollection('');
-    setActive('');
-
-    // ensure map warm
-    ensureVariantMapReady().then(function () {
-      validateAndMaybeFix();
+    ui.rarityButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (btn.getAttribute('aria-disabled') === 'true' || btn.disabled) return;
+        var r = btn.getAttribute('data-rarity');
+        setRarity(r);
+      });
     });
+
+    if (ui.collectionSelect) {
+      ui.collectionSelect.addEventListener('change', function () {
+        setCollection(ui.collectionSelect.value);
+      });
+    }
+
+    var debouncedChange = U.debounce(function () {
+      var sel = getSelectionFromForm(form);
+      var modeNext = M.normalizeMode(sel.mode);
+      var rarityNext = M.normalizeRarity(sel.rarity);
+      var changed = false;
+      if (modeNext !== state.mode) { state.mode = modeNext; changed = true; }
+      if (rarityNext !== state.rarity) { state.rarity = rarityNext; changed = true; }
+      if (changed) {
+        applyEligibility().then(recompute);
+      }
+    }, 120);
+
+    form.addEventListener('change', debouncedChange, true);
+
+    applyEligibility().then(recompute);
   };
 })();

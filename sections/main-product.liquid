@@ -653,15 +653,26 @@
                 has_filtering: has_filtering
               %}
               {% if product.handle == 'mystery-figure' %}
-                <div class="bl-pref-collection" data-bl-pref-collection-wrap style="display:none;">
-                  <label class="bl-pref-collection__label" for="BLPreferredCollection">Preferred collection</label>
+                {%- capture bl_collections_json -%}
+                  [
+                  {%- assign is_first = true -%}
+                  {%- for link in linklists['all-collections'].links -%}
+                    {%- if link.type == 'collection_link' -%}
+                      {%- unless is_first -%},{%- endunless -%}
+                      {"handle":"{{ link.object.handle | escape }}","title":"{{ link.object.title | escape_once }}"}
+                      {%- assign is_first = false -%}
+                    {%- endif -%}
+                  {%- endfor -%}
+                  ]
+                {%- endcapture -%}
+                <div
+                  class="bl-pref-collection"
+                  data-bl-pref-collection-wrap
+                  data-bl-collections='{{ bl_collections_json | strip_newlines | escape }}'
+                  style="display:none;"
+                >
+                  <label class="bl-pref-collection__label" for="BLPreferredCollection">Collection</label>
                   <select id="BLPreferredCollection" class="bl-pref-collection__select" data-bl-pref-collection>
-                    {%- comment -%}
-                      Provide options. Use your existing source of collections.
-                      If you already have a curated list in theme settings, render that.
-                      Otherwise: render from a menu, or a metafield list, etc.
-                    {%- endcomment -%}
-
                     {%- for link in linklists['all-collections'].links -%}
                       {%- if link.type == 'collection_link' -%}
                         <option value="{{ link.object.handle }}">{{ link.object.title }}</option>

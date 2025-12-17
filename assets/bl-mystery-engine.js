@@ -694,10 +694,13 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
         // Persist what user selected (tier) vs what they got (actual)
         upsertHidden(form, M.CFG.propSelectedMode, mode);
-        upsertHidden(form, M.CFG.propPreferredCollection,
-          (mode === M.CFG.modePreferredLabel) ? (requestedCollection || '') : ''
-        );
+        var preferredCollectionSafe = (mode === M.CFG.modePreferredLabel) ? (requestedCollection || '') : '';
+        upsertHidden(form, M.CFG.propPreferredCollection, preferredCollectionSafe);
         upsertHidden(form, M.CFG.propRequestedTier, isAny ? M.CFG.anyRarityKey : rarity);
+        // Supplemental properties for storefront tracking
+        upsertHidden(form, '_bl_mode', mode === M.CFG.modePreferredLabel ? 'preferred' : 'random');
+        upsertHidden(form, '_bl_locked_collection', preferredCollectionSafe);
+        upsertHidden(form, '_bl_requested_rarity', isAny ? M.CFG.anyRarityKey : rarity);
 
         // Assigned payload (internal)
         upsertHidden(form, M.CFG.propAssignedHandle, chosen.handle);
