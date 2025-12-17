@@ -287,6 +287,11 @@
       if (explicit) return String(explicit || '').trim();
     } catch (err0) {}
 
+    try {
+      var selfHandle = (form && (form.getAttribute('data-handle') || (form.dataset && form.dataset.handle))) || '';
+      if (selfHandle) return String(selfHandle || '').trim();
+    } catch (err1) {}
+
     try { host = form.closest('[data-handle]'); } catch (err) {}
     var h = (host && host.getAttribute('data-handle')) ? host.getAttribute('data-handle') : (U.productHandleFromUrl() || '');
     return String(h || '').trim();

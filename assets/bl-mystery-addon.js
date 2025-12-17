@@ -501,6 +501,12 @@ function ensureCssOnce() {
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
         if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+
+        try {
+          if (M && typeof M.computeAndApplyAssignment === 'function') {
+            M.computeAndApplyAssignment(form, M.CFG.mysteryAddonHandle, { force: true }).catch(function () {});
+          }
+        } catch (e) {}
       });
     }
 
