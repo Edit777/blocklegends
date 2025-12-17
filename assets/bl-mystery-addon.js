@@ -50,14 +50,14 @@
     st.id = 'bl-addon-css';
     st.textContent = [
       '.upsell[data-upsell-addon="true"] .upsell__image__img{aspect-ratio:1/1;object-fit:cover;width:100%;height:auto;}',
-      '.upsell[data-upsell-addon="true"] .bl-addon-main{display:flex;align-items:center;gap:.85rem;width:100%;justify-content:space-between;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-main{display:flex;align-items:center;gap:.85rem;width:100%;}',
       '.upsell[data-upsell-addon="true"] .upsell__image{flex:0 0 76px;width:76px;display:flex;align-items:center;justify-content:center;}',
       '.upsell[data-upsell-addon="true"] .upsell__image .upsell__image__img{max-width:76px;width:100%;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.25rem;}',
       '.upsell[data-upsell-addon="true"] .upsell__content{min-width:0;}',
       '.upsell[data-upsell-addon="true"] .upsell__title h3{white-space:normal;word-break:normal;overflow-wrap:anywhere;margin:0;}',
 
-      '.upsell[data-upsell-addon="true"] .bl-addon-right{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;white-space:nowrap;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-right{display:flex;align-items:center;justify-content:flex-end;gap:8px;white-space:nowrap;flex:0 0 auto;min-width:92px;margin-left:auto;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-price-wrap{display:flex;align-items:center;justify-content:center;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-right .upsell__price{margin:0;display:flex;align-items:center;justify-content:center;line-height:1;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-right .upsell__price .regular-price{display:inline-block;line-height:1;margin:0;padding:0;font-weight:700;}',
@@ -74,8 +74,9 @@
       '.bl-addon-notice{margin-top:0.75rem;font-size:13px;line-height:1.4;color:#b33;padding:.6rem .8rem;border:1px solid rgba(179,51,51,.35);border-radius:8px;background:rgba(179,51,51,.08);width:100%;display:block;}',
       '.upsell[data-upsell-addon="true"] .upsell__variant-picker{display:none !important;}',
       '@media (max-width: 640px){.upsell[data-upsell-addon="true"] .bl-addon-controls{flex-wrap:nowrap;}.upsell[data-upsell-addon="true"] .bl-addon-controls label{white-space:nowrap;}.upsell[data-upsell-addon="true"] .bl-addon-select{min-width:0;width:116px;max-width:50vw;}}',
-      '@media (max-width: 390px){.upsell[data-upsell-addon="true"] .bl-addon-main{display:grid;grid-template-columns:64px 1fr auto;align-items:center;column-gap:10px;row-gap:4px;gap:.6rem;}.upsell[data-upsell-addon="true"] .bl-addon-main>.upsell__image{grid-column:1;grid-row:1;}.upsell[data-upsell-addon="true"] .bl-addon-main>.bl-addon-body{grid-column:2;grid-row:1;}.upsell[data-upsell-addon="true"] .bl-addon-main>.bl-addon-right{grid-column:3;grid-row:1;}.upsell[data-upsell-addon="true"] .upsell__image{flex:0 0 64px;width:64px;}.upsell[data-upsell-addon="true"] .upsell__image .upsell__image__img{max-width:64px;width:100%;}.upsell[data-upsell-addon="true"] .bl-addon-controls{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;}.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:110px;min-width:96px;}.upsell[data-upsell-addon="true"] .bl-addon-meta{margin-top:.15rem;}}',
-      '@media (max-width: 360px){.upsell[data-upsell-addon="true"] .bl-addon-main{column-gap:8px;gap:.5rem;}.upsell[data-upsell-addon="true"] .bl-addon-controls{gap:6px;}.upsell[data-upsell-addon="true"] .bl-addon-controls label{display:none;}.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:104px;min-width:90px;font-size:11px;padding:4px 8px;}.upsell[data-upsell-addon="true"] .bl-addon-right{gap:.45rem;}.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:11.5px;}}'
+      '@media (max-width: 420px){.upsell[data-upsell-addon="true"] .bl-addon-main{gap:.75rem;}.upsell[data-upsell-addon="true"] .upsell__image{flex:0 0 64px;width:64px;}.upsell[data-upsell-addon="true"] .upsell__image .upsell__image__img{max-width:64px;width:100%;}.upsell[data-upsell-addon="true"] .upsell__title h3{font-size:15px;line-height:1.25;}.upsell[data-upsell-addon="true"] .bl-addon-controls{gap:.4rem;flex-wrap:nowrap;}.upsell[data-upsell-addon="true"] .bl-addon-controls label{font-size:11.5px;}.upsell[data-upsell-addon="true"] .bl-addon-select{min-width:104px;height:30px;min-height:30px;padding:3px 9px;font-size:11.5px;border-radius:7px;}.upsell[data-upsell-addon="true"] .bl-addon-right{gap:7px;}.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:11px;}}',
+      '@media (max-width: 390px){.upsell[data-upsell-addon="true"] .bl-addon-main{display:grid;grid-template-columns:56px 1fr auto;align-items:center;column-gap:12px;row-gap:4px;}.upsell[data-upsell-addon="true"] .bl-addon-main>.upsell__image{grid-column:1;grid-row:1;}.upsell[data-upsell-addon="true"] .bl-addon-main>.bl-addon-body{grid-column:2;grid-row:1;}.upsell[data-upsell-addon="true"] .bl-addon-main>.bl-addon-right{grid-column:3;grid-row:1;}.upsell[data-upsell-addon="true"] .upsell__image{flex:0 0 56px;width:56px;}.upsell[data-upsell-addon="true"] .upsell__image .upsell__image__img{max-width:56px;width:100%;}.upsell[data-upsell-addon="true"] .upsell__title h3{font-size:14px;line-height:1.25;}.upsell[data-upsell-addon="true"] .bl-addon-controls{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;}.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:104px;min-width:92px;height:28px;min-height:28px;padding:3px 8px;font-size:11px;border-radius:7px;}.upsell[data-upsell-addon="true"] .bl-addon-meta{margin-top:.1rem;}.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10.5px;}}',
+      '@media (max-width: 360px){.upsell[data-upsell-addon="true"] .bl-addon-main{column-gap:10px;gap:.5rem;}.upsell[data-upsell-addon="true"] .bl-addon-controls{gap:5px;}.upsell[data-upsell-addon="true"] .bl-addon-controls label{display:none;}.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:100px;min-width:88px;font-size:10.5px;padding:3px 7px;}.upsell[data-upsell-addon="true"] .bl-addon-right{gap:6px;}.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10.25px;}}'
     ].join('');
     document.head.appendChild(st);
   }
@@ -383,9 +384,10 @@
     var rarity = selectEl ? getVariantRarity(String(selectEl.value)) : '';
     var collectionName = formatCollectionName(card);
     var nextText = hintForRarity(rarity, collectionName);
-    if (hintEl.textContent !== nextText) {
-      hintEl.textContent = nextText;
-    }
+    var current = hintEl.textContent || '';
+    if (current === nextText || hintEl.__blLastHint === nextText) return;
+    hintEl.textContent = nextText;
+    hintEl.__blLastHint = nextText;
   }
 
   function bindCard(card) {
