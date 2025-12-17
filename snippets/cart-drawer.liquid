@@ -128,11 +128,12 @@
                       <div class="drawer__cart-items-wrapper">
                         <ul class="cart-items list-unstyled">
                           {%- for item in cart.items -%}
-                            <li 
-                              id="CartDrawer-Item-{{ item.index | plus: 1 }}" 
-                              class="cart-drawer-item cart-item cart-item--product-{{ item.product.handle }}" 
+                            <li
+                              id="CartDrawer-Item-{{ item.index | plus: 1 }}"
+                              class="cart-drawer-item cart-item cart-item--product-{{ item.product.handle }}"
                               role="row" data-index="{{ item.index | plus: 1 }}"
                               data-quantity="{{ item.quantity }}"
+                              data-line-key="{{ item.key }}"
                             >
                               <div class="loading-overlay hidden">
                                 <div class="loading-overlay__spinner">

@@ -117,98 +117,215 @@
     return res.json();
   }
 
-  function getSectionsPayload() {
-    const payload = { sections: [], sections_url: window.location ? window.location.pathname + window.location.search : '/' };
-
-    const cartDrawerSection = document.getElementById('shopify-section-cart-drawer');
-    const drawerEl = cartDrawerSection || document.getElementById('cart-drawer') || document.querySelector('#CartDrawer') || document.querySelector('cart-drawer');
-    if (drawerEl) payload.sections.push('cart-drawer');
-
-    if (document.getElementById('cart-icon-bubble')) payload.sections.push('cart-icon-bubble');
-
-    // Cart page support
-    if (document.getElementById('main-cart-items')) payload.sections.push('main-cart-items');
-    if (document.getElementById('main-cart-footer')) payload.sections.push('main-cart-footer');
-    if (document.getElementById('cart-live-region-text')) payload.sections.push('cart-live-region-text');
-
-    return payload.sections.length ? payload : null;
+  function getDrawerElement() {
+    return document.querySelector('cart-drawer') || document.getElementById('CartDrawer');
   }
 
-  async function refreshCartUI(sectionsPayload) {
-    const payload = sectionsPayload || getSectionsPayload();
-    if (!payload || !payload.sections || !payload.sections.length) return;
+  function getDrawerItemsElement() {
+    return document.querySelector('cart-drawer-items');
+  }
 
-    const urlBase = payload.sections_url || (window.location ? window.location.pathname + window.location.search : '/');
-    const joiner = urlBase.includes('?') ? '&' : '?';
-    const fetchUrl = `${urlBase}${joiner}sections=${payload.sections.join(',')}`;
+  function resolveSectionIdFromDom(el, fallbackId) {
+    if (!el) return fallbackId;
+    const sectionEl = el.closest('section[id^="shopify-section-"]');
+    if (!sectionEl || !sectionEl.id) return fallbackId;
+    return sectionEl.id.replace('shopify-section-', '') || fallbackId;
+  }
 
+  function collectSectionTargets() {
+    const targets = [];
+    const seen = new Set();
+    const sectionsUrl = window.location ? window.location.pathname + window.location.search : '/';
+
+    function addTarget(entry) {
+      if (!entry) return;
+      const id = entry.id || entry.section;
+      const section = entry.section || entry.id;
+      if (!id || !section || seen.has(id)) return;
+      const selector = entry.selector || null;
+      let target = entry.target || null;
+
+      if (!target && selector) {
+        target = (document.getElementById(id) && document.getElementById(id).querySelector(selector)) || document.querySelector(selector);
+      }
+      if (!target) {
+        target = document.getElementById(`shopify-section-${id}`) || document.getElementById(id);
+      }
+
+      targets.push({ id, section, selector, target });
+      seen.add(id);
+    }
+
+    function importFrom(owner, label) {
+      if (!owner || typeof owner.getSectionsToRender !== 'function') return;
+      try {
+        const arr = owner.getSectionsToRender();
+        if (!Array.isArray(arr)) return;
+        arr.forEach((entry) => addTarget(entry));
+      } catch (e) {
+        log('collectSectionTargets error from', label, e);
+      }
+    }
+
+    importFrom(getDrawerItemsElement(), 'cart-drawer-items');
+    importFrom(getDrawerElement(), 'cart-drawer');
+
+    if (!targets.length) {
+      const drawer = getDrawerElement();
+      const drawerId = resolveSectionIdFromDom(drawer, 'cart-drawer');
+      if (drawer) {
+        const selector = drawer.id ? `#${drawer.id}` : null;
+        addTarget({ id: drawerId, section: drawerId, selector, target: drawer });
+      }
+
+      const bubble = document.getElementById('cart-icon-bubble');
+      if (bubble) {
+        const bubbleId = resolveSectionIdFromDom(bubble, 'cart-icon-bubble');
+        const selector = bubble.id ? `#${bubble.id}` : null;
+        addTarget({ id: bubbleId, section: bubbleId, selector, target: bubble });
+      }
+    }
+
+    return { sections: targets, sectionsUrl };
+  }
+
+  async function refreshCartUI(reason) {
+    const reasonLabel = reason || 'guard';
+
+    const apiCandidates = [
+      { el: getDrawerItemsElement(), label: 'cart-drawer-items', methods: ['updateCart', 'renderContents', 'refresh'] },
+      { el: getDrawerElement(), label: 'cart-drawer', methods: ['updateCart', 'renderContents', 'refresh'] }
+    ];
+
+    for (const candidate of apiCandidates) {
+      if (!candidate.el) continue;
+      const fnName = candidate.methods.find((m) => typeof candidate.el[m] === 'function');
+      if (!fnName) continue;
+      try {
+        log('refreshCartUI via theme API', { reason: reasonLabel, target: candidate.label, fn: fnName });
+        candidate.el[fnName]();
+        return true;
+      } catch (e) {
+        log('theme API refresh failed', e);
+      }
+    }
+
+    const { sections, sectionsUrl } = collectSectionTargets();
+    if (!sections.length) return false;
+
+    const sectionIds = sections.map((s) => s.section || s.id).filter(Boolean);
+    const payload = {
+      updates: {},
+      sections: sectionIds,
+      sections_url: sectionsUrl
+    };
+
+    let data = null;
     try {
-      const res = await fetch(fetchUrl, {
+      const res = await fetch('/cart/change.js', {
+        method: 'POST',
         credentials: 'same-origin',
         headers: {
+          'Content-Type': 'application/json',
           Accept: 'application/json',
           'X-BL-INTERNAL': '1',
           [CFG.internalHeader]: '1'
-        }
+        },
+        body: JSON.stringify(payload)
       });
-      const json = await res.json();
+      if (res.ok) {
+        data = await res.json();
+      }
+    } catch (e) {
+      log('refreshCartUI POST error', e);
+    }
 
-      payload.sections.forEach((sectionId) => {
-        const html = json && json[sectionId];
-        if (!html) return;
+    if (!data) {
+      const urlBase = sectionsUrl || (window.location ? window.location.pathname + window.location.search : '/');
+      const joiner = urlBase.includes('?') ? '&' : '?';
+      const fetchUrl = `${urlBase}${joiner}sections=${sectionIds.join(',')}`;
+      try {
+        const res = await fetch(fetchUrl, {
+          credentials: 'same-origin',
+          headers: {
+            Accept: 'application/json',
+            'X-BL-INTERNAL': '1',
+            [CFG.internalHeader]: '1'
+          }
+        });
+        if (res.ok) data = await res.json();
+      } catch (e) {
+        log('refreshCartUI GET error', e);
+      }
+    }
 
-        if (sectionId === 'cart-icon-bubble') {
-          const bubble = document.getElementById('cart-icon-bubble');
-          if (bubble) bubble.innerHTML = html;
+    const sectionHtmls = data && (data.sections || data);
+    if (!sectionHtmls) return false;
+
+    sections.forEach((entry) => {
+      const secId = entry.section || entry.id;
+      const html = sectionHtmls[secId];
+      if (!html) return;
+
+      const liveContainer = entry.target
+        || (entry.selector && ((document.getElementById(entry.id) && document.getElementById(entry.id).querySelector(entry.selector)) || document.querySelector(entry.selector)))
+        || document.getElementById(`shopify-section-${entry.id}`)
+        || document.getElementById(entry.id);
+      if (!liveContainer) return;
+
+      if (entry.selector) {
+        const dom = new DOMParser().parseFromString(html, 'text/html');
+        const parsed = dom.querySelector(entry.selector);
+        if (parsed) {
+          liveContainer.innerHTML = parsed.innerHTML || parsed.outerHTML;
           return;
         }
+      }
 
-        const wrapperId = `shopify-section-${sectionId}`;
-        const container = document.getElementById(wrapperId) || document.getElementById(sectionId);
-        if (container) {
-          container.innerHTML = html;
-        }
-      });
-    } catch (e) {
-      log('refreshCartUI error', e);
-    }
+      liveContainer.innerHTML = html;
+    });
+
+    return true;
   }
 
   BL.refreshCartUI = refreshCartUI;
 
-  function getDrawerQty(selectorHandle) {
-    const drawer = document.querySelector('cart-drawer') || document.getElementById('CartDrawer');
-    if (!drawer) return null;
+  function getDrawerQtyByKey(lineKey) {
+    const drawer = getDrawerElement();
+    if (!drawer || !lineKey) return null;
 
-    const safeHandle = window.CSS && window.CSS.escape ? window.CSS.escape(selectorHandle) : selectorHandle;
-    const item = drawer.querySelector(`.cart-item--product-${safeHandle}`);
+    const safeKey = window.CSS && window.CSS.escape ? window.CSS.escape(lineKey) : lineKey;
+    const item = drawer.querySelector(`[data-line-key="${safeKey}"]`);
     if (!item) return null;
 
-    const input = item.querySelector('input[name="updates[]"]');
+    const input = item.querySelector('input[name="updates[]"], input[name="updates"]');
     if (!input) return null;
 
     const parsed = Number(input.value);
     return Number.isFinite(parsed) ? parsed : null;
   }
 
-  function checkDrawerDesync(cart, sectionsPayload) {
+  function logAndHandleDrawerDesync(cart, reason) {
     if (!debug || !cart || !Array.isArray(cart.items)) return false;
 
     let desynced = false;
     cart.items.forEach((item) => {
       const cls = classifyItem(item);
-      if (!cls.isAddonFinal || !cls.handleExtracted) return;
-      const uiQty = getDrawerQty(cls.handleExtracted);
-      if (uiQty === null) return;
+      if (!cls.isAddonFinal) return;
+
       const cartQty = Number(item.quantity || 0);
-      if (uiQty !== cartQty) {
+      const drawerQty = getDrawerQtyByKey(item.key);
+      log('post-verify qty check', { key: item.key, cartQty, drawerQty });
+
+      if (drawerQty !== null && drawerQty !== cartQty) {
         desynced = true;
-        log('UI DESYNC: drawer shows', uiQty, 'cart.js shows', cartQty, { handle: cls.handleExtracted, key: item.key });
+        console.warn('[BL:guard] UI DESYNC: drawer shows', drawerQty, 'cart.js shows', cartQty, { key: item.key });
       }
     });
 
     if (desynced) {
-      refreshCartUI(sectionsPayload);
+      log('UI desync detected; refreshing drawer UI');
+      refreshCartUI(reason || 'desync');
     }
 
     return desynced;
@@ -353,28 +470,29 @@
   async function applyPlan(plan) {
     if (!plan.changes || !plan.changes.length) return false;
 
-    const sectionsPayload = getSectionsPayload();
-
     // Important: applying changes triggers cart mutation requests -> stable -> guard again
     // We mute internal stable events briefly to avoid loops.
     muteInternal();
 
     const changeResults = [];
-    log('mutation payload', { changes: plan.changes, sectionsPayload: !!sectionsPayload });
+    log('mutation payload', { changes: plan.changes });
 
     // Apply sequentially to avoid race conditions with line indexing
     for (const ch of plan.changes) {
       log('changeLine', ch);
-      const res = await changeLineByKey(ch.key, ch.quantity, sectionsPayload);
+      const res = await changeLineByKey(ch.key, ch.quantity);
       changeResults.push({ key: ch.key, ok: !!(res && res.ok), status: res && res.status });
     }
 
-    const verified = await verifyAndRepair({ usedFallback: false, sectionsPayload, changeResults });
-    await refreshCartUI(sectionsPayload);
+    const verified = await verifyAndRepair({ usedFallback: false, changeResults });
+    if (verified) {
+      await refreshCartUI('applied_plan');
+    }
+
     return verified;
   }
 
-  async function applyPlanWithLineIndexes(plan, keyToLine, sectionsPayload) {
+  async function applyPlanWithLineIndexes(plan, keyToLine) {
     if (!plan.changes || !plan.changes.length) return false;
 
     muteInternal();
@@ -383,14 +501,14 @@
       const line = keyToLine[ch.key];
       if (!line) continue;
       log('changeLine(fallback)', { line, quantity: ch.quantity, key: ch.key });
-      await changeLineByIndex(line, ch.quantity, sectionsPayload);
+      await changeLineByIndex(line, ch.quantity);
     }
 
     return true;
   }
 
   async function verifyAndRepair(opts) {
-    const options = Object.assign({ usedFallback: false, sectionsPayload: null, changeResults: [] }, opts || {});
+    const options = Object.assign({ usedFallback: false, changeResults: [] }, opts || {});
     const cartAfter = await getCart();
     const postPlan = buildPlan(cartAfter);
 
@@ -398,7 +516,7 @@
 
     if (postPlan.addonUnits <= postPlan.parentUnits || !postPlan.changes.length) {
       log('post-mutation verified');
-      checkDrawerDesync(cartAfter, options.sectionsPayload);
+      logAndHandleDrawerDesync(cartAfter, options.reason || 'verify');
       return true;
     }
 
@@ -419,11 +537,11 @@
 
     const fallbackReason = hadFailedMutation ? 'retry_after_failed_mutation' : 'retry_after_invalid_quota';
     log('retrying with line indexes', { filteredChanges, keyToLine, reason: fallbackReason });
-    await applyPlanWithLineIndexes(Object.assign({}, postPlan, { changes: filteredChanges }), keyToLine, options.sectionsPayload || getSectionsPayload());
-    await refreshCartUI(options.sectionsPayload || getSectionsPayload());
+    await applyPlanWithLineIndexes(Object.assign({}, postPlan, { changes: filteredChanges }), keyToLine);
+    await refreshCartUI('fallback_apply');
 
     // Verify once more and stop (no further retries to avoid loops)
-    return verifyAndRepair({ usedFallback: true, sectionsPayload: options.sectionsPayload });
+    return verifyAndRepair({ usedFallback: true });
   }
 
   function emitMessage(text) {
