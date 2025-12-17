@@ -33,7 +33,21 @@
     assign bl_locked_collection_title = bl_primary_collection | replace: '-', ' ' | replace: '_', ' ' | capitalize
   endif
 
-  assign addon_clean_title = addon_product.title | replace: ' — Block Legends Figure', '' | replace: ' – Block Legends Figure', '' | replace: ' - Block Legends Figure', '' | replace: '— Block Legends Figure', '' | replace: '– Block Legends Figure', '' | replace: '- Block Legends Figure', '' | replace: ' — Block Legends', '' | replace: ' – Block Legends', '' | replace: ' - Block Legends', '' | replace: '— Block Legends', '' | replace: '– Block Legends', '' | replace: '- Block Legends', '' | strip
+  assign addon_clean_title = addon_product.title
+  assign addon_clean_title = addon_clean_title
+    | replace: ' — Block Legends Figure', ''
+    | replace: ' – Block Legends Figure', ''
+    | replace: ' - Block Legends Figure', ''
+    | replace: '— Block Legends Figure', ''
+    | replace: '– Block Legends Figure', ''
+    | replace: '- Block Legends Figure', ''
+    | replace: ' — Block Legends', ''
+    | replace: ' – Block Legends', ''
+    | replace: ' - Block Legends', ''
+    | replace: '— Block Legends', ''
+    | replace: '– Block Legends', ''
+    | replace: '- Block Legends', ''
+    | strip
 -%}
 
 {%- capture bl_addon_card -%}
@@ -62,111 +76,122 @@
   >
     <div class='upsell__container{% if block.settings.toggle_element == "container" and block.settings.style != "add_button" %} upsell-toggle-btn{% endif %}'>
 
-      {% if block.settings.show_images %}
-        {%- liquid
-          if addon_featured_image != blank
-            assign addon_image = addon_featured_image
-          else
-            assign addon_image = addon_product.featured_image
-          endif
-        -%}
-        {% if addon_image != blank %}
-          <div class='upsell__image'>
-            <img
-              src="{{ addon_image | image_url: width: 500, height: 500, crop: 'center' }}"
-              alt="{{ addon_image.alt | escape }}"
-              class="upsell__image__img"
-              loading="lazy"
-              width="500"
-              height="500"
-            >
-          </div>
+      <div class="bl-addon-main">
+        {% if block.settings.show_images %}
+          {%- liquid
+            if addon_featured_image != blank
+              assign addon_image = addon_featured_image
+            else
+              assign addon_image = addon_product.featured_image
+            endif
+          -%}
+          {% if addon_image != blank %}
+            <div class='upsell__image'>
+              <img
+                src="{{ addon_image | image_url: width: 500, height: 500, crop: 'center' }}"
+                alt="{{ addon_image.alt | escape }}"
+                class="upsell__image__img"
+                loading="lazy"
+                width="500"
+                height="500"
+              >
+            </div>
+          {% endif %}
         {% endif %}
-      {% endif %}
 
-      <div class='upsell__content{% if block.settings.hide_compare_price %} hide-compare-price{% endif %}'>
-        <div class='upsell__title'>
-          <h3>{{ addon_clean_title }}</h3>
+        <div class="bl-addon-body">
+          <div class='upsell__content{% if block.settings.hide_compare_price %} hide-compare-price{% endif %}'>
+            <div class='upsell__title'>
+              <h3>{{ addon_clean_title }}</h3>
 
-          {% if block.settings.price_position == 'next_to_title' %}
-            <div class='upsell__price'>
+              {% if block.settings.price_position == 'next_to_title' %}
+                <div class='upsell__price'>
+                  <span class='regular-price'>{{ addon_price | money }}</span>
+                  <span class='compare-price{% unless addon_compare_price > addon_price %} hidden{% endunless %}'>{{ addon_compare_price | money }}</span>
+                </div>
+              {% endif %}
+            </div>
+
+            {%- unless addon_description == blank -%}
+              <p class="upsell__desc">{{ addon_description }}</p>
+            {%- endunless -%}
+
+            <div class="bl-addon-meta">
+              <div class="bl-addon-controls" data-bl-addon-controls></div>
+              <div class="bl-addon-hint" data-bl-addon-hint></div>
+            </div>
+
+            {%- unless addon_product.has_only_default_variant -%}
+              <script type="application/json" data-bl-addon-variants>
+                [
+                  {%- for v in addon_product.variants -%}
+                    {
+                      "id": {{ v.id }},
+                      "title": {{ v.title | json }},
+                      "price": {{ v.price }},
+                      "compare_at_price": {{ v.compare_at_price | default: 0 }},
+                      "available": {{ v.available | json }},
+                      "image": {{ v.featured_image | default: addon_product.featured_image | image_url: width: 500, height: 500, crop: 'center' | json }}
+                    }{% unless forloop.last %},{% endunless %}
+                  {%- endfor -%}
+                ]
+              </script>
+            {%- endunless -%}
+          </div>
+        </div>
+
+        <div class="bl-addon-right">
+          {% if block.settings.price_position == 'separate' %}
+            <div class='upsell__price upsell__price--separate'>
               <span class='regular-price'>{{ addon_price | money }}</span>
               <span class='compare-price{% unless addon_compare_price > addon_price %} hidden{% endunless %}'>{{ addon_compare_price | money }}</span>
             </div>
           {% endif %}
+
+          {% if block.settings.style == 'toggle_switch' %}
+            <button class='upsell__toggle-switch toggle-switch{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+              <span class='toggle-switch__slider'>&nbsp;</span>
+            </button>
+          {% elsif block.settings.style == 'checkbox_1' %}
+            <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+              {% render 'checkbox-icons' %}
+            </button>
+          {% elsif block.settings.style == 'checkbox_2' %}
+            <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+              {% render 'material-icon', icon: 'add_circle', class: ' checkmark-unchecked' %}
+              {% render 'material-icon', icon: 'check_circle', filled: true, class: ' checkmark-checked' %}
+            </button>
+          {% elsif block.settings.style == 'plus_button' %}
+            <button class='upsell__plus-btn{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+              {% render 'material-icon', icon: 'add', class: ' checkmark-unchecked' %}
+              {% render 'material-icon', icon: 'check', filled: true, class: ' checkmark-checked' %}
+            </button>
+          {% else %}
+            <button
+              type="submit"
+              name="add"
+              class="upsell__add-btn button button--has-spinner"
+              form="{{ addon_form_id }}"
+              id="DisplayedSubmitBtn-{{ section.id }}-{{ block.id }}-addon"
+              {% if addon_product.first_available_variant.available == false %}disabled{% endif %}
+            >
+              <span>
+                {%- if addon_product.first_available_variant.available -%}
+                  {{ block.settings.add_btn_label }}
+                {%- else -%}
+                  {{ 'products.product.sold_out' | t }}
+                {%- endif -%}
+              </span>
+              <div class="loading-overlay__spinner">
+                <svg aria-hidden="true" focusable="false" class="spinner" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg">
+                  <circle class="path" fill="none" stroke-width="6" cx="33" cy="33" r="30"></circle>
+                </svg>
+              </div>
+            </button>
+          {% endif %}
         </div>
-
-        {%- unless addon_description == blank -%}
-          <p class="upsell__desc">{{ addon_description }}</p>
-        {%- endunless -%}
-
-        {%- unless addon_product.has_only_default_variant -%}
-          <script type="application/json" data-bl-addon-variants>
-            [
-              {%- for v in addon_product.variants -%}
-                {
-                  "id": {{ v.id }},
-                  "title": {{ v.title | json }},
-                  "price": {{ v.price }},
-                  "compare_at_price": {{ v.compare_at_price | default: 0 }},
-                  "available": {{ v.available | json }},
-                  "image": {{ v.featured_image | default: addon_product.featured_image | image_url: width: 500, height: 500, crop: 'center' | json }}
-                }{% unless forloop.last %},{% endunless %}
-              {%- endfor -%}
-            ]
-          </script>
-        {%- endunless -%}
-
-        {% if block.settings.price_position == 'separate' %}
-          <div class='upsell__price upsell__price--separate'>
-            <span class='regular-price'>{{ addon_price | money }}</span>
-            <span class='compare-price{% unless addon_compare_price > addon_price %} hidden{% endunless %}'>{{ addon_compare_price | money }}</span>
-          </div>
-        {% endif %}
       </div>
-
-      {% if block.settings.style == 'toggle_switch' %}
-        <button class='upsell__toggle-switch toggle-switch{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
-          <span class='toggle-switch__slider'>&nbsp;</span>
-        </button>
-      {% elsif block.settings.style == 'checkbox_1' %}
-        <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
-          {% render 'checkbox-icons' %}
-        </button>
-      {% elsif block.settings.style == 'checkbox_2' %}
-        <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
-          {% render 'material-icon', icon: 'add_circle', class: ' checkmark-unchecked' %}
-          {% render 'material-icon', icon: 'check_circle', filled: true, class: ' checkmark-checked' %}
-        </button>
-      {% elsif block.settings.style == 'plus_button' %}
-        <button class='upsell__plus-btn{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
-          {% render 'material-icon', icon: 'add', class: ' checkmark-unchecked' %}
-          {% render 'material-icon', icon: 'check', filled: true, class: ' checkmark-checked' %}
-        </button>
-      {% else %}
-        <button
-          type="submit"
-          name="add"
-          class="upsell__add-btn button button--has-spinner"
-          form="{{ addon_form_id }}"
-          id="DisplayedSubmitBtn-{{ section.id }}-{{ block.id }}-addon"
-          {% if addon_product.first_available_variant.available == false %}disabled{% endif %}
-        >
-          <span>
-            {%- if addon_product.first_available_variant.available -%}
-              {{ block.settings.add_btn_label }}
-            {%- else -%}
-              {{ 'products.product.sold_out' | t }}
-            {%- endif -%}
-          </span>
-          <div class="loading-overlay__spinner">
-            <svg aria-hidden="true" focusable="false" class="spinner" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg">
-              <circle class="path" fill="none" stroke-width="6" cx="33" cy="33" r="30"></circle>
-            </svg>
-          </div>
-        </button>
-      {% endif %}
-
+    
       <product-form{% if type == 'cart-drawer' %} data-is-cart-upsell='true'{% endif %} data-section="{{ section.id }}-{{ block.id }}-addon">
         {%- form 'product',
           addon_product,

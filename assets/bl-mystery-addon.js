@@ -134,14 +134,49 @@
     var r = String(rarity || '').toLowerCase();
     var anyKey = 'any';
     try { anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase(); } catch (e) { anyKey = 'any'; }
+
     var suffix = collectionName ? ' from ' + collectionName : '';
 
     if (!r || r === anyKey) return 'Get a random figure' + suffix + '.';
-    if (r === 'common') return 'Get a random Common figure' + suffix + '.';
-    if (r === 'rare') return 'Get a random Rare figure' + suffix + '.';
-    if (r === 'epic') return 'Get a random Epic figure' + suffix + '.';
-    if (r === 'legendary') return 'Get a random Legendary figure' + suffix + '.';
-    return 'Get a random figure' + suffix + '.';
+
+    var label = r.charAt(0).toUpperCase() + r.slice(1);
+    return 'Get a ' + label + ' figure' + suffix + '.';
+  }
+
+  function getNoticeEl(card) {
+    var el = document.querySelector('[data-bl-addon-notice]');
+    if (el) return el;
+
+    var container = null;
+    try { container = card.closest('.upsells, .bl-upsells, .upsells-block, [data-upsells-wrapper]'); } catch (e) {}
+
+    el = document.createElement('div');
+    el.setAttribute('data-bl-addon-notice', '');
+    el.className = 'bl-addon-notice';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('aria-atomic', 'true');
+    el.style.display = 'none';
+
+    if (container && container.parentNode) {
+      try { container.parentNode.insertBefore(el, container.nextSibling); return el; } catch (e2) {}
+    }
+
+    try { document.body.appendChild(el); } catch (e3) {}
+    return el;
+  }
+
+  function showNotice(card, text) {
+    var el = getNoticeEl(card);
+    if (!el) return;
+
+    el.textContent = text || '';
+    el.style.display = text ? 'block' : 'none';
+
+    if (el.__blHideTimer) clearTimeout(el.__blHideTimer);
+    el.__blHideTimer = setTimeout(function () {
+      el.style.display = 'none';
+    }, 5000);
   }
 
   function applyVariant(card, variants, variantId) {
@@ -200,16 +235,17 @@
   }
 
   function disableIneligibleOptions(card, variants, selectEl) {
-    if (!selectEl || !M || typeof M.fetchPoolAllPages !== 'function') return Promise.resolve();
+    if (!selectEl || !M || typeof M.fetchPoolAllPages !== 'function') return Promise.resolve(false);
 
     var locked = String(card.getAttribute('data-locked-collection') || '').trim();
-    if (!locked) return Promise.resolve();
+    if (!locked) return Promise.resolve(false);
 
     return M.fetchPoolAllPages(locked).then(function () {
-      if (typeof M.getPoolCounts !== 'function') return;
+      var switched = false;
+      if (typeof M.getPoolCounts !== 'function') return switched;
 
       var counts = M.getPoolCounts(locked);
-      if (!counts) return;
+      if (!counts) return switched;
 
       var min = Number((M.CFG && M.CFG.preferredMinPerRarity) || 0);
       var anyKey = String((M.CFG && M.CFG.anyRarityKey) || 'any');
@@ -244,8 +280,15 @@
           }
         }
 
-        if (fallback) selectEl.value = fallback;
+        if (fallback && fallback !== cur) {
+          selectEl.value = fallback;
+          switched = true;
+        }
       }
+
+      return switched;
+    }).catch(function () {
+      return false;
     });
   }
 
@@ -335,9 +378,12 @@
     // ensure variant map is ready, then eligibility, then apply
     (M && typeof M.fetchVariantMap === 'function' ? M.fetchVariantMap() : Promise.resolve())
       .then(function () { return disableIneligibleOptions(card, variants, selectEl); })
-      .then(function () {
+      .then(function (switched) {
         applyVariant(card, variants, selectEl ? selectEl.value : initialId);
         updateHint(card, selectEl);
+        if (switched) {
+          showNotice(card, 'Some rarities are not available for this figure right now. Switched to an available option.');
+        }
       })
       .catch(function () {
         applyVariant(card, variants, selectEl ? selectEl.value : initialId);
@@ -346,9 +392,12 @@
 
     if (selectEl) {
       selectEl.addEventListener('change', function () {
-        disableIneligibleOptions(card, variants, selectEl).then(function () {
+        disableIneligibleOptions(card, variants, selectEl).then(function (switched) {
           applyVariant(card, variants, selectEl.value);
           updateHint(card, selectEl);
+          if (switched) {
+            showNotice(card, 'Some rarities are not available for this figure right now. Switched to an available option.');
+          }
         });
       });
     }
