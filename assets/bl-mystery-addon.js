@@ -58,6 +58,7 @@
       '.upsell[data-upsell-addon="true"] .upsell__title h3{white-space:normal;word-break:normal;overflow-wrap:anywhere;margin:0;}',
 
       '.upsell[data-upsell-addon="true"] .bl-addon-right{display:flex;align-items:center;justify-content:flex-end;gap:.6rem;white-space:nowrap;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-price-wrap{display:flex;align-items:center;justify-content:center;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-right .upsell__price{margin:0;display:flex;align-items:center;justify-content:center;line-height:1;}',
       '.upsell[data-upsell-addon="true"] .bl-addon-right .upsell__price .regular-price{display:inline-block;line-height:1;margin:0;padding:0;font-weight:700;}',
       '.upsell[data-upsell-addon="true"] .upsell__price--separate{margin:0;}',
@@ -86,9 +87,16 @@
 
     var right = main.querySelector('.bl-addon-right');
     var price = card.querySelector('.upsell__price');
+    var priceWrap = right ? right.querySelector('.bl-addon-price-wrap') : null;
 
-    if (price && right && price.parentNode !== right) {
-      try { right.insertBefore(price, right.firstChild); } catch (e) {}
+    if (right && !priceWrap) {
+      priceWrap = document.createElement('div');
+      priceWrap.className = 'bl-addon-price-wrap';
+      try { right.insertBefore(priceWrap, right.firstChild); } catch (e) {}
+    }
+
+    if (price && priceWrap && price.parentNode !== priceWrap) {
+      try { priceWrap.appendChild(price); } catch (e) {}
     }
   }
 
@@ -236,15 +244,17 @@
     var compareEl = card.querySelector('.upsell__price .compare-price');
 
     if (priceEl && U && typeof U.money === 'function') {
-      priceEl.textContent = U.money(v.price, { moneyFormat: moneyFormat, currency: moneyCurrency });
+      var formatted = U.money(v.price, { moneyFormat: moneyFormat, currency: moneyCurrency });
+      if (priceEl.textContent !== formatted) priceEl.textContent = formatted;
     }
     if (compareEl && U && typeof U.money === 'function') {
       if (v.compare_at_price && v.compare_at_price > v.price) {
-        compareEl.textContent = U.money(v.compare_at_price, { moneyFormat: moneyFormat, currency: moneyCurrency });
-        compareEl.classList.remove('hidden');
+        var compareText = U.money(v.compare_at_price, { moneyFormat: moneyFormat, currency: moneyCurrency });
+        if (compareEl.textContent !== compareText) compareEl.textContent = compareText;
+        if (compareEl.classList.contains('hidden')) compareEl.classList.remove('hidden');
       } else {
-        compareEl.textContent = '';
-        compareEl.classList.add('hidden');
+        if (compareEl.textContent !== '') compareEl.textContent = '';
+        if (!compareEl.classList.contains('hidden')) compareEl.classList.add('hidden');
       }
     }
 
