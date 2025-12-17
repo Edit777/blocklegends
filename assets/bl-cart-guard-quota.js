@@ -55,6 +55,7 @@
   let latestCartSnapshot = null;
   let latestClassificationsByKey = {};
   let persistedMessage = null;
+  let guardMutated = false;
 
   function muteInternal() {
     internalMuteUntil = Date.now() + CFG.internalMuteMs;
@@ -522,6 +523,7 @@
     // Important: applying changes triggers cart mutation requests -> stable -> guard again
     // We mute internal stable events briefly to avoid loops.
     muteInternal();
+    guardMutated = true;
 
     const changeResults = [];
     log('mutation payload', { changes: plan.changes });
@@ -556,6 +558,7 @@
     if (!plan.changes || !plan.changes.length) return false;
 
     muteInternal();
+    guardMutated = true;
 
     for (const ch of plan.changes) {
       const line = keyToLine[ch.key];
@@ -571,6 +574,7 @@
     const options = Object.assign({ usedFallback: false, changeResults: [] }, opts || {});
     const cartAfter = await getCart();
     latestCartSnapshot = cartAfter;
+    const cartNowEmpty = !!(cartAfter && ((cartAfter.item_count === 0) || (Array.isArray(cartAfter.items) && cartAfter.items.length === 0)));
     const postPlan = buildPlan(cartAfter);
 
     if (cartAfter && Array.isArray(cartAfter.items)) {
@@ -583,9 +587,17 @@
 
     summarizePlan(postPlan, 'post-mutation snapshot');
 
+    if (guardMutated && cartNowEmpty) {
+      log('cart empty after guard mutation; refreshing drawer UI');
+      // When guard removes last items, drawer must re-render full empty-cart template.
+      await refreshCartUI('empty_after_guard');
+      guardMutated = false;
+    }
+
     if (postPlan.addonUnits <= postPlan.parentUnits || !postPlan.changes.length) {
       log('post-mutation verified');
       logAndHandleDrawerDesync(cartAfter, options.reason || 'verify');
+      guardMutated = false;
       return true;
     }
 
@@ -593,6 +605,7 @@
 
     if (options.usedFallback) {
       log('post-mutation quota still violated after fallback; giving up to avoid loop', postPlan);
+      guardMutated = false;
       return false;
     }
 
@@ -601,6 +614,7 @@
     const filteredChanges = postPlan.changes.filter((ch) => keyToLine[ch.key]);
     if (!filteredChanges.length) {
       log('no fallback candidates found; aborting retry');
+      guardMutated = false;
       return false;
     }
 
@@ -610,7 +624,9 @@
     await refreshCartUI('fallback_apply');
 
     // Verify once more and stop (no further retries to avoid loops)
-    return verifyAndRepair({ usedFallback: true });
+    const finalResult = await verifyAndRepair({ usedFallback: true });
+    guardMutated = false;
+    return finalResult;
   }
 
   function emitMessage(text, plan) {
