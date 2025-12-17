@@ -15,6 +15,7 @@
   var A = window.BL.mysteryAddon;
 
   var observer = null;
+  var moneyEnvLogged = false;
 
   function getAddonHandle() {
     try {
@@ -44,6 +45,21 @@
     if (!isDebug()) return;
     var args = Array.prototype.slice.call(arguments);
     try { console.log.apply(console, ['[BL Mystery Addon][debug]'].concat(args)); } catch (e) {}
+  }
+
+  function logMoneyEnvironment(card) {
+    if (moneyEnvLogged || !isDebug() || !U || typeof U.getMoneyEnvironment !== 'function') return;
+    var env = U.getMoneyEnvironment();
+    var moneyFormat = (card && card.getAttribute('data-money-format')) || env.moneyFormat;
+    var currency = (card && card.getAttribute('data-currency')) || env.currency;
+    var sample = typeof U.money === 'function' ? U.money(12345, { moneyFormat: moneyFormat, currency: currency }) : null;
+    debugLog('money-env', {
+      activeCurrency: currency,
+      formatSource: env && env.source,
+      moneyFormat: moneyFormat,
+      sample: sample
+    });
+    moneyEnvLogged = true;
   }
 
   function ensureCssOnce() {
@@ -90,6 +106,8 @@
     var v = variants.find(function (x) { return String(x.id) === String(variantId); }) || variants[0];
     if (!v) return;
 
+    logMoneyEnvironment(card);
+
     // keep data-id in sync (some themes read it)
     card.setAttribute('data-id', String(v.id));
 
@@ -104,14 +122,15 @@
     }
 
     // price
-    var moneyFormat = card.getAttribute('data-money-format') || (window.Shopify && window.Shopify.money_format) || '${{amount}}';
+    var moneyFormat = card.getAttribute('data-money-format') || null;
+    var moneyCurrency = card.getAttribute('data-currency') || null;
     var priceEl = card.querySelector('.upsell__price .regular-price');
     var compareEl = card.querySelector('.upsell__price .compare-price');
 
-    if (priceEl) priceEl.textContent = U.money(v.price, moneyFormat);
+    if (priceEl) priceEl.textContent = U.money(v.price, { moneyFormat: moneyFormat, currency: moneyCurrency });
     if (compareEl) {
       if (v.compare_at_price && v.compare_at_price > v.price) {
-        compareEl.textContent = U.money(v.compare_at_price, moneyFormat);
+        compareEl.textContent = U.money(v.compare_at_price, { moneyFormat: moneyFormat, currency: moneyCurrency });
         compareEl.classList.remove('hidden');
       } else {
         compareEl.textContent = '';
