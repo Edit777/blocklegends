@@ -170,8 +170,80 @@
     return document.querySelector('cart-drawer') || document.getElementById('CartDrawer');
   }
 
+  function isDrawerOpen() {
+    const drawer = getDrawerElement();
+    if (!drawer) return false;
+
+    const hasOpenAttr = (() => {
+      const attr = drawer.getAttribute('open');
+      const expanded = drawer.getAttribute('aria-expanded');
+      return attr === '' || attr === 'true' || expanded === 'true';
+    })();
+
+    const hasOpenClass = (() => {
+      const cl = drawer.classList || {};
+      return cl.contains?.('is-open') || cl.contains?.('active') || cl.contains?.('open') || cl.contains?.('animate');
+    })();
+
+    const ariaHidden = drawer.getAttribute('aria-hidden');
+    const visible = drawer.offsetParent !== null || (drawer.getBoundingClientRect && drawer.getBoundingClientRect().width > 0);
+    const bodyLocked = document.body && document.body.classList.contains('overflow-hidden');
+
+    return !!((hasOpenAttr || hasOpenClass || bodyLocked) && ariaHidden !== 'true' && visible);
+  }
+
   function getDrawerItemsElement() {
     return document.querySelector('cart-drawer-items');
+  }
+
+  function syncBodyScrollLock(drawerIsOpen) {
+    try {
+      if (!document || !document.body) return;
+      if (drawerIsOpen) {
+        document.body.classList.add('overflow-hidden');
+      } else {
+        document.body.classList.remove('overflow-hidden');
+      }
+    } catch (e) {}
+  }
+
+  function ensureDrawerOpenAfterPatch(drawerWasOpen) {
+    if (!drawerWasOpen) {
+      syncBodyScrollLock(isDrawerOpen());
+      return;
+    }
+
+    if (isDrawerOpen()) {
+      syncBodyScrollLock(true);
+      return;
+    }
+
+    const openCandidates = [
+      () => window.Shrine && window.Shrine.CartDrawer && typeof window.Shrine.CartDrawer.open === 'function' && window.Shrine.CartDrawer.open(),
+      () => {
+        const drawerEl = getDrawerElement();
+        if (drawerEl && typeof drawerEl.open === 'function') return drawerEl.open();
+        if (drawerEl && typeof drawerEl.show === 'function') return drawerEl.show();
+        return null;
+      },
+      () => {
+        const opener = document.querySelector('[data-cart-drawer-open]')
+          || document.querySelector('#cart-icon-bubble button')
+          || document.querySelector('#cart-icon-bubble a')
+          || document.querySelector('a[href="/cart"]');
+        if (opener) opener.dispatchEvent(new Event('click', { bubbles: true }));
+      }
+    ];
+
+    for (const attempt of openCandidates) {
+      try {
+        const result = attempt();
+        if (result !== undefined) break;
+      } catch (e) {}
+      if (isDrawerOpen()) break;
+    }
+
+    syncBodyScrollLock(isDrawerOpen());
   }
 
   function resolveSectionIdFromDom(el, fallbackId) {
@@ -199,10 +271,10 @@
       seen.add(id);
     }
 
-    const drawerEl = getDrawerElement();
-    if (drawerEl) {
-      const drawerSectionId = resolveSectionIdFromDom(drawerEl, 'cart-drawer');
-      const drawerSectionEl = drawerEl.closest('section[id^="shopify-section-"]');
+    const drawerEl = getDrawerElement() || document.querySelector('[data-cart-drawer], cart-drawer, #CartDrawer');
+    const drawerSectionEl = drawerEl ? drawerEl.closest('section[id^="shopify-section-"]') : document.querySelector('section[id*="cart-drawer"]');
+    if (drawerEl || drawerSectionEl) {
+      const drawerSectionId = resolveSectionIdFromDom(drawerSectionEl || drawerEl, 'cart-drawer');
       addTarget({ id: drawerSectionId, section: drawerSectionId, selector: drawerSectionEl ? `#${drawerSectionEl.id}` : null, target: drawerSectionEl || drawerEl, type: 'drawer' });
     }
 
@@ -210,6 +282,13 @@
     if (drawerItems) {
       const drawerItemsId = resolveSectionIdFromDom(drawerItems, 'cart-drawer');
       addTarget({ id: drawerItemsId, section: drawerItemsId, selector: drawerItems.id ? `#${drawerItems.id}` : null, target: drawerItems, type: 'items' });
+    }
+
+    const drawerFooter = (drawerEl && (drawerEl.querySelector('.cart-drawer__footer, .drawer__footer') || drawerEl.querySelector('.cart-drawer__totals, .cart-drawer__totals-container')))
+      || document.querySelector('.cart-drawer__footer, .drawer__footer, .cart-drawer__totals, .cart-drawer__totals-container');
+    if (drawerFooter) {
+      const footerId = resolveSectionIdFromDom(drawerFooter, resolveSectionIdFromDom(drawerEl, 'cart-drawer'));
+      addTarget({ id: footerId, section: footerId, selector: `#${drawerFooter.id || ''}`.trim() || null, target: footerId ? drawerFooter.closest?.(`#shopify-section-${footerId}`) || drawerFooter : drawerFooter, type: 'footer' });
     }
 
     const bubble = document.getElementById('cart-icon-bubble');
@@ -221,10 +300,11 @@
     return { sections: targets, sectionsUrl };
   }
 
-  function patchSections(sectionHtmls, sections) {
+  function patchSections(sectionHtmls, sections, meta) {
     if (!sectionHtmls || !sections || !sections.length) return false;
 
     let applied = false;
+    const patchedTypes = new Set();
 
     function findParsedSection(dom, secId) {
       return dom.getElementById(`shopify-section-${secId}`) || dom.querySelector(`#shopify-section-${secId}`) || dom.querySelector(`section[id^="shopify-section-${secId}"]`);
@@ -245,6 +325,7 @@
         if (parsedBubble) {
           liveContainer.outerHTML = parsedBubble.outerHTML;
           applied = true;
+          patchedTypes.add('bubble');
         }
         return;
       }
@@ -254,6 +335,7 @@
       if (parsedSection && liveSection) {
         liveSection.outerHTML = parsedSection.outerHTML;
         applied = true;
+        if (entry.type) patchedTypes.add(entry.type);
         return;
       }
 
@@ -268,11 +350,19 @@
 
       if (entry.type === 'drawer') {
         liveContainer.outerHTML = parsed.outerHTML || parsed.innerHTML || '';
+        patchedTypes.add('drawer');
       } else {
         liveContainer.innerHTML = parsed.innerHTML || '';
+        if (entry.type) patchedTypes.add(entry.type);
       }
       applied = true;
     });
+
+    if (meta && typeof meta === 'object') {
+      meta.applied = applied;
+      meta.patchedTypes = patchedTypes;
+      meta.patchedDrawer = patchedTypes.has('drawer');
+    }
 
     return applied;
   }
@@ -303,11 +393,12 @@
     const sectionHtmls = data && (data.sections || data);
     if (!sectionHtmls) return false;
 
-    const applied = patchSections(sectionHtmls, sections);
+    const meta = { patchedTypes: new Set() };
+    const applied = patchSections(sectionHtmls, sections, meta);
     if (applied) {
       log('sections applied', { source: sourceLabel, drawerExists: !!getDrawerElement(), itemsHost: !!getDrawerItemsElement() });
     }
-    return applied;
+    return meta;
   }
 
   async function refreshCartUI(reason) {
@@ -335,9 +426,9 @@
     if (!sections.length) return false;
 
     const sectionIds = sections.map((s) => s.section || s.id).filter(Boolean);
-    const applied = await requestAndApplySections(sectionIds, sections, sectionsUrl, reasonLabel || 'refresh');
+    const meta = await requestAndApplySections(sectionIds, sections, sectionsUrl, reasonLabel || 'refresh');
 
-    return applied;
+    return !!(meta && meta.applied);
   }
 
   BL.refreshCartUI = refreshCartUI;
@@ -555,6 +646,8 @@
   async function applyPlan(plan) {
     if (!plan.changes || !plan.changes.length) return false;
 
+    const drawerWasOpen = isDrawerOpen();
+
     // Important: applying changes triggers cart mutation requests -> stable -> guard again
     // We mute internal stable events briefly to avoid loops.
     muteInternal();
@@ -571,7 +664,9 @@
     const sectionsPayload = sectionIds.length ? { sections: sectionIds, sections_url: sectionsUrl } : null;
     let patchedSections = false;
     let fallbackSectionsApplied = false;
+    let patchedDrawer = false;
     let mutationIndicatedEmpty = false;
+    let fallbackMeta = null;
 
     // Apply sequentially to avoid race conditions with line indexing
     for (let i = 0; i < plan.changes.length; i++) {
@@ -584,9 +679,11 @@
         mutationIndicatedEmpty = true;
       }
 
-      if (res && res.ok && res.data && res.data.sections && sectionsPayload && !patchedSections) {
-        const applied = patchSections(res.data.sections, sections);
+      if (res && res.ok && res.data && res.data.sections && sectionsPayload) {
+        const meta = { patchedTypes: new Set() };
+        const applied = patchSections(res.data.sections, sections, meta);
         patchedSections = applied || patchedSections;
+        patchedDrawer = patchedDrawer || !!(meta && meta.patchedDrawer);
         if (applied) {
           log('sections applied from mutation response');
         }
@@ -594,8 +691,10 @@
     }
 
     if (sectionsPayload && sectionIds.length && !patchedSections) {
-      fallbackSectionsApplied = await requestAndApplySections(sectionIds, sections, sectionsUrl, 'mutation_fallback_fetch');
+      fallbackMeta = await requestAndApplySections(sectionIds, sections, sectionsUrl, 'mutation_fallback_fetch');
+      fallbackSectionsApplied = !!(fallbackMeta && fallbackMeta.applied);
       patchedSections = patchedSections || fallbackSectionsApplied;
+      patchedDrawer = patchedDrawer || !!(fallbackMeta && fallbackMeta.patchedDrawer);
       log('fallback section fetch attempted', { applied: fallbackSectionsApplied });
     }
 
@@ -606,11 +705,15 @@
       sectionsUrl,
       sectionIds,
       mutationIndicatedEmpty,
-      sectionsPatched: patchedSections || fallbackSectionsApplied
+      sectionsPatched: patchedSections || fallbackSectionsApplied,
+      drawerWasOpen,
+      patchedDrawer: patchedDrawer || !!(fallbackMeta && fallbackMeta.patchedDrawer)
     });
-    if (verified && !patchedSections) {
+    if (verified && (!patchedSections || !patchedDrawer)) {
       await refreshCartUI('applied_plan');
     }
+
+    ensureDrawerOpenAfterPatch(drawerWasOpen);
 
     return verified;
   }
@@ -632,7 +735,7 @@
   }
 
   async function verifyAndRepair(opts) {
-    const options = Object.assign({ usedFallback: false, changeResults: [], sections: null, sectionIds: [], sectionsUrl: null, mutationIndicatedEmpty: false, sectionsPatched: false }, opts || {});
+    const options = Object.assign({ usedFallback: false, changeResults: [], sections: null, sectionIds: [], sectionsUrl: null, mutationIndicatedEmpty: false, sectionsPatched: false, drawerWasOpen: false, patchedDrawer: false }, opts || {});
     const cartAfter = await getCart();
     latestCartSnapshot = cartAfter;
     const cartNowEmpty = !!(cartAfter && ((cartAfter.item_count === 0) || (Array.isArray(cartAfter.items) && cartAfter.items.length === 0)));
@@ -653,14 +756,18 @@
       const targets = (options.sections && options.sections.length) ? { sections: options.sections, sectionsUrl: options.sectionsUrl } : collectSectionTargets();
       const ids = (options.sectionIds && options.sectionIds.length) ? options.sectionIds : (targets.sections || []).map((s) => s.section || s.id).filter(Boolean);
       let applied = false;
+      let patchedDrawer = false;
       if (ids.length && targets.sections && targets.sections.length) {
-        applied = await requestAndApplySections(ids, targets.sections, targets.sectionsUrl, 'empty_after_guard');
+        const meta = await requestAndApplySections(ids, targets.sections, targets.sectionsUrl, 'empty_after_guard');
+        applied = !!(meta && meta.applied);
+        patchedDrawer = !!(meta && meta.patchedDrawer);
       }
-      if (!applied) {
+      if (!applied || !patchedDrawer) {
         await refreshCartUI('empty_after_guard');
       } else {
         log('drawer re-rendered after empty cart', { drawerExists: !!getDrawerElement(), bubbleExists: !!document.getElementById('cart-icon-bubble') });
       }
+      ensureDrawerOpenAfterPatch(options.drawerWasOpen);
       guardMutated = false;
     }
 
@@ -668,6 +775,7 @@
       log('post-mutation verified');
       logAndHandleDrawerDesync(cartAfter, options.reason || 'verify');
       guardMutated = false;
+      ensureDrawerOpenAfterPatch(options.drawerWasOpen);
       return true;
     }
 
@@ -675,6 +783,7 @@
 
     if (options.usedFallback) {
       log('post-mutation quota still violated after fallback; giving up to avoid loop', postPlan);
+      ensureDrawerOpenAfterPatch(options.drawerWasOpen);
       guardMutated = false;
       return false;
     }
@@ -684,6 +793,7 @@
     const filteredChanges = postPlan.changes.filter((ch) => keyToLine[ch.key]);
     if (!filteredChanges.length) {
       log('no fallback candidates found; aborting retry');
+      ensureDrawerOpenAfterPatch(options.drawerWasOpen);
       guardMutated = false;
       return false;
     }
@@ -694,7 +804,7 @@
     await refreshCartUI('fallback_apply');
 
     // Verify once more and stop (no further retries to avoid loops)
-    const finalResult = await verifyAndRepair({ usedFallback: true });
+    const finalResult = await verifyAndRepair({ usedFallback: true, drawerWasOpen: options.drawerWasOpen });
     guardMutated = false;
     return finalResult;
   }
