@@ -139,3 +139,30 @@
   object-position: center;
   display: block;
 }
+
+/* Mystery Add-On — align price with plus icon */
+.upsell[data-upsell-addon="true"] .bl-addon-right{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+}
+
+.upsell[data-upsell-addon="true"] .upsell__price{
+  display:flex;
+  align-items:center;
+  margin:0;
+  line-height:1;
+}
+
+.upsell[data-upsell-addon="true"] .upsell__price .regular-price{
+  display:inline-flex;
+  align-items:center;
+  line-height:1;
+}
+
+/* If needed (some themes push price down) */
+.upsell[data-upsell-addon="true"] .upsell__price,
+.upsell[data-upsell-addon="true"] .upsell__price *{
+  vertical-align:middle;
+}
