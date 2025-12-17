@@ -335,7 +335,7 @@
                                     <div class="cart-item__quantity-wrapper">
                                       {% if bl_lock_qty %}
                                         <div class="bl-locked-qty" data-bl-locked-qty="1">
-                                          <span class="bl-locked-qty__value">{{ item.quantity }}</span>
+                                          <span class="visually-hidden">{{ 'products.product.quantity.label' | t: product: item.product.title | escape }}: {{ item.quantity }}</span>
                                           <input type="hidden" name="updates[]" value="{{ item.quantity }}" id="Drawer-quantity-{{ item.index | plus: 1 }}" data-index="{{ item.index | plus: 1 }}">
                                         </div>
                                       {% else %}
