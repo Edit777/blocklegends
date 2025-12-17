@@ -81,59 +81,47 @@
 }
 
 /* =======================================================
-   MYTHICAL — BLOODY, CREEPY, BUT READABLE
-   Works whether you have .piht__hl-char spans or not.
+   MYTHICAL — SATURATED BLOOD RED WITH GOOEY DROPS
    ======================================================= */
 
 .piht__hl--mythical{
   position: relative;
   display: inline-block;
-  color:#b91c1c;
+  color:#b30014;
+  letter-spacing: -.02em;
   text-shadow:
-    0 0 6px rgba(239,68,68,.80),
-    0 0 16px rgba(127,29,29,.60),
-    0 6px 10px rgba(0,0,0,.45);
+    0 0 4px rgba(255,92,92,.8),
+    0 0 12px rgba(179,0,20,.9),
+    0 4px 10px rgba(0,0,0,.55);
+  filter: url(#piht-goo) drop-shadow(0 8px 12px rgba(0,0,0,.45));
   overflow: visible;
-  animation: bl-myth-flicker 2.8s ease-in-out infinite;
+  animation: bl-myth-glow 2.6s ease-in-out infinite;
 }
 
-/* subtle smear beneath the letters */
 .piht__hl--mythical::before{
   content:"";
   position:absolute;
-  inset:55% -8% -8%;
+  inset:62% -8% -10%;
   background:
-    radial-gradient(120% 100% at 20% 40%, rgba(248,113,113,.26) 0%, transparent 70%),
-    radial-gradient(90% 70% at 80% 40%, rgba(185,28,28,.35) 0%, transparent 75%),
-    linear-gradient(180deg, rgba(127,29,29,.70) 0%, rgba(76,5,5,.0) 100%);
-  opacity:.8;
+    radial-gradient(120% 90% at 18% 40%, rgba(255,92,92,.38) 0%, transparent 70%),
+    radial-gradient(90% 70% at 82% 35%, rgba(179,0,20,.45) 0%, transparent 75%),
+    linear-gradient(180deg, rgba(107,0,12,.85) 0%, rgba(59,0,7,0) 100%);
+  opacity:.9;
   filter: blur(2px);
   pointer-events:none;
-  animation: bl-myth-ooze 4.6s ease-in-out infinite;
 }
 
-/* thinner drips along the baseline */
 .piht__hl--mythical::after{
   content:"";
   position:absolute;
-  left:-6px;
-  right:-6px;
-  top:calc(100% - 3px);
-  height:18px;
+  left:-10%;
+  right:-10%;
+  top:74%;
+  height:24px;
+  background:radial-gradient(60% 100% at 50% 0%, rgba(255,92,92,.5) 0%, rgba(179,0,20,.0) 70%);
+  opacity:.75;
+  filter: blur(3px);
   pointer-events:none;
-  background:
-    linear-gradient(to bottom, rgba(248,113,113,.0) 0%, rgba(248,113,113,.90) 32%, rgba(127,29,29,.80) 80%, rgba(76,5,5,0) 100%),
-    linear-gradient(to bottom, rgba(127,29,29,.0) 0%, rgba(127,29,29,.85) 40%, rgba(76,5,5,.75) 85%, rgba(76,5,5,0) 100%);
-  background-size:
-    100% 10px,
-    8px 18px;
-  background-position:
-    0 0,
-    18% 0;
-  background-repeat:repeat-x;
-  border-radius:10px;
-  filter: drop-shadow(0 3px 4px rgba(0,0,0,.35));
-  animation: bl-myth-ooze 5.2s ease-in-out infinite reverse;
 }
 
 .piht__hl--mythical .piht__hl-char{ position:relative; }
@@ -142,66 +130,70 @@
   content:"";
   position:absolute;
   left:50%;
-  top:92%;
+  top:94%;
   width:5px;
   height:14px;
-  background:linear-gradient(180deg, rgba(248,113,113,.95) 0%, rgba(127,29,29,.88) 80%, rgba(76,5,5,0) 100%);
+  background:linear-gradient(180deg, rgba(255,92,92,.95) 0%, rgba(179,0,20,.92) 75%, rgba(59,0,7,0) 100%);
   border-radius:9999px;
   transform:translateX(-50%) scaleY(.9);
-  opacity:.8;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,.45));
-  animation: bl-myth-dribble 3.4s ease-in-out infinite;
-  animation-delay: calc(var(--piht-char-index, 1) * 95ms);
+  opacity:.9;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.5));
+  animation: bl-myth-drip 3.1s ease-in-out infinite;
+  animation-delay: calc(var(--piht-char-index, 1) * 90ms);
 }
 
-.piht__hl--mythical .piht__hl-char::after{
-  content:"";
+.piht__hl--mythical .piht__hl-drop{
   position:absolute;
-  left:50%;
-  bottom:4px;
-  width:9px;
-  height:9px;
-  background:radial-gradient(circle at 50% 40%, rgba(248,113,113,.9) 0%, rgba(127,29,29,.85) 55%, rgba(76,5,5,0) 100%);
-  border-radius:50%;
-  transform:translateX(-50%) scale(.85);
-  opacity:.65;
-  animation: bl-myth-bubble 2.6s ease-in-out infinite;
-  animation-delay: calc(var(--piht-char-index, 1) * 120ms);
+  width:.18em;
+  height:.18em;
+  border-radius:0 100% 100% 100%;
+  background-color: currentColor;
+  top:68%;
+  transform: translateY(0) scaleX(.9) rotate(45deg);
+  animation: bl-myth-drop 3s infinite both;
 }
 
-@keyframes bl-myth-flicker{
+.piht__hl--mythical .piht__hl-drop--1{ left:14%; }
+.piht__hl--mythical .piht__hl-drop--2{ left:38%; animation-delay:-.4s; }
+.piht__hl--mythical .piht__hl-drop--3{ left:55%; animation-delay:-1.3s; }
+.piht__hl--mythical .piht__hl-drop--4{ left:78%; animation-delay:-.8s; }
+.piht__hl--mythical .piht__hl-drop--5{ left:94%; animation-delay:-1.6s; }
+
+@keyframes bl-myth-glow{
   0%,100%{
     text-shadow:
-      0 0 6px rgba(239,68,68,.80),
-      0 0 16px rgba(127,29,29,.60),
-      0 6px 10px rgba(0,0,0,.45);
+      0 0 4px rgba(255,92,92,.85),
+      0 0 14px rgba(179,0,20,1),
+      0 4px 12px rgba(0,0,0,.55);
     transform:translateY(0);
   }
   45%{
     text-shadow:
-      0 0 10px rgba(248,113,113,.95),
-      0 0 20px rgba(185,28,28,.80),
-      0 10px 12px rgba(0,0,0,.55);
+      0 0 8px rgba(255,130,130,1),
+      0 0 20px rgba(220,20,40,.9),
+      0 6px 14px rgba(0,0,0,.6);
     transform:translateY(-1px);
   }
 }
 
-@keyframes bl-myth-ooze{
-  0%{ transform:translateY(-1px) scaleX(1); opacity:.82; }
-  50%{ transform:translateY(1px) scaleX(1.02); opacity:.92; }
-  100%{ transform:translateY(-1px) scaleX(1); opacity:.82; }
+@keyframes bl-myth-drip{
+  0%,100%{ transform:translateX(-50%) scaleY(.86); opacity:.8; }
+  35%{ transform:translateX(-50%) scaleY(1.05); opacity:1; }
+  70%{ transform:translateX(-50%) scaleY(.9); opacity:.85; }
 }
 
-/* per-letter dribble stretch */
-@keyframes bl-myth-dribble{
-  0%,100%{ transform:translateX(-50%) scaleY(.82); opacity:.70; }
-  40%{ transform:translateX(-50%) scaleY(1.08); opacity:.90; }
-  80%{ transform:translateX(-50%) scaleY(.9); opacity:.78; }
-}
-
-@keyframes bl-myth-bubble{
-  0%,100%{ transform:translateX(-50%) scale(.75); opacity:.55; }
-  50%{ transform:translateX(-50%) translateY(-3px) scale(1); opacity:.85; }
+@keyframes bl-myth-drop{
+  0%{
+    transform: translateY(0) scaleX(.9) rotate(45deg);
+    animation-timing-function: ease-out;
+  }
+  60%{
+    transform: translateY(130%) scaleX(.9) rotate(45deg);
+    animation-timing-function: ease-in;
+  }
+  80%,100%{
+    transform: translateY(60vh) scaleX(.9) rotate(45deg);
+  }
 }
 
 /* =======================================================
@@ -254,7 +246,7 @@
   .piht__hl--mythical::before,
   .piht__hl--mythical::after,
   .piht__hl--mythical .piht__hl-char::before,
-  .piht__hl--mythical .piht__hl-char::after{
+  .piht__hl--mythical .piht__hl-drop{
     animation:none !important;
     opacity:0 !important;
     height:0 !important;
