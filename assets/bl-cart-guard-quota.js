@@ -1,4 +1,5 @@
 (function () {
+  // Updated to harden quota enforcement: robust mutation responses, verification/retry with fallback, internal request tagging, and richer debug logging.
   window.BL = window.BL || {};
   const BL = window.BL;
 
@@ -108,7 +109,10 @@
   async function getCart() {
     const res = await fetch('/cart.js', {
       credentials: 'same-origin',
-      headers: { 'X-BL-INTERNAL': '1' }
+      headers: {
+        'X-BL-INTERNAL': '1',
+        [CFG.internalHeader]: '1'
+      }
     });
     return res.json();
   }
@@ -144,7 +148,10 @@
       body: JSON.stringify(body)
     });
 
-    if (!res.ok && debug) {
+    let data = null;
+    if (res.ok) {
+      try { data = await res.json(); } catch (e) {}
+    } else {
       try {
         const txt = await res.text();
         log('changeLineByKey failed', { status: res.status, statusText: res.statusText, body: txt });
@@ -153,7 +160,8 @@
       }
     }
 
-    return res;
+    log('changeLineByKey response', { key: lineKey, quantity, status: res.status, ok: res.ok });
+    return { ok: res.ok, status: res.status, data };
   }
 
   async function changeLineByIndex(lineIndex, quantity, sectionsPayload) {
@@ -170,7 +178,10 @@
       body: JSON.stringify(body)
     });
 
-    if (!res.ok && debug) {
+    let data = null;
+    if (res.ok) {
+      try { data = await res.json(); } catch (e) {}
+    } else {
       try {
         const txt = await res.text();
         log('changeLineByIndex failed', { status: res.status, statusText: res.statusText, body: txt });
@@ -179,7 +190,8 @@
       }
     }
 
-    return res;
+    log('changeLineByIndex response', { line: lineIndex, quantity, status: res.status, ok: res.ok });
+    return { ok: res.ok, status: res.status, data };
   }
 
   function mapKeyToLine(cart) {
@@ -189,6 +201,15 @@
       map[item && item.key] = idx + 1; // Shopify line index is 1-based
     });
     return map;
+  }
+
+  function summarizePlan(plan, label) {
+    if (!debug || !plan) return;
+    log(label || 'plan', {
+      parentUnits: plan.parentUnits,
+      addonUnits: plan.addonUnits,
+      changes: plan.changes
+    });
   }
 
   // Build an action plan based on current cart snapshot
@@ -258,13 +279,17 @@
     // We mute internal stable events briefly to avoid loops.
     muteInternal();
 
+    const changeResults = [];
+    log('mutation payload', { changes: plan.changes, sectionsPayload: !!sectionsPayload });
+
     // Apply sequentially to avoid race conditions with line indexing
     for (const ch of plan.changes) {
       log('changeLine', ch);
-      await changeLineByKey(ch.key, ch.quantity, sectionsPayload);
+      const res = await changeLineByKey(ch.key, ch.quantity, sectionsPayload);
+      changeResults.push({ key: ch.key, ok: !!(res && res.ok), status: res && res.status });
     }
 
-    const verified = await verifyAndRepair({ usedFallback: false, sectionsPayload });
+    const verified = await verifyAndRepair({ usedFallback: false, sectionsPayload, changeResults });
     return verified;
   }
 
@@ -284,25 +309,34 @@
   }
 
   async function verifyAndRepair(opts) {
-    const options = Object.assign({ usedFallback: false, sectionsPayload: null }, opts || {});
+    const options = Object.assign({ usedFallback: false, sectionsPayload: null, changeResults: [] }, opts || {});
     const cartAfter = await getCart();
     const postPlan = buildPlan(cartAfter);
 
+    summarizePlan(postPlan, 'post-mutation snapshot');
+
     if (postPlan.addonUnits <= postPlan.parentUnits || !postPlan.changes.length) {
+      log('post-mutation verified');
       return true;
     }
+
+    const hadFailedMutation = Array.isArray(options.changeResults) && options.changeResults.some((r) => r && r.ok === false);
 
     if (options.usedFallback) {
       log('post-mutation quota still violated after fallback; giving up to avoid loop', postPlan);
       return false;
     }
 
-    // Retry once using line indexes from freshest cart snapshot
+    // Retry once using latest cart snapshot and line indexes
     const keyToLine = mapKeyToLine(cartAfter);
     const filteredChanges = postPlan.changes.filter((ch) => keyToLine[ch.key]);
-    if (!filteredChanges.length) return false;
+    if (!filteredChanges.length) {
+      log('no fallback candidates found; aborting retry');
+      return false;
+    }
 
-    log('retrying with line indexes', { filteredChanges, keyToLine });
+    const fallbackReason = hadFailedMutation ? 'retry_after_failed_mutation' : 'retry_after_invalid_quota';
+    log('retrying with line indexes', { filteredChanges, keyToLine, reason: fallbackReason });
     await applyPlanWithLineIndexes(Object.assign({}, postPlan, { changes: filteredChanges }), keyToLine, options.sectionsPayload || getSectionsPayload());
 
     // Verify once more and stop (no further retries to avoid loops)
@@ -347,7 +381,7 @@
       const cart = await getCart();
       const plan = buildPlan(cart);
 
-      log('cart classification', plan.classifications);
+      summarizePlan(plan, 'cart snapshot');
       log({ reason, txnId, parentUnits: plan.parentUnits, addonUnits: plan.addonUnits, changes: plan.changes });
 
       if (plan.changes.length) {
@@ -367,8 +401,15 @@
 
   // Run only at the correct time: after cart mutation + drawer settled
   document.addEventListener('bl:cart:stable', (e) => {
-    const reason = (e && e.detail && e.detail.reason) || 'stable';
-    const txnId = (e && e.detail && e.detail.txnId) ? Number(e.detail.txnId) : 0;
+    const detail = (e && e.detail) || {};
+    const reason = detail.reason || 'stable';
+    const txnId = detail.txnId ? Number(detail.txnId) : 0;
+
+    if (detail.internal) {
+      log('skip internal stable event', detail);
+      return;
+    }
+
     runGuard(reason, txnId);
   });
 
