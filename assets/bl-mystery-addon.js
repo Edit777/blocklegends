@@ -252,13 +252,16 @@ function ensureCssOnce() {
 
   function patchCartDrawerProductForm(pfEl, form) {
     if (!pfEl || !form) return;
-    if (pfEl.__blAddonPatched) return;
+    if (pfEl.dataset && pfEl.dataset.blAddonPatched === '1') return;
     if (pfEl.dataset && pfEl.dataset.isCartUpsell !== 'true') return;
+
+    var formHandle = (form.getAttribute('data-bl-handle') || '').trim();
+    if (formHandle && formHandle !== getAddonHandle()) return;
 
     var originalSubmit = typeof pfEl.onSubmit === 'function' ? pfEl.onSubmit.bind(pfEl) : null;
     if (!originalSubmit) return;
 
-    pfEl.__blAddonPatched = true;
+    try { pfEl.dataset.blAddonPatched = '1'; } catch (e) {}
 
     pfEl.onSubmit = function (evt) {
       var handle = getAddonHandle();
@@ -286,7 +289,14 @@ function ensureCssOnce() {
         });
 
         if (isDebug() && (!propsSnapshot._bl_assigned_variant_id || !propsSnapshot._bl_assignment_uid)) {
-          console.error('[BL Mystery][addon] MISSING PROPERTIES - add-to-cart will not be swap-ready');
+          console.error('[BL Mystery][addon] BLOCKED: missing swap properties');
+          logAddonDebug('blocked', {
+            role: 'addon',
+            handle: handle,
+            reason: 'missing-properties',
+            properties: propsSnapshot
+          });
+          return false;
         }
 
         return originalSubmit(evt);
@@ -583,6 +593,8 @@ function ensureCssOnce() {
       card.querySelector('form[data-type="add-to-cart-form"]') ||
       card.querySelector('form[action^="/cart/add"]') ||
       card.querySelector('form');
+
+    var productFormEl = card.querySelector('product-form');
 
     var locked = String(card.getAttribute('data-locked-collection') || '').trim();
     var parentHandle = String(card.getAttribute('data-parent-handle') || '').trim();
