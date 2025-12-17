@@ -29,13 +29,7 @@
   }
 
   function isDebug() {
-    try {
-      if (typeof localStorage !== 'undefined' && localStorage.getItem('bl_mystery_debug') === '1') return true;
-    } catch (e) {}
-    try {
-      if (window.location && String(window.location.search || '').indexOf('mystery_debug=1') !== -1) return true;
-    } catch (e2) {}
-    return false;
+    try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
   }
 
   function debugLog() {
