@@ -192,6 +192,7 @@
         .finally(() => {
           inFlight = Math.max(0, inFlight - 1);
           log('cart fetch done', { inFlight, url, txnId, internal });
+          document.dispatchEvent(new CustomEvent('bl:cart:mutated', { detail: { reason: 'cart_fetch_done', txnId, internal } }));
           // After cart request completes, the theme may still be re-rendering drawer sections.
           // Our drawer observer (if present) will extend the quiet window as needed.
           scheduleStable('cart_fetch_done');
@@ -238,6 +239,7 @@
       this.addEventListener('loadend', () => {
         inFlight = Math.max(0, inFlight - 1);
         log('cart xhr done', { inFlight, method: this.__bl_method, url, txnId, internal });
+        document.dispatchEvent(new CustomEvent('bl:cart:mutated', { detail: { reason: 'cart_xhr_done', txnId, internal } }));
         scheduleStable('cart_xhr_done');
       });
 

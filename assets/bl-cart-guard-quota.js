@@ -26,6 +26,10 @@
     // Removal policy when too many add-ons:
     // 'last' removes from last add-on line backwards (deterministic)
     removePolicy: 'last',
+
+    lastAddonKeyStorage: 'BL_LAST_ADDON_KEY',
+    lastAddonTsStorage: 'BL_LAST_ADDON_TS',
+    lastAddonMetaStorage: 'BL_LAST_ADDON_META'
   };
 
   const debug = (() => {
@@ -41,7 +45,10 @@
   let queued = false;
   let rerunTimer = null;
   let internalMuteUntil = 0;
-  let lastStableTxnId = 0;
+  let lastTxnId = 0;
+  let prevAddonKeys = new Set();
+  let lastMsgTs = 0;
+  let lastMsgSig = '';
 
   function muteInternal() {
     internalMuteUntil = Date.now() + CFG.internalMuteMs;
@@ -73,8 +80,28 @@
       return Object.keys(props)
         .filter((k) => props[k] !== undefined && props[k] !== null && props[k] !== '')
         .map((k) => `${k}:${props[k]}`)
-        .join(',');
+      .join(',');
     } catch (e) { return ''; }
+  }
+
+  function readLastAddonKey() {
+    try {
+      const key = localStorage.getItem(CFG.lastAddonKeyStorage);
+      return key || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeLastAddonKey(key, meta) {
+    try {
+      if (!key) return;
+      const ts = Date.now();
+      localStorage.setItem(CFG.lastAddonKeyStorage, key);
+      localStorage.setItem(CFG.lastAddonTsStorage, String(ts));
+      const payload = Object.assign({ ts, key }, meta || {});
+      localStorage.setItem(CFG.lastAddonMetaStorage, JSON.stringify(payload));
+    } catch (e) {}
   }
 
   function classifyItem(item) {
@@ -189,6 +216,38 @@
     return { sections: targets, sectionsUrl };
   }
 
+  function patchSections(sectionHtmls, sections) {
+    if (!sectionHtmls || !sections || !sections.length) return false;
+
+    let applied = false;
+    sections.forEach((entry) => {
+      const secId = entry.section || entry.id;
+      const html = sectionHtmls[secId];
+      if (!html) return;
+
+      const liveContainer = entry.target
+        || (entry.selector && ((document.getElementById(entry.id) && document.getElementById(entry.id).querySelector(entry.selector)) || document.querySelector(entry.selector)))
+        || document.getElementById(`shopify-section-${entry.id}`)
+        || document.getElementById(entry.id);
+      if (!liveContainer) return;
+
+      if (entry.selector) {
+        const dom = new DOMParser().parseFromString(html, 'text/html');
+        const parsed = dom.querySelector(entry.selector);
+        if (parsed) {
+          liveContainer.innerHTML = parsed.innerHTML || parsed.outerHTML;
+          applied = true;
+          return;
+        }
+      }
+
+      liveContainer.innerHTML = html;
+      applied = true;
+    });
+
+    return applied;
+  }
+
   async function refreshCartUI(reason) {
     const reasonLabel = reason || 'guard';
 
@@ -262,30 +321,9 @@
     const sectionHtmls = data && (data.sections || data);
     if (!sectionHtmls) return false;
 
-    sections.forEach((entry) => {
-      const secId = entry.section || entry.id;
-      const html = sectionHtmls[secId];
-      if (!html) return;
+    const applied = patchSections(sectionHtmls, sections);
 
-      const liveContainer = entry.target
-        || (entry.selector && ((document.getElementById(entry.id) && document.getElementById(entry.id).querySelector(entry.selector)) || document.querySelector(entry.selector)))
-        || document.getElementById(`shopify-section-${entry.id}`)
-        || document.getElementById(entry.id);
-      if (!liveContainer) return;
-
-      if (entry.selector) {
-        const dom = new DOMParser().parseFromString(html, 'text/html');
-        const parsed = dom.querySelector(entry.selector);
-        if (parsed) {
-          liveContainer.innerHTML = parsed.innerHTML || parsed.outerHTML;
-          return;
-        }
-      }
-
-      liveContainer.innerHTML = html;
-    });
-
-    return true;
+    return applied;
   }
 
   BL.refreshCartUI = refreshCartUI;
@@ -410,17 +448,25 @@
   }
 
   // Build an action plan based on current cart snapshot
-  function buildPlan(cart) {
+  function getPreferredAddonKeyFromCart(cart, addonLines) {
+    const storedKey = readLastAddonKey();
+    if (!storedKey) return null;
+    return addonLines.some((ln) => ln.key === storedKey) ? storedKey : null;
+  }
+
+  function buildPlan(cart, preClassifications) {
     const items = (cart && cart.items) ? cart.items : [];
-    const classifications = items.map((it) => classifyItem(it));
+    const classifications = preClassifications || items.map((it) => classifyItem(it));
 
     let parentUnits = 0;
-    let addonLines = []; // { key, qty, url }
+    let addonLines = []; // { key, qty, url, title }
+    const keyToItem = {};
 
     classifications.forEach((c, idx) => {
       const src = items[idx] || {};
+      if (src && src.key) keyToItem[src.key] = src;
       if (c.isAddonFinal) {
-        addonLines.push({ key: src.key, qty: c.quantity, url: c.url || '' });
+        addonLines.push({ key: src.key, qty: c.quantity, url: c.url || '', title: src.title || '' });
       } else {
         parentUnits += c.quantity;
       }
@@ -435,17 +481,27 @@
         addonUnits,
         changes: [],
         message: null,
-        classifications
+        classifications,
+        addonUnitsAfter: addonUnits,
+        preferredKeyUsed: false,
+        removed: []
       };
     }
 
     let toRemove = addonUnits - parentUnits;
     let changes = [];
 
+    const preferredKey = getPreferredAddonKeyFromCart(cart, addonLines);
+
     // Deterministic removal policy
-    const ordered = (CFG.removePolicy === 'last')
+    let ordered = (CFG.removePolicy === 'last')
       ? addonLines.slice().reverse()
       : addonLines.slice(); // 'first'
+
+    if (preferredKey) {
+      const preferred = addonLines.find((l) => l.key === preferredKey);
+      ordered = [preferred, ...ordered.filter((l) => l.key !== preferredKey)];
+    }
 
     for (const ln of ordered) {
       if (toRemove <= 0) break;
@@ -454,16 +510,34 @@
       const reduceBy = Math.min(ln.qty, toRemove);
       const newQty = ln.qty - reduceBy;
 
-      changes.push({ key: ln.key, quantity: newQty });
+      changes.push({
+        key: ln.key,
+        quantity: newQty,
+        fromQty: ln.qty,
+        toQty: newQty,
+        title: ln.title
+      });
       toRemove -= reduceBy;
+    }
+
+    const removedUnits = (addonUnits - parentUnits) - toRemove;
+    const addonUnitsAfter = addonUnits - removedUnits;
+    const removed = changes.map((ch) => ({ key: ch.key, title: ch.title, fromQty: ch.fromQty, toQty: ch.toQty }));
+
+    let message = `Add-ons can’t exceed parent items. You had ${addonUnits} add-ons and ${parentUnits} parent items, so add-ons were reduced to ${addonUnitsAfter}.`;
+    if (preferredKey) {
+      message += ' Reduced your most recently edited add-on.';
     }
 
     return {
       parentUnits,
       addonUnits,
       changes,
-      message: `Add-ons cannot exceed the number of items in your cart.`,
-      classifications
+      message,
+      classifications,
+      addonUnitsAfter,
+      preferredKeyUsed: !!preferredKey,
+      removed
     };
   }
 
@@ -477,15 +551,26 @@
     const changeResults = [];
     log('mutation payload', { changes: plan.changes });
 
+    const { sections, sectionsUrl } = collectSectionTargets();
+    const sectionIds = sections.map((s) => s.section || s.id).filter(Boolean);
+    const sectionsPayload = sectionIds.length ? { sections: sectionIds, sections_url: sectionsUrl } : null;
+    let patchedSections = false;
+
     // Apply sequentially to avoid race conditions with line indexing
-    for (const ch of plan.changes) {
+    for (let i = 0; i < plan.changes.length; i++) {
+      const ch = plan.changes[i];
       log('changeLine', ch);
-      const res = await changeLineByKey(ch.key, ch.quantity);
+      const res = await changeLineByKey(ch.key, ch.quantity, (i === plan.changes.length - 1) ? sectionsPayload : null);
       changeResults.push({ key: ch.key, ok: !!(res && res.ok), status: res && res.status });
+
+      if (res && res.ok && res.data && res.data.sections && sectionsPayload && !patchedSections) {
+        const applied = patchSections(res.data.sections, sections);
+        patchedSections = applied || patchedSections;
+      }
     }
 
     const verified = await verifyAndRepair({ usedFallback: false, changeResults });
-    if (verified) {
+    if (verified && !patchedSections) {
       await refreshCartUI('applied_plan');
     }
 
@@ -544,10 +629,33 @@
     return verifyAndRepair({ usedFallback: true });
   }
 
-  function emitMessage(text) {
+  function emitMessage(text, plan) {
     if (!text) return;
+
+    const planData = plan || {};
+    const sig = JSON.stringify({
+      parentUnits: planData.parentUnits,
+      addonBefore: planData.addonUnits,
+      addonAfter: planData.addonUnitsAfter,
+      removedKeys: (planData.removed || []).map((r) => r.key)
+    });
+
+    const now = Date.now();
+    if ((now - lastMsgTs < 1500) && sig === lastMsgSig) return;
+    lastMsgTs = now;
+    lastMsgSig = sig;
+
     document.dispatchEvent(new CustomEvent('bl:cartguard:message', {
-      detail: { type: 'warning', text }
+      detail: {
+        type: 'warning',
+        text,
+        parentUnits: planData.parentUnits,
+        addonUnitsBefore: planData.addonUnits,
+        addonUnitsAfter: planData.addonUnitsAfter,
+        removed: planData.removed || [],
+        reason: 'quota_exceeded',
+        preferredKeyUsed: !!planData.preferredKeyUsed
+      }
     }));
   }
 
@@ -561,17 +669,17 @@
         const delay = Math.max(80, internalMuteUntil - Date.now() + 30);
         rerunTimer = setTimeout(() => {
           rerunTimer = null;
-          runGuard('queued', txnId || lastStableTxnId);
+          runGuard('queued', txnId || lastTxnId);
         }, delay);
       }
       return;
     }
 
-    if (txnId && txnId < lastStableTxnId) {
+    if (txnId && txnId < lastTxnId) {
       return;
     }
     if (txnId) {
-      lastStableTxnId = txnId;
+      lastTxnId = txnId;
     }
 
     if (running) { queued = true; return; }
@@ -580,13 +688,35 @@
 
     try {
       const cart = await getCart();
-      const plan = buildPlan(cart);
+      const classifications = (cart && cart.items ? cart.items : []).map((it) => classifyItem(it));
+
+      const currentAddonKeys = [];
+      classifications.forEach((cls, idx) => {
+        if (!cls || !cls.isAddonFinal) return;
+        const item = cart.items[idx];
+        if (item && item.key) currentAddonKeys.push(item.key);
+      });
+
+      const currentAddonSet = new Set(currentAddonKeys);
+      const newKeys = currentAddonKeys.filter((k) => !prevAddonKeys.has(k));
+      if (newKeys.length) {
+        for (let i = currentAddonKeys.length - 1; i >= 0; i--) {
+          const candidate = currentAddonKeys[i];
+          if (newKeys.includes(candidate)) {
+            writeLastAddonKey(candidate, { source: 'cart_new_line', action: 'add' });
+            break;
+          }
+        }
+      }
+      prevAddonKeys = currentAddonSet;
+
+      const plan = buildPlan(cart, classifications);
 
       summarizePlan(plan, 'cart snapshot');
       log({ reason, txnId, parentUnits: plan.parentUnits, addonUnits: plan.addonUnits, changes: plan.changes });
 
       if (plan.changes.length) {
-        emitMessage(plan.message);
+        emitMessage(plan.message, plan);
         await applyPlan(plan);
       }
     } catch (e) {
@@ -595,7 +725,7 @@
       running = false;
       if (queued) {
         // Run once more after queued changes settle
-        setTimeout(() => runGuard('queued', lastStableTxnId), 180);
+        setTimeout(() => runGuard('queued', lastTxnId), 180);
       }
     }
   }
@@ -613,6 +743,72 @@
 
     runGuard(reason, txnId);
   });
+
+  document.addEventListener('bl:cart:mutated', (e) => {
+    const detail = (e && e.detail) || {};
+    if (detail.internal) return;
+
+    const reason = detail.reason || 'mutated';
+    const txnId = detail.txnId ? Number(detail.txnId) : 0;
+    runGuard(reason, txnId);
+  });
+
+  function findLineKeyWrapper(target) {
+    if (!target || !target.closest) return null;
+    return target.closest('[data-line-key]');
+  }
+
+  function deriveActionFromButton(el) {
+    if (!el) return null;
+    const name = (el.getAttribute && el.getAttribute('name')) || '';
+    const aria = (el.getAttribute && el.getAttribute('aria-label')) || '';
+    const label = `${name} ${aria}`.toLowerCase();
+
+    if (label.includes('plus') || label.includes('increase') || label.includes('add') || label.includes('increment')) return 'inc';
+    if (label.includes('minus') || label.includes('decrease') || label.includes('remove') || label.includes('decrement')) return 'dec';
+    return null;
+  }
+
+  function recordAddonIntent(lineKey, meta) {
+    if (!lineKey) return;
+    writeLastAddonKey(lineKey, meta);
+  }
+
+  function onAnyClickCapture(event) {
+    try {
+      const target = event.target;
+      const wrapper = findLineKeyWrapper(target);
+      if (!wrapper) return;
+
+      const drawer = getDrawerElement();
+      if (!drawer || !drawer.contains(wrapper)) return;
+
+      const btn = target && target.closest ? target.closest('button') : null;
+      const action = deriveActionFromButton(btn);
+
+      const lineKey = wrapper.getAttribute('data-line-key');
+      const meta = { source: 'drawer_click', action: action || 'set' };
+      recordAddonIntent(lineKey, meta);
+    } catch (e) {}
+  }
+
+  function onAnyChangeCapture(event) {
+    try {
+      const target = event.target;
+      const wrapper = findLineKeyWrapper(target);
+      if (!wrapper) return;
+
+      const drawer = getDrawerElement();
+      if (!drawer || !drawer.contains(wrapper)) return;
+
+      const lineKey = wrapper.getAttribute('data-line-key');
+      const meta = { source: 'drawer_change', action: 'set' };
+      recordAddonIntent(lineKey, meta);
+    } catch (e) {}
+  }
+
+  document.addEventListener('click', onAnyClickCapture, true);
+  document.addEventListener('change', onAnyChangeCapture, true);
 
   /*
    * How to test (with ?cart_guard_debug=1 for console logs)
