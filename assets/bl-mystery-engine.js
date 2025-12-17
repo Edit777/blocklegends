@@ -282,6 +282,11 @@
 
   function getHandleForForm(form) {
     var host = null;
+    try {
+      var explicit = (form && (form.getAttribute('data-bl-handle') || (form.dataset && form.dataset.blHandle))) || '';
+      if (explicit) return String(explicit || '').trim();
+    } catch (err0) {}
+
     try { host = form.closest('[data-handle]'); } catch (err) {}
     var h = (host && host.getAttribute('data-handle')) ? host.getAttribute('data-handle') : (U.productHandleFromUrl() || '');
     return String(h || '').trim();
