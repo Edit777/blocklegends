@@ -644,14 +644,34 @@
               %}
 
             {%- when 'variant_picker' -%}
-              {% render 'product-variant-picker', 
-                product: product, 
-                block: block, 
-                product_form_id: product_form_id, 
-                sizing_chart_append: sizing_chart_append, 
+              {% render 'product-variant-picker',
+                product: product,
+                block: block,
+                product_form_id: product_form_id,
+                sizing_chart_append: sizing_chart_append,
                 sizing_chart_html: sizing_chart_html,
                 has_filtering: has_filtering
               %}
+              {% if product.handle == 'mystery-figure' %}
+                <div class="bl-pref-collection" data-bl-pref-collection-wrap style="display:none;">
+                  <label class="bl-pref-collection__label" for="BLPreferredCollection">Preferred collection</label>
+                  <select id="BLPreferredCollection" class="bl-pref-collection__select" data-bl-pref-collection>
+                    {%- comment -%}
+                      Provide options. Use your existing source of collections.
+                      If you already have a curated list in theme settings, render that.
+                      Otherwise: render from a menu, or a metafield list, etc.
+                    {%- endcomment -%}
+
+                    {%- for link in linklists['all-collections'].links -%}
+                      {%- if link.type == 'collection_link' -%}
+                        <option value="{{ link.object.handle }}">{{ link.object.title }}</option>
+                      {%- endif -%}
+                    {%- endfor -%}
+                  </select>
+
+                  <div class="bl-pref-collection__notice" data-bl-pref-notice style="display:none;"></div>
+                </div>
+              {% endif %}
             {%- when 'buy_buttons' -%}
               {%- render 'buy-buttons',
                  block: block,
