@@ -14,6 +14,22 @@
   var M = window.BL.mysteryEngine;
   var A = window.BL.mysteryAddon;
 
+  var observer = null;
+
+  function getAddonHandle() {
+    try {
+      return M && M.CFG && M.CFG.mysteryAddonHandle ? String(M.CFG.mysteryAddonHandle) : 'mystery-add-on';
+    } catch (e) {
+      return 'mystery-add-on';
+    }
+  }
+
+  function isMysteryAddonCard(card) {
+    if (!card) return false;
+    var h = String(card.getAttribute('data-handle') || '').trim();
+    return h && h === getAddonHandle();
+  }
+
   function isDebug() {
     try {
       if (typeof localStorage !== 'undefined' && localStorage.getItem('bl_mystery_debug') === '1') return true;
@@ -40,7 +56,8 @@
       '.bl-addon-picker{margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}',
       '.bl-addon-select{min-width:140px;max-width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,.2);border-radius:10px;background:#fff;font-size:13px;line-height:1.2;}',
       '.bl-addon-status{font-size:12px;opacity:.9;}',
-      '.bl-addon-status.is-warn{opacity:1;}'
+      '.bl-addon-status.is-warn{opacity:1;}',
+      '.bl-addon-hint{font-size:12px;opacity:.9;}'
     ].join('');
     document.head.appendChild(st);
   }
@@ -138,9 +155,56 @@
     return (v.public_title || v.title || 'Option').trim() || 'Option';
   }
 
+  function getVariantRarity(variants, variantId) {
+    if (!variants || !variants.length) return '';
+    var v = variants.find(function (x) { return String(x.id) === String(variantId); });
+    if (!v) return '';
+
+    try {
+      if (typeof M.getVariantSelection === 'function') {
+        var sel = M.getVariantSelection(v.id);
+        if (sel && sel.rarity) return String(sel.rarity || '');
+      }
+    } catch (e) {}
+
+    try {
+      if (typeof M.parseSelectionFromText === 'function') {
+        var parsed = M.parseSelectionFromText(v.public_title || v.title || '');
+        if (parsed && parsed.rarity) return String(parsed.rarity || '');
+      }
+    } catch (e2) {}
+
+    return '';
+  }
+
+  function hintForRarity(rarity) {
+    var r = String(rarity || '').toLowerCase();
+    var anyKey = '';
+    try { anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase(); } catch (e) { anyKey = 'any'; }
+
+    if (r === anyKey) return 'Get a random figure from any rarity.';
+    if (r === 'common') return 'Get a random Common figure.';
+    if (r === 'rare') return 'Get a random Rare figure.';
+    if (r === 'epic') return 'Get a random Epic figure.';
+    if (r === 'legendary') return 'Get a random Legendary figure.';
+    return 'Get a random figure.';
+  }
+
+  function startObserver() {
+    if (observer || typeof MutationObserver === 'undefined' || !U || typeof U.debounce !== 'function') return;
+    try {
+      observer = new MutationObserver(U.debounce(function () {
+        A.init(document);
+      }, 80));
+      observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+    } catch (e) {}
+  }
+
   A.init = function (root) {
     root = root || document;
     if (!U || !M || !M.CFG) return;
+
+    startObserver();
 
     ensureCssOnce();
 
@@ -150,6 +214,8 @@
     cards.forEach(function (card) {
       if (card.__blAddonBound) return;
       card.__blAddonBound = true;
+
+      var isMysteryAddon = isMysteryAddonCard(card);
 
       var variantsScript = card.querySelector('script[data-bl-addon-variants]');
       if (!variantsScript) return;
@@ -213,6 +279,43 @@
 
       var selectEl = card.querySelector('[data-bl-addon-select]');
       var statusEl = card.querySelector('[data-bl-addon-status]');
+      var hintEl = card.querySelector('[data-bl-addon-hint]');
+
+      function hidePills() {
+        if (!isMysteryAddon) return;
+        var pillWrap = card.querySelector('.bl-addon-variants');
+        if (pillWrap) {
+          pillWrap.style.display = 'none';
+          pillWrap.setAttribute('data-bl-addon-pills-hidden', '1');
+        }
+      }
+
+      function ensureHint() {
+        if (!isMysteryAddon || !selectEl) return null;
+        if (hintEl && hintEl.parentNode) return hintEl;
+
+        hintEl = document.createElement('div');
+        hintEl.className = 'bl-addon-hint';
+        hintEl.setAttribute('data-bl-addon-hint', '1');
+
+        var parent = selectEl.parentNode;
+        if (parent) {
+          if (statusEl) {
+            parent.insertBefore(hintEl, statusEl);
+          } else {
+            parent.appendChild(hintEl);
+          }
+        }
+        return hintEl;
+      }
+
+      function updateHint() {
+        if (!isMysteryAddon) return;
+        var hintNode = ensureHint();
+        if (!hintNode) return;
+        var rarity = getVariantRarity(variants, selectEl ? selectEl.value : null);
+        hintNode.textContent = hintForRarity(rarity);
+      }
 
       function setStatus(msg, warn) {
         if (!statusEl) return;
@@ -285,11 +388,14 @@
         if (!selectEl) return;
         var vid = String(selectEl.value || '').trim();
         applyVariant(card, variants, vid);
+        updateHint();
       }
 
       // Initial selection
       var initialId = card.getAttribute('data-id') || (variants[0] && variants[0].id);
       if (selectEl && initialId) selectEl.value = String(initialId);
+
+      hidePills();
 
       // Ensure variant map is ready then disable + sync
       (M.fetchVariantMap ? M.fetchVariantMap() : Promise.resolve())
