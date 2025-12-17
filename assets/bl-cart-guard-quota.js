@@ -240,27 +240,33 @@
         || document.getElementById(entry.id);
       if (!liveContainer) return;
 
-      const targetTag = (liveContainer.tagName || '').toLowerCase();
-      const isDrawerItems = targetTag === 'cart-drawer-items' || liveContainer.classList?.contains('cart-items');
-      const isBubble = liveContainer.id === 'cart-icon-bubble';
-      const isDrawer = targetTag === 'cart-drawer';
-
-      if (entry.selector) {
-        const dom = new DOMParser().parseFromString(html, 'text/html');
-        const parsed = dom.querySelector(entry.selector);
-        if (parsed) {
-          liveContainer.innerHTML = parsed.innerHTML || parsed.outerHTML;
-          applied = true;
-          return;
-        }
-
+      const dom = new DOMParser().parseFromString(html, 'text/html');
+      const parsed = entry.selector ? dom.querySelector(entry.selector) : dom.body.firstElementChild;
+      if (!parsed) {
         log('refreshCartUI selector missing in HTML', { selector: entry.selector, id: entry.id, secId });
         console.warn('[BL:guard] cart UI refresh skipped; selector not found', entry.selector);
         return;
       }
 
+      const targetTag = (liveContainer.tagName || '').toLowerCase();
+      const isDrawerItems = targetTag === 'cart-drawer-items' || liveContainer.classList?.contains('cart-items');
+      const isBubble = liveContainer.id === 'cart-icon-bubble';
+      const isDrawer = targetTag === 'cart-drawer';
+
+      if (entry.selector && liveContainer.matches && liveContainer.matches(entry.selector)) {
+        liveContainer.replaceWith(parsed);
+        applied = true;
+        return;
+      }
+
+      if (entry.selector) {
+        liveContainer.innerHTML = parsed.innerHTML || '';
+        applied = true;
+        return;
+      }
+
       if (isDrawerItems || isBubble || isDrawer) {
-        liveContainer.innerHTML = html;
+        liveContainer.innerHTML = parsed.innerHTML || html;
         applied = true;
       }
     });
@@ -293,49 +299,23 @@
     if (!sections.length) return false;
 
     const sectionIds = sections.map((s) => s.section || s.id).filter(Boolean);
-    const payload = {
-      updates: {},
-      sections: sectionIds,
-      sections_url: sectionsUrl
-    };
+    const urlBase = sectionsUrl || (window.location ? window.location.pathname + window.location.search : '/');
+    const joiner = urlBase.includes('?') ? '&' : '?';
+    const fetchUrl = `${urlBase}${joiner}sections=${sectionIds.join(',')}`;
 
     let data = null;
     try {
-      const res = await fetch('/cart/change.js', {
-        method: 'POST',
+      const res = await fetch(fetchUrl, {
         credentials: 'same-origin',
         headers: {
-          'Content-Type': 'application/json',
           Accept: 'application/json',
           'X-BL-INTERNAL': '1',
           [CFG.internalHeader]: '1'
-        },
-        body: JSON.stringify(payload)
+        }
       });
-      if (res.ok) {
-        data = await res.json();
-      }
+      if (res.ok) data = await res.json();
     } catch (e) {
-      log('refreshCartUI POST error', e);
-    }
-
-    if (!data) {
-      const urlBase = sectionsUrl || (window.location ? window.location.pathname + window.location.search : '/');
-      const joiner = urlBase.includes('?') ? '&' : '?';
-      const fetchUrl = `${urlBase}${joiner}sections=${sectionIds.join(',')}`;
-      try {
-        const res = await fetch(fetchUrl, {
-          credentials: 'same-origin',
-          headers: {
-            Accept: 'application/json',
-            'X-BL-INTERNAL': '1',
-            [CFG.internalHeader]: '1'
-          }
-        });
-        if (res.ok) data = await res.json();
-      } catch (e) {
-        log('refreshCartUI GET error', e);
-      }
+      log('refreshCartUI GET error', e);
     }
 
     const sectionHtmls = data && (data.sections || data);
@@ -544,10 +524,7 @@
     const addonUnitsAfter = addonUnits - removedUnits;
     const removed = changes.map((ch) => ({ key: ch.key, title: ch.title, fromQty: ch.fromQty, toQty: ch.toQty }));
 
-    let message = `Add-ons can’t exceed parent items. You had ${addonUnits} add-ons and ${parentUnits} parent items, so add-ons were reduced to ${addonUnitsAfter}.`;
-    if (preferredKey) {
-      message += ' Reduced your most recently edited add-on.';
-    }
+    let message = WARNING_TEXT;
 
     return {
       parentUnits,
@@ -804,10 +781,10 @@
     return null;
   }
 
-  function recordAddonIntent(lineKey, meta) {
+  function recordAddonIntent(lineKey, meta, wrapper) {
     if (!lineKey) return;
-    if (isAddonKey(lineKey)) {
-      writeLastAddonKey(lineKey, meta);
+    if (isAddonWrapper(wrapper, lineKey)) {
+      writeLastAddonKey(lineKey, Object.assign({ ts: Date.now() }, meta));
     }
   }
 
@@ -825,7 +802,7 @@
 
       const lineKey = wrapper.getAttribute('data-line-key');
       const meta = { source: 'drawer_click', action: action || 'set' };
-      recordAddonIntent(lineKey, meta);
+      recordAddonIntent(lineKey, meta, wrapper);
     } catch (e) {}
   }
 
@@ -840,7 +817,7 @@
 
       const lineKey = wrapper.getAttribute('data-line-key');
       const meta = { source: 'drawer_change', action: 'set' };
-      recordAddonIntent(lineKey, meta);
+      recordAddonIntent(lineKey, meta, wrapper);
     } catch (e) {}
   }
 
@@ -854,6 +831,20 @@
     if (!lineKey) return false;
     const cls = latestClassificationsByKey[lineKey];
     return !!(cls && cls.isAddonFinal);
+  }
+
+  function isAddonWrapper(wrapper, lineKey) {
+    if (!wrapper) return false;
+    if (isAddonKey(lineKey)) return true;
+
+    const clsName = wrapper.className || '';
+    if (addonHandleList.length) {
+      const handleMatch = clsName.match(/cart-item--product-([\w-]+)/);
+      const handle = handleMatch ? handleMatch[1].toLowerCase() : '';
+      if (handle && addonHandleList.includes(handle)) return true;
+    }
+
+    return false;
   }
 
   function getDrawerQtyFromInput(wrapper) {
@@ -890,25 +881,36 @@
     return { parentUnits, addonUnits };
   }
 
+  const WARNING_TEXT = 'Add-ons can’t exceed the number of figures in your cart. Add another figure to increase add-ons.';
+
   function findDrawerMessageHost() {
     const drawer = getDrawerElement();
     if (!drawer) return null;
-    let host = drawer.querySelector('.bl-cart-guard-msg');
-    if (!host) {
-      host = document.createElement('div');
-      host.className = 'bl-cart-guard-msg';
-      host.style.display = 'none';
-      host.style.padding = '8px 12px';
-      host.style.background = '#fff3cd';
-      host.style.color = '#664d03';
-      host.style.fontSize = '0.9rem';
-      host.style.border = '1px solid #ffe69c';
-      host.style.borderRadius = '6px';
-      host.style.margin = '8px 16px';
-      const parent = drawer.querySelector('.drawer__inner') || drawer.querySelector('.drawer__scrollable') || drawer;
-      const anchor = parent.firstElementChild;
-      parent.insertBefore(host, anchor || parent.firstChild);
-    }
+
+    let host = drawer.querySelector('.bl-cart-guard-banner');
+    if (host) return host;
+
+    host = drawer.querySelector('.bl-cart-guard-msg');
+    if (host) return host;
+
+    host = document.createElement('div');
+    host.className = 'bl-cart-guard-banner bl-cart-guard-msg';
+    host.style.display = 'none';
+    host.style.padding = '8px 12px';
+    host.style.background = '#fff3cd';
+    host.style.color = '#664d03';
+    host.style.fontSize = '0.9rem';
+    host.style.border = '1px solid #ffe69c';
+    host.style.borderRadius = '6px';
+    host.style.margin = '8px 16px';
+    host.style.opacity = '0';
+    host.style.transition = 'opacity 200ms ease';
+    host.setAttribute('aria-live', 'polite');
+
+    const totals = drawer.querySelector('.cart-drawer__totals');
+    const parent = (totals && totals.parentElement) || drawer.querySelector('.drawer__footer') || drawer.querySelector('.drawer__inner') || drawer;
+    const anchor = totals ? totals.nextElementSibling : parent.firstElementChild;
+    parent.insertBefore(host, anchor || parent.firstChild);
     return host;
   }
 
@@ -916,13 +918,20 @@
   function showDrawerMessage(text) {
     const host = findDrawerMessageHost();
     if (!host || !text) return;
+
     host.textContent = text;
     host.style.display = 'block';
+    requestAnimationFrame(() => { host.classList?.add('is-visible'); host.style.opacity = '1'; });
 
     if (guardMsgTimer) clearTimeout(guardMsgTimer);
     guardMsgTimer = setTimeout(() => {
-      host.style.display = 'none';
-    }, 2500);
+      host.classList?.remove('is-visible');
+      host.style.opacity = '0';
+      setTimeout(() => {
+        host.style.display = 'none';
+        host.textContent = '';
+      }, 250);
+    }, 3800);
   }
 
   document.addEventListener('bl:cartguard:message', (e) => {
@@ -934,41 +943,71 @@
 
   document.addEventListener('bl:cart:stable', () => {
     const host = findDrawerMessageHost();
-    if (host) host.style.display = 'none';
+    if (host) {
+      host.classList?.remove('is-visible');
+      host.style.display = 'none';
+      host.style.opacity = '0';
+      host.textContent = '';
+    }
   });
+
+  function warnAndBlock(event, payload) {
+    log('preflight block', payload || {});
+    event.preventDefault();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    const text = WARNING_TEXT;
+    document.dispatchEvent(new CustomEvent('bl:cartguard:message', { detail: { type: 'warning', text } }));
+    showDrawerMessage(text);
+  }
 
   function preflightIntercept(event) {
     try {
       const target = event.target;
-      const btn = target && target.closest ? target.closest('button') : null;
-      const action = deriveActionFromButton(btn);
-      if (action !== 'inc') return;
-
       const wrapper = findLineKeyWrapper(target);
       if (!wrapper) return;
       const drawer = getDrawerElement();
       if (!drawer || !drawer.contains(wrapper)) return;
 
       const lineKey = wrapper.getAttribute('data-line-key');
-      if (!isAddonKey(lineKey)) return;
+      if (!isAddonWrapper(wrapper, lineKey)) return;
 
-      const qty = getDrawerQtyFromInput(wrapper);
-      const totals = calculatePreflightTotals(lineKey, qty);
-      if (!totals) return;
-      const projectedAddonUnits = totals.addonUnits + 1;
+      if (event.type === 'click') {
+        const btn = target && target.closest ? target.closest('button') : null;
+        const action = deriveActionFromButton(btn);
+        if (action !== 'inc') return;
 
-      if (projectedAddonUnits > totals.parentUnits) {
-        log('preflight block', { lineKey, projectedAddonUnits, parentUnits: totals.parentUnits });
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        const text = 'Add-ons can’t exceed the number of figures in your cart. Add another figure to increase add-ons.';
-        document.dispatchEvent(new CustomEvent('bl:cartguard:message', { detail: { type: 'warning', text } }));
-        showDrawerMessage(text);
+        const qty = getDrawerQtyFromInput(wrapper);
+        const totals = calculatePreflightTotals(lineKey, qty);
+        if (!totals) return;
+        const projectedAddonUnits = totals.addonUnits + 1;
+
+        if (projectedAddonUnits > totals.parentUnits) {
+          recordAddonIntent(lineKey, { source: 'preflight_click', action: 'inc_blocked' }, wrapper);
+          warnAndBlock(event, { lineKey, projectedAddonUnits, parentUnits: totals.parentUnits });
+        }
+      } else if (event.type === 'change') {
+        const input = target;
+        if (!input || input.tagName?.toLowerCase() !== 'input') return;
+        const newQty = Number(input.value);
+        if (!Number.isFinite(newQty)) return;
+
+        const totals = calculatePreflightTotals(lineKey, newQty);
+        if (!totals) return;
+        if (totals.addonUnits > totals.parentUnits) {
+          const otherAddonUnits = totals.addonUnits - newQty;
+          const allowedQty = Math.max(0, totals.parentUnits - otherAddonUnits);
+          if (newQty > allowedQty) {
+            input.value = allowedQty;
+            recordAddonIntent(lineKey, { source: 'preflight_change', action: 'set_blocked' }, wrapper);
+            warnAndBlock(event, { lineKey, newQty, allowedQty, parentUnits: totals.parentUnits });
+          }
+        }
       }
     } catch (e) {}
   }
 
   document.addEventListener('click', preflightIntercept, true);
+  document.addEventListener('change', preflightIntercept, true);
 
   /*
    * How to test (with ?cart_guard_debug=1 for console logs)
