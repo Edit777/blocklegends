@@ -26,6 +26,11 @@
     }
   };
 
+  // Shared debug helper (canonical entry point for other scripts)
+  window.BL.isDebug = function () {
+    return U.isDebug();
+  };
+
   U.log = function () { if (U.isDebug()) try { console.log.apply(console, arguments); } catch (e) {} };
   U.warn = function () { if (U.isDebug()) try { console.warn.apply(console, arguments); } catch (e) {} };
   U.err = function () { if (U.isDebug()) try { console.error.apply(console, arguments); } catch (e) {} };

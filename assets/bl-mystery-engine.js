@@ -20,13 +20,7 @@
   }
 
   function isDebug() {
-    try {
-      if (typeof localStorage !== 'undefined' && localStorage.getItem('bl_mystery_debug') === '1') return true;
-    } catch (e) {}
-    try {
-      if (typeof window !== 'undefined' && window.location && window.location.search.indexOf('mystery_debug=1') !== -1) return true;
-    } catch (e2) {}
-    return false;
+    try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
   }
 
   function debugLog() {
@@ -95,6 +89,7 @@
     pools: {},            // { collectionHandle: {common:[], rare:[], epic:[], legendary:[]} }
     poolPromises: {},     // { collectionHandle: Promise }
     variantIdToSelection: {},
+    variantIdToSku: {},
     variantMapPromise: null
   };
 
@@ -278,6 +273,13 @@
     input.value = val;
   }
 
+  function removeHidden(form, key) {
+    if (!form) return;
+    var name = 'properties[' + key + ']';
+    var input = form.querySelector('input[type="hidden"][name="' + name.replace(/"/g, '\\"') + '"]');
+    if (input && input.parentNode) input.parentNode.removeChild(input);
+  }
+
   function getHandleForForm(form) {
     var host = null;
     try { host = form.closest('[data-handle]'); } catch (err) {}
@@ -287,6 +289,62 @@
 
   function isTargetHandle(handle) {
     return handle === M.CFG.mysteryFigureHandle || handle === M.CFG.mysteryAddonHandle;
+  }
+
+  function generateUid() {
+    try {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    } catch (e) {}
+    return 'bl-uid-' + Math.random().toString(16).slice(2) + Date.now().toString(16);
+  }
+
+  function ensureAssignmentUid(form, signature) {
+    var currentSig = '';
+    var existing = '';
+    try {
+      currentSig = form.dataset.blAssignedSig || '';
+      existing = form.dataset.blAssignmentUid || '';
+    } catch (e) {}
+
+    var uid = existing;
+    if (!uid || currentSig !== signature) {
+      uid = generateUid();
+    }
+
+    try {
+      form.dataset.blAssignedSig = signature;
+      form.dataset.blAssignmentUid = uid;
+    } catch (e2) {}
+
+    return uid;
+  }
+
+  function buildVariantGid(variantId) {
+    if (!variantId) return '';
+    return 'gid://shopify/ProductVariant/' + String(variantId);
+  }
+
+  function collectProperties(form) {
+    var props = {};
+    try {
+      var inputs = form.querySelectorAll('input[name^="properties["]');
+      Array.prototype.slice.call(inputs || []).forEach(function (input) {
+        var name = input.getAttribute('name') || '';
+        var m = name.match(/^properties\[(.*)\]$/);
+        if (!m || m.length < 2) return;
+        var key = m[1];
+        props[key] = input.value || '';
+      });
+    } catch (e) {}
+    return props;
+  }
+
+  function getAssignedSku(variantId, chosen) {
+    if (chosen && chosen.sku) return chosen.sku;
+    if (chosen && chosen.variant_sku) return chosen.variant_sku;
+    var key = String(variantId || '');
+    if (key && state.variantIdToSku[key]) return state.variantIdToSku[key];
+    return '';
   }
 
   /* -----------------------------
@@ -557,6 +615,7 @@ function chooseAssignedProductAny(poolHandle) {
             if (j.handle === M.CFG.mysteryAddonHandle) sel.mode = M.CFG.modePreferredLabel;
 
             state.variantIdToSelection[String(v.id)] = { rarity: sel.rarity, mode: sel.mode };
+            state.variantIdToSku[String(v.id)] = v.sku || '';
           });
         });
 
@@ -587,6 +646,36 @@ function chooseAssignedProductAny(poolHandle) {
 
   function buildSignature(handle, mode, rarity, requestedCollection) {
     return [handle, mode, rarity, (requestedCollection || '')].join('|');
+  }
+
+  function applyDebugProperties(form, payload) {
+    var visibleKeys = [
+      'DEBUG Assignment UID',
+      'DEBUG Assigned Variant ID',
+      'DEBUG Assigned Variant GID',
+      'DEBUG Assigned SKU',
+      'DEBUG Requested Mode',
+      'DEBUG Requested Rarity',
+      'DEBUG Locked/Preferred Collection'
+    ];
+
+    if (!isDebug()) {
+      visibleKeys.forEach(function (key) { removeHidden(form, key); });
+      return;
+    }
+
+    upsertHidden(form, 'DEBUG Assignment UID', payload.assignmentUid || '');
+    upsertHidden(form, 'DEBUG Assigned Variant ID', payload.assignedVariantId || '');
+    upsertHidden(form, 'DEBUG Assigned Variant GID', payload.assignedVariantGid || '');
+    upsertHidden(form, 'DEBUG Assigned SKU', payload.assignedSku || '');
+    upsertHidden(form, 'DEBUG Requested Mode', payload.mode || '');
+    upsertHidden(form, 'DEBUG Requested Rarity', payload.rarity || '');
+    upsertHidden(form, 'DEBUG Locked/Preferred Collection', payload.collection || '');
+  }
+
+  function logDebugState(label, meta) {
+    if (!isDebug()) return;
+    debugLog(label, meta);
   }
 
   /* -----------------------------
@@ -641,7 +730,34 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
       // Reuse only when NOT forcing and signature matches and assigned exists
       var assignedInput = form.querySelector('[name="properties[' + M.CFG.propAssignedVariantId + ']"]');
-      if (!force && assignedInput && assignedInput.value && form.dataset.blAssignedSig === sig) {
+      var canonicalInput = form.querySelector('[name="properties[_bl_assigned_variant_id]"]');
+      if (!force && assignedInput && assignedInput.value && form.dataset.blAssignedSig === sig && canonicalInput && canonicalInput.value) {
+        var existingProps = collectProperties(form);
+        var reuseUid = ensureAssignmentUid(form, sig);
+        applyDebugProperties(form, {
+          assignmentUid: reuseUid,
+          assignedVariantId: existingProps._bl_assigned_variant_id || assignedInput.value,
+          assignedVariantGid: existingProps._bl_assigned_variant_gid || buildVariantGid(assignedInput.value),
+          assignedSku: existingProps._bl_assigned_sku || '',
+          mode: mode,
+          rarity: isAny ? M.CFG.anyRarityKey : rarity,
+          collection: requestedCollection
+        });
+        logDebugState('assignment-reuse', {
+          handle: handle,
+          role: handle === M.CFG.mysteryAddonHandle ? 'addon' : 'parent',
+          mode: mode,
+          rarity: rarity,
+          requestedCollection: requestedCollection,
+          signature: sig,
+          assignment_uid: reuseUid,
+          assigned_handle: existingProps[M.CFG.propAssignedHandle] || '',
+          assigned_title: existingProps[M.CFG.propAssignedTitle] || '',
+          assigned_variant_id: assignedInput.value,
+          assigned_variant_gid: existingProps._bl_assigned_variant_gid || buildVariantGid(assignedInput.value),
+          assigned_sku: existingProps._bl_assigned_sku || '',
+          properties: existingProps
+        });
         return true;
       }
 
@@ -715,6 +831,26 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         upsertHidden(form, M.CFG.propVisiblePoolUsed, poolHandleUsed);
         upsertHidden(form, M.CFG.propVisibleMode, mode);
 
+        var assignmentUid = ensureAssignmentUid(form, sig);
+        var assignedGid = buildVariantGid(chosen.variant_id);
+        var assignedSku = getAssignedSku(chosen.variant_id, chosen);
+
+        // Canonical BL properties
+        upsertHidden(form, '_bl_assignment_uid', assignmentUid);
+        upsertHidden(form, '_bl_assigned_variant_id', chosen.variant_id);
+        upsertHidden(form, '_bl_assigned_variant_gid', assignedGid);
+        upsertHidden(form, '_bl_assigned_sku', assignedSku || '');
+
+        applyDebugProperties(form, {
+          assignmentUid: assignmentUid,
+          assignedVariantId: chosen.variant_id,
+          assignedVariantGid: assignedGid,
+          assignedSku: assignedSku || '',
+          mode: mode,
+          rarity: isAny ? M.CFG.anyRarityKey : rarity,
+          collection: preferredCollectionSafe
+        });
+
         // Cache signature (includes variant id now)
         try { form.dataset.blAssignedSig = sig; } catch (e3) {}
 
@@ -728,14 +864,20 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           force: force
         });
 
-        debugLog('assignment', {
+        logDebugState('assignment', {
           handle: handle,
+          role: handle === M.CFG.mysteryAddonHandle ? 'addon' : 'parent',
           mode: mode,
           rarity: rarity,
           requestedCollection: requestedCollection,
           poolUsed: poolHandleUsed,
           variantId: currentVariantId,
-          assigned: chosen
+          signature: sig,
+          assignment_uid: assignmentUid,
+          assigned: chosen,
+          assigned_variant_gid: assignedGid,
+          assigned_sku: assignedSku || '',
+          properties: collectProperties(form)
         });
 
         return true;
@@ -855,6 +997,23 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           if (btn) btn.removeAttribute('disabled');
 
           if (!ok) return;
+
+          var propsSnapshot = collectProperties(form);
+          logDebugState('pre-submit', {
+            handle: handle,
+            role: handle === M.CFG.mysteryAddonHandle ? 'addon' : 'parent',
+            mode: propsSnapshot._bl_mode || propsSnapshot[M.CFG.propSelectedMode] || '',
+            rarity: propsSnapshot._bl_requested_rarity || propsSnapshot[M.CFG.propRequestedTier] || '',
+            requestedCollection: propsSnapshot._bl_locked_collection || propsSnapshot[M.CFG.propPreferredCollection] || '',
+            signature: form.dataset.blAssignedSig || '',
+            assignment_uid: propsSnapshot._bl_assignment_uid || form.dataset.blAssignmentUid || '',
+            assigned_handle: propsSnapshot[M.CFG.propAssignedHandle] || '',
+            assigned_title: propsSnapshot[M.CFG.propAssignedTitle] || '',
+            assigned_variant_id: propsSnapshot._bl_assigned_variant_id || propsSnapshot[M.CFG.propAssignedVariantId] || '',
+            assigned_variant_gid: propsSnapshot._bl_assigned_variant_gid || buildVariantGid(propsSnapshot[M.CFG.propAssignedVariantId] || ''),
+            assigned_sku: propsSnapshot._bl_assigned_sku || '',
+            properties: propsSnapshot
+          });
 
           // resubmit once, bypassing our own listener
           form.dataset.blMysteryBypass = '1';
