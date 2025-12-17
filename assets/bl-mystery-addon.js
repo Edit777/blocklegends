@@ -171,6 +171,13 @@
         if (locked) ensureHidden(form, M.CFG.propLockedCollectionLegacy || '_bl_locked_collection', locked);
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
+
+        form.addEventListener('submit', function () {
+          // Reinforce add-on markers before any submission (covers AJAX + native)
+          ensureHidden(form, '_bl_is_addon', '1');
+          if (locked) ensureHidden(form, M.CFG.propLockedCollectionLegacy || '_bl_locked_collection', locked);
+          if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
+        });
       }
 
       // Build compact selector UI

@@ -11,6 +11,8 @@
 
   const DRAWER_QUIET_MS = 300;
   const STABLE_DELAY_MS = 150;
+  const INTERNAL_HEADER = 'X-BL-CART-GUARD';
+  const INTERNAL_HEADER_VALUE = '1';
 
   // Cart request tracking
   let inFlight = 0;
@@ -46,15 +48,20 @@
     return /\/cart\/(add|change|update|clear)(\.js)?(\?|$)/i.test(url);
   }
 
-  function markPending(txnId) {
-    pendingCartUpdate = true;
-    if (txnId) pendingTxnId = txnId;
-    clearTimeout(pendingExpireTimer);
-    // Safety: drop pending state if something goes wrong
-    pendingExpireTimer = setTimeout(() => {
-      pendingCartUpdate = false;
-      pendingTxnId = 0;
-    }, 4000);
+  function markPending(txnId, internal) {
+    if (!internal) {
+      pendingCartUpdate = true;
+      if (txnId) pendingTxnId = txnId;
+    }
+
+    if (pendingCartUpdate) {
+      clearTimeout(pendingExpireTimer);
+      // Safety: drop pending state if something goes wrong
+      pendingExpireTimer = setTimeout(() => {
+        pendingCartUpdate = false;
+        pendingTxnId = 0;
+      }, 4000);
+    }
   }
 
   function markDrawerDirty() {
@@ -90,6 +97,20 @@
       log('stable', { reason, txnId: detailTxn });
       document.dispatchEvent(new CustomEvent('bl:cart:stable', { detail: { reason, txnId: detailTxn } }));
     }, STABLE_DELAY_MS);
+  }
+
+  function isInternalMutation(init) {
+    const headers = (init && init.headers) || {};
+
+    try {
+      if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+        return headers.get(INTERNAL_HEADER) === INTERNAL_HEADER_VALUE;
+      }
+    } catch (e) {}
+
+    const lower = (obj, key) => obj[key] || obj[String(key || '').toLowerCase()];
+    const val = lower(headers, INTERNAL_HEADER) || lower(headers, INTERNAL_HEADER.toLowerCase());
+    return String(val || '') === INTERNAL_HEADER_VALUE;
   }
 
   function findDrawerEl() {
@@ -147,14 +168,15 @@
       if (!isCartMutationUrl(url)) return origFetch(input, init);
 
       const txnId = ++mutationTxnCounter;
+      const internal = isInternalMutation(init);
       inFlight++;
-      markPending(txnId);
-      log('cart fetch start', { inFlight, url, txnId });
+      markPending(txnId, internal);
+      log('cart fetch start', { inFlight, url, txnId, internal });
 
       return origFetch(input, init)
         .finally(() => {
           inFlight = Math.max(0, inFlight - 1);
-          log('cart fetch done', { inFlight, url, txnId });
+          log('cart fetch done', { inFlight, url, txnId, internal });
           // After cart request completes, the theme may still be re-rendering drawer sections.
           // Our drawer observer (if present) will extend the quiet window as needed.
           scheduleStable('cart_fetch_done');
@@ -180,14 +202,16 @@
       const url = this.__bl_url || '';
       if (!isCartMutationUrl(url)) return origSend.apply(this, arguments);
 
+      const internal = isInternalMutation(this.__bl_init || this.__bl_headers);
+
       const txnId = ++mutationTxnCounter;
       inFlight++;
-      markPending(txnId);
-      log('cart xhr start', { inFlight, method: this.__bl_method, url, txnId });
+      markPending(txnId, internal);
+      log('cart xhr start', { inFlight, method: this.__bl_method, url, txnId, internal });
 
       this.addEventListener('loadend', () => {
         inFlight = Math.max(0, inFlight - 1);
-        log('cart xhr done', { inFlight, method: this.__bl_method, url, txnId });
+        log('cart xhr done', { inFlight, method: this.__bl_method, url, txnId, internal });
         scheduleStable('cart_xhr_done');
       });
 

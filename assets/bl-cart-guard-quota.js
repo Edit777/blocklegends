@@ -9,8 +9,9 @@
     // Best signal: line-item property on add-on lines
     propIsAddon: '_bl_is_addon', // value must be "1"
 
-    // Optional fallback: add-on product handle (only if you have one dedicated add-on product)
+    // Optional fallback: add-on product handles (dedicated add-on product(s))
     addonHandle: 'mystery-add-on',
+    addonHandles: [],
 
     // Debug toggle: ?cart_guard_debug=1
     debugParam: 'cart_guard_debug',
@@ -37,6 +38,7 @@
   // =========================
   let running = false;
   let queued = false;
+  let rerunTimer = null;
   let internalMuteUntil = 0;
   let lastStableTxnId = 0;
 
@@ -50,18 +52,57 @@
   // =========================
   // HELPERS
   // =========================
-  function isAddonItem(item) {
-    if (!item) return false;
+  const addonHandleList = (() => {
+    const handles = [];
+    if (CFG.addonHandle) handles.push(CFG.addonHandle);
+    if (Array.isArray(CFG.addonHandles)) handles.push(...CFG.addonHandles);
+    return handles
+      .filter(Boolean)
+      .map((h) => String(h).toLowerCase());
+  })();
 
-    // 1) Strong signal: property
-    const props = item.properties || {};
-    if (String(props[CFG.propIsAddon] || '') === '1') return true;
+  function extractHandle(url) {
+    const m = /\/products\/([^?/]+)/i.exec(String(url || ''));
+    return m ? decodeURIComponent(m[1]).toLowerCase() : '';
+  }
 
-    // 2) Fallback: URL contains /products/<handle>
-    const url = String(item.url || '');
-    if (CFG.addonHandle && url.includes('/products/' + CFG.addonHandle)) return true;
+  function summarizeProps(props) {
+    if (!props) return '';
+    try {
+      return Object.keys(props)
+        .filter((k) => props[k] !== undefined && props[k] !== null && props[k] !== '')
+        .map((k) => `${k}:${props[k]}`)
+        .join(',');
+    } catch (e) { return ''; }
+  }
 
-    return false;
+  function classifyItem(item) {
+    const props = item && item.properties ? item.properties : {};
+    const url = String((item && item.url) || '');
+    const handle = extractHandle(url);
+    const isAddonByProp = String(props[CFG.propIsAddon] || '') === '1';
+    const isAddonByHandle = addonHandleList.length ? addonHandleList.includes(handle) : false;
+    const isAddonFinal = isAddonByProp || isAddonByHandle;
+
+    if (debug && isAddonByProp && handle && addonHandleList.length && !isAddonByHandle) {
+      log('WARNING: item marked as add-on via property but handle mismatch (data corruption?)', {
+        key: item && item.key,
+        handle,
+        url,
+        props
+      });
+    }
+
+    return {
+      key: item && item.key,
+      quantity: Number((item && item.quantity) || 0),
+      url,
+      handleExtracted: handle,
+      isAddonByProp,
+      isAddonByHandle,
+      isAddonFinal,
+      propsSummary: summarizeProps(props)
+    };
   }
 
   async function getCart() {
@@ -87,19 +128,19 @@
   // Build an action plan based on current cart snapshot
   function buildPlan(cart) {
     const items = (cart && cart.items) ? cart.items : [];
+    const classifications = items.map((it) => classifyItem(it));
 
     let parentUnits = 0;
     let addonLines = []; // { key, qty, url }
 
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-
-      if (isAddonItem(it)) {
-        addonLines.push({ key: it.key, qty: Number(it.quantity || 0), url: it.url || '' });
+    classifications.forEach((c, idx) => {
+      const src = items[idx] || {};
+      if (c.isAddonFinal) {
+        addonLines.push({ key: src.key, qty: c.quantity, url: c.url || '' });
       } else {
-        parentUnits += Number(it.quantity || 0);
+        parentUnits += c.quantity;
       }
-    }
+    });
 
     const addonUnits = addonLines.reduce((s, x) => s + (x.qty || 0), 0);
 
@@ -109,7 +150,8 @@
         parentUnits,
         addonUnits,
         changes: [],
-        message: null
+        message: null,
+        classifications
       };
     }
 
@@ -136,7 +178,8 @@
       parentUnits,
       addonUnits,
       changes,
-      message: `Add-ons cannot exceed the number of items in your cart.`
+      message: `Add-ons cannot exceed the number of items in your cart.`,
+      classifications
     };
   }
 
@@ -168,6 +211,13 @@
   async function runGuard(reason, txnId) {
     // Ignore stable events immediately after the guard itself changed the cart
     if (isMuted() && reason !== 'queued') {
+      if (!rerunTimer) {
+        const delay = Math.max(80, internalMuteUntil - Date.now() + 30);
+        rerunTimer = setTimeout(() => {
+          rerunTimer = null;
+          runGuard('queued', txnId || lastStableTxnId);
+        }, delay);
+      }
       return;
     }
 
@@ -186,6 +236,7 @@
       const cart = await getCart();
       const plan = buildPlan(cart);
 
+      log('cart classification', plan.classifications);
       log({ reason, txnId, parentUnits: plan.parentUnits, addonUnits: plan.addonUnits, changes: plan.changes });
 
       if (plan.changes.length) {
@@ -198,7 +249,7 @@
       running = false;
       if (queued) {
         // Run once more after queued changes settle
-        setTimeout(() => runGuard('queued'), 180);
+        setTimeout(() => runGuard('queued', lastStableTxnId), 180);
       }
     }
   }
