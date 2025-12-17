@@ -76,18 +76,23 @@
     st.id = 'bl-addon-css';
     st.textContent = [
       '.upsell .upsell__image__img{aspect-ratio:1/1;object-fit:cover;width:100%;height:auto;}',
-      '.upsell[data-upsell-addon="true"] .upsell__container{align-items:center;row-gap:0.35rem;}',
+      '.upsell[data-upsell-addon="true"] .upsell__container{row-gap:0.35rem;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-main{display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;}',
       '.upsell[data-upsell-addon="true"] .upsell__image{align-self:stretch;display:flex;align-items:center;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-left{flex:1;min-width:0;display:flex;flex-direction:column;gap:0.35rem;}',
       '.upsell[data-upsell-addon="true"] .upsell__content{display:flex;flex-direction:column;gap:0.3rem;justify-content:center;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-right{margin-left:auto;display:flex;align-items:center;gap:0.45rem;white-space:nowrap;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-right .upsell__price{margin:0;line-height:1.25;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-right .upsell__price .regular-price{font-weight:700;}',
+      '.upsell[data-upsell-addon="true"] .bl-addon-meta{display:flex;flex-direction:column;gap:0.35rem;width:100%;margin-top:0.2rem;}',
       '.upsell[data-upsell-addon="true"] .upsell__variant-picker{display:none !important;}',
       '.bl-addon-topline{display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;}',
       '.bl-addon-title-stack{flex:1;min-width:0;display:flex;flex-direction:column;gap:0.2rem;}',
       '.bl-addon-topline .upsell__title{margin:0;line-height:1.25;}',
       '.bl-addon-helper{font-size:12px;line-height:1.35;opacity:.8;margin:0;}',
       '.bl-addon-hint{font-size:12px;opacity:.9;}',
-      '.bl-addon-topline .upsell__price{margin-left:auto;line-height:1.2;}',
       '.bl-addon-picker{margin-top:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}',
-      '.bl-addon-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px;}',
+      '.bl-addon-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}',
       '.bl-addon-select{min-width:128px;max-width:100%;padding:6px 9px;border:1px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;font-size:12px;line-height:1.25;min-height:34px;}',
       '.bl-addon-status{display:none !important;}',
       '.bl-addon-notice{display:none;margin-top:0.75rem;font-size:12px;line-height:1.4;padding:0.65rem 0.8rem;border-radius:10px;border:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.03);}',
@@ -342,7 +347,7 @@
       }
 
       function ensureHelperWrap(container) {
-        var target = container || card.querySelector('.upsell__content') || card;
+        var target = container || card.querySelector('.bl-addon-meta') || card.querySelector('.upsell__container') || card;
         if (!target) return null;
 
         var wrap = target.querySelector('.bl-addon-helper');
@@ -350,23 +355,15 @@
           wrap = document.createElement('div');
           wrap.className = 'bl-addon-helper';
           wrap.setAttribute('data-bl-addon-helper', '1');
-          target.insertBefore(wrap, target.firstChild || null);
+          target.appendChild(wrap);
         }
         return wrap;
       }
 
       function ensureHint() {
         if (!isMysteryAddon || !selectEl) return null;
-        var content = card.querySelector('.upsell__content') || card;
-        var topline = content ? content.querySelector('.bl-addon-topline') : null;
-        var titleStack = (topline && topline.querySelector('.bl-addon-title-stack')) || null;
-        if (!titleStack && topline) {
-          titleStack = document.createElement('div');
-          titleStack.className = 'bl-addon-title-stack';
-          topline.insertBefore(titleStack, topline.firstChild || null);
-        }
-
-        var helperWrap = ensureHelperWrap(titleStack || content);
+        var meta = card.querySelector('.bl-addon-meta');
+        var helperWrap = ensureHelperWrap(meta);
         if (!helperWrap) return null;
         if (hintEl && helperWrap.contains(hintEl)) return hintEl;
 
@@ -381,12 +378,37 @@
       }
 
       function ensureLayout() {
-        var content = card.querySelector('.upsell__content') || card;
-        if (!content) return;
+        var container = card.querySelector('.upsell__container') || card;
+        var content = card.querySelector('.upsell__content') || null;
+        if (!container || !content) return;
 
         var picker = card.querySelector('[data-bl-addon-picker]');
         var price = card.querySelector('.upsell__price');
         var title = content.querySelector('.upsell__title');
+        var actionBtn =
+          container.querySelector('.upsell__toggle-switch, .upsell__checkbox, .upsell__plus-btn, .upsell__add-btn');
+        var existingImage = container.querySelector('.upsell__image');
+
+        var main = container.querySelector('.bl-addon-main');
+        if (!main) {
+          main = document.createElement('div');
+          main.className = 'bl-addon-main';
+          container.insertBefore(main, container.firstChild);
+        }
+
+        var left = main.querySelector('.bl-addon-left');
+        if (!left) {
+          left = document.createElement('div');
+          left.className = 'bl-addon-left';
+          main.appendChild(left);
+        }
+
+        if (existingImage && existingImage.parentNode !== main) {
+          main.insertBefore(existingImage, main.firstChild);
+        }
+
+        if (content && content.parentNode !== left) left.appendChild(content);
+
         var topline = content.querySelector('.bl-addon-topline');
         var titleStack = topline ? topline.querySelector('.bl-addon-title-stack') : null;
 
@@ -403,19 +425,43 @@
         }
 
         if (title && title.parentNode !== titleStack) titleStack.appendChild(title);
-        if (price && price.parentNode !== topline) topline.appendChild(price);
 
-        var helperWrap = ensureHelperWrap(titleStack);
-        if (helperWrap && hintEl && hintEl.parentNode !== helperWrap) helperWrap.insertBefore(hintEl, helperWrap.firstChild || null);
+        var right = main.querySelector('.bl-addon-right');
+        if (!right) {
+          right = document.createElement('div');
+          right.className = 'bl-addon-right';
+          main.appendChild(right);
+        }
 
-        var controls = content.querySelector('.bl-addon-controls');
+        if (price && price.parentNode !== right) right.insertBefore(price, right.firstChild || null);
+        if (actionBtn && actionBtn.parentNode !== right) right.appendChild(actionBtn);
+
+        var meta = container.querySelector('.bl-addon-meta');
+        var formHost = container.querySelector('product-form, form');
+        if (!meta) {
+          meta = document.createElement('div');
+          meta.className = 'bl-addon-meta';
+          if (formHost) {
+            container.insertBefore(meta, formHost);
+          } else {
+            container.appendChild(meta);
+          }
+        } else if (formHost && meta.nextSibling !== formHost) {
+          container.insertBefore(meta, formHost);
+        }
+
+        var controls = meta.querySelector('.bl-addon-controls') || container.querySelector('.bl-addon-controls');
         if (!controls) {
           controls = document.createElement('div');
           controls.className = 'bl-addon-controls';
-          content.insertBefore(controls, topline.nextSibling || null);
+          meta.insertBefore(controls, meta.firstChild || null);
         }
 
+        if (controls.parentNode !== meta) meta.insertBefore(controls, meta.firstChild || null);
         if (picker && picker.parentNode !== controls) controls.appendChild(picker);
+
+        var helperWrap = ensureHelperWrap(meta);
+        if (helperWrap && hintEl && hintEl.parentNode !== helperWrap) helperWrap.appendChild(hintEl);
       }
 
       function updateHint() {
