@@ -24,6 +24,14 @@
   endif
 
   assign addon_form_id = type | append: 'upsell' | append: block.id | append: 'addon'
+
+  assign bl_locked_collection_title = ''
+  assign bl_locked_collection_obj = collections[bl_primary_collection]
+  if bl_locked_collection_obj != blank
+    assign bl_locked_collection_title = bl_locked_collection_obj.title
+  elsif bl_primary_collection != blank
+    assign bl_locked_collection_title = bl_primary_collection | replace: '-', ' ' | replace: '_', ' ' | capitalize
+  endif
 -%}
 
 {%- capture bl_addon_card -%}
@@ -39,6 +47,7 @@
     data-upsell-addon="true"
     data-parent-handle="{{ current_product.handle }}"
     data-locked-collection="{{ bl_primary_collection }}"
+    data-locked-collection-name="{{ bl_locked_collection_title }}"
     data-money-format="{{ shop.money_format }}"
     data-currency="{{ localization.country.currency.iso_code | default: cart.currency.iso_code | default: shop.currency }}"
     {% if block.settings.update_prices %}
