@@ -43,6 +43,17 @@
     display: block;
     opacity: 1;
   }
+
+  .cart-drawer .cart-item__quantity--locked quantity-input,
+  .cart-drawer .cart-item__quantity--locked .quantity {
+    display: none !important;
+  }
+  .cart-drawer .cart-item__quantity--locked [data-bl-locked-qty] {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 600;
+  }
 </style>
 
 <cart-drawer class="drawer{% if cart == empty %} is-empty{% endif %}{% if section.settings.test_mode %} active{% endif %} cart-drawer--desktop-width-{{ section.settings.desktop_width }} cart-drawer--mobile-width-{{ section.settings.mobile_width }}" data-type='modal'>
@@ -312,69 +323,82 @@
                                     </button>
                                   </cart-remove-button>
                                 </div>
-
+                                {% assign bl_lock_qty = false %}
+                                {% if item.product.handle == 'mystery-figure' or item.product.handle == 'mystery-add-on' %}
+                                  {% assign bl_lock_qty = true %}
+                                {% endif %}
+                                {% if item.properties._bl_is_addon == '1' or item.properties._bl_assignment_uid or item.properties._bl_assigned_variant_id %}
+                                  {% assign bl_lock_qty = true %}
+                                {% endif %}
                                 <div class='cart-drawer-item__quantity-and-prices{% if block.settings.prices_position == 'left' %} cart-drawer-item__quantity-and-prices--reverse{% endif %}{% if has_props != false %} cart-drawer-item__quantity-and-prices--has-props{% endif %}'>
-                                  <div class="cart-item__quantity">
+                                  <div class="cart-item__quantity{% if bl_lock_qty %} cart-item__quantity--locked{% endif %}">
                                     <div class="cart-item__quantity-wrapper">
-                                      <quantity-input 
-                                        class="quantity cart-quantity color-{{ block.settings.quantity_container_color_scheme }}{% if block.settings.quantity_round_btns %} cart-quantity--round-btns{% endif %}{% if block.settings.quantity_outline_btns %} cart-quantity--outline-btns{% endif %}"
-                                        style='
-                                          --font-size:{{ block.settings.quantity_font_size | divided_by: 10.0 }}rem;
-                                          --border-width:0.{{ block.settings.quantity_border_width }}rem;
-                                          --border-color:{{ block.settings.quantity_border_color }};
-                                          --corner-radius:{{ block.settings.quantity_corner_radius | divided_by: 10.0 }}rem;
-                                          --container-padding:{{ block.settings.quantity_container_padding }}em;
-                                          --input-padding:{{ block.settings.quantity_input_padding }}em;
-                                          --separator-opacity:{{ block.settings.quantity_separators_opacity | divided_by: 100.0 }};
-                                          --padding:{{ block.settings.quantity_padding }}em;
-                                          --icon-size:{{ block.settings.quantity_btns_icon_size | divided_by: 100.0 }}em;
-                                        '
-                                      >
-                                        <button class="quantity__button quantity__button--minus no-js-hidden color-{{ block.settings.quantity_btns_color_scheme }}" name="minus" type="button">
-                                          <span class="visually-hidden">
-                                            {{-
-                                              'products.product.quantity.decrease'
-                                              | t: product: item.product.title
-                                              | escape
-                                            -}}
-                                          </span>
-                                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill='currentColor'>
-                                            <path d="M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14.3-32 32-32l352 0c17.7 0 32 14.3 32 32z"/>
-                                          </svg>
-                                        </button>
-                                        <input
-                                          class="quantity__input"
-                                          type="number"
-                                          data-quantity-variant-id="{{ item.variant.id }}"
-                                          name="updates[]"
-                                          value="{{ item.quantity }}"
-                                          {% # theme-check-disable %}
-                                          data-cart-quantity="{{ cart | item_count_for_variant: item.variant.id }}"
-                                          min="{{ item.variant.quantity_rule.min }}"
-                                          {% if item.variant.quantity_rule.max != null %}
-                                            max="{{ item.variant.quantity_rule.max }}"
-                                          {% endif %}
-                                          step="{{ item.variant.quantity_rule.increment }}"
-                                          {% # theme-check-enable %}
-                                          aria-label="{{ 'products.product.quantity.input_label' | t: product: item.product.title | escape }}"
-                                          id="Drawer-quantity-{{ item.index | plus: 1 }}"
-                                          data-index="{{ item.index | plus: 1 }}"
+                                      {% if bl_lock_qty %}
+                                        <div class="bl-locked-qty" data-bl-locked-qty="1">
+                                          <span class="bl-locked-qty__value">{{ item.quantity }}</span>
+                                          <input type="hidden" name="updates[]" value="{{ item.quantity }}" id="Drawer-quantity-{{ item.index | plus: 1 }}" data-index="{{ item.index | plus: 1 }}">
+                                        </div>
+                                      {% else %}
+                                        <quantity-input 
+                                          class="quantity cart-quantity color-{{ block.settings.quantity_container_color_scheme }}{% if block.settings.quantity_round_btns %} cart-quantity--round-btns{% endif %}{% if block.settings.quantity_outline_btns %} cart-quantity--outline-btns{% endif %}"
+                                          style='
+                                            --font-size:{{ block.settings.quantity_font_size | divided_by: 10.0 }}rem;
+                                            --border-width:0.{{ block.settings.quantity_border_width }}rem;
+                                            --border-color:{{ block.settings.quantity_border_color }};
+                                            --corner-radius:{{ block.settings.quantity_corner_radius | divided_by: 10.0 }}rem;
+                                            --container-padding:{{ block.settings.quantity_container_padding }}em;
+                                            --input-padding:{{ block.settings.quantity_input_padding }}em;
+                                            --separator-opacity:{{ block.settings.quantity_separators_opacity | divided_by: 100.0 }};
+                                            --padding:{{ block.settings.quantity_padding }}em;
+                                            --icon-size:{{ block.settings.quantity_btns_icon_size | divided_by: 100.0 }}em;
+                                          '
                                         >
-                                        <button class="quantity__button quantity__button--plus no-js-hidden color-{{ block.settings.quantity_btns_color_scheme }}" name="plus" type="button">
-                                          <span class="visually-hidden">
-                                            {{-
-                                              'products.product.quantity.increase'
-                                              | t: product: item.product.title
-                                              | escape
-                                            -}}
-                                          </span>
-                                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill='currentColor'>
-                                            <path d="M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V224H48c-17.7 0-32 14.3-32 32s14.3 32 32 32H192V432c0 17.7 14.3 32 32 32s32-14.3 32-32V288H400c17.7 0 32-14.3 32-32s-14.3-32-32-32H256V80z"/>
-                                          </svg>
-                                        </button>
-                                      </quantity-input>
+                                          <button class="quantity__button quantity__button--minus no-js-hidden color-{{ block.settings.quantity_btns_color_scheme }}" name="minus" type="button">
+                                            <span class="visually-hidden">
+                                              {{-
+                                                'products.product.quantity.decrease'
+                                                | t: product: item.product.title
+                                                | escape
+                                              -}}
+                                            </span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill='currentColor'>
+                                              <path d="M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14.3-32 32-32l352 0c17.7 0 32 14.3 32 32z"/>
+                                            </svg>
+                                          </button>
+                                          <input
+                                            class="quantity__input"
+                                            type="number"
+                                            data-quantity-variant-id="{{ item.variant.id }}"
+                                            name="updates[]"
+                                            value="{{ item.quantity }}"
+                                            {% # theme-check-disable %}
+                                            data-cart-quantity="{{ cart | item_count_for_variant: item.variant.id }}"
+                                            min="{{ item.variant.quantity_rule.min }}"
+                                            {% if item.variant.quantity_rule.max != null %}
+                                              max="{{ item.variant.quantity_rule.max }}"
+                                            {% endif %}
+                                            step="{{ item.variant.quantity_rule.increment }}"
+                                            {% # theme-check-enable %}
+                                            aria-label="{{ 'products.product.quantity.input_label' | t: product: item.product.title | escape }}"
+                                            id="Drawer-quantity-{{ item.index | plus: 1 }}"
+                                            data-index="{{ item.index | plus: 1 }}"
+                                          >
+                                          <button class="quantity__button quantity__button--plus no-js-hidden color-{{ block.settings.quantity_btns_color_scheme }}" name="plus" type="button">
+                                            <span class="visually-hidden">
+                                              {{-
+                                                'products.product.quantity.increase'
+                                                | t: product: item.product.title
+                                                | escape
+                                              -}}
+                                            </span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill='currentColor'>
+                                              <path d="M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V224H48c-17.7 0-32-14.3-32-32s14.3-32 32-32l352 0c17.7 0 32-14.3 32 32z"/>
+                                            </svg>
+                                          </button>
+                                        </quantity-input>
+                                      {% endif %}
                                     </div>
-        
+
                                     <div
                                       id="CartDrawer-LineItemError-{{ item.index | plus: 1 }}"
                                       class="cart-item__error"
@@ -394,6 +418,8 @@
                                       </svg>
                                     </div>
                                   </div>
+                                  
+                                  <div class="cart-item__totals {{ block.settings.prices_position }}" role="cell">
                                   
                                   <div class="cart-item__totals {{ block.settings.prices_position }}" role="cell">
                                     <div class="cart-item__price-wrapper">
