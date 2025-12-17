@@ -91,12 +91,10 @@
   letter-spacing: -.02em;
   font-weight:800;
   font-size:1.05em;
-  text-shadow:
-    0 0 3px rgba(255,95,95,.95),
-    0 0 8px rgba(210,0,20,.95);
-  filter: url(#piht-goo);
+  text-shadow:none;
+  filter:none;
   overflow: visible;
-  animation: bl-myth-glow 2.6s ease-in-out infinite;
+  animation: none;
 }
 
 .piht__hl--mythical .piht__hl-char{
