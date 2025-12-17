@@ -76,18 +76,22 @@
     st.id = 'bl-addon-css';
     st.textContent = [
       '.upsell .upsell__image__img{aspect-ratio:1/1;object-fit:cover;width:100%;height:auto;}',
-      '.upsell[data-upsell-addon="true"] .upsell__container{align-items:flex-start;row-gap:0.25rem;}',
-      '.upsell[data-upsell-addon="true"] .upsell__content{display:flex;flex-direction:column;gap:0.2rem;}',
+      '.upsell[data-upsell-addon="true"] .upsell__container{align-items:center;row-gap:0.35rem;}',
+      '.upsell[data-upsell-addon="true"] .upsell__image{align-self:stretch;display:flex;align-items:center;}',
+      '.upsell[data-upsell-addon="true"] .upsell__content{display:flex;flex-direction:column;gap:0.3rem;justify-content:center;}',
       '.upsell[data-upsell-addon="true"] .upsell__variant-picker{display:none !important;}',
       '.bl-addon-topline{display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;}',
-      '.bl-addon-topline .upsell__title{flex:1;display:flex;align-items:center;gap:0.35rem;justify-content:flex-start;margin:0;}',
+      '.bl-addon-title-stack{flex:1;min-width:0;display:flex;flex-direction:column;gap:0.2rem;}',
+      '.bl-addon-topline .upsell__title{margin:0;line-height:1.25;}',
+      '.bl-addon-helper{font-size:12px;line-height:1.35;opacity:.8;margin:0;}',
+      '.bl-addon-hint{font-size:12px;opacity:.9;}',
       '.bl-addon-topline .upsell__price{margin-left:auto;line-height:1.2;}',
       '.bl-addon-picker{margin-top:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}',
+      '.bl-addon-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px;}',
       '.bl-addon-select{min-width:128px;max-width:100%;padding:6px 9px;border:1px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;font-size:12px;line-height:1.25;min-height:34px;}',
-      '.bl-addon-status{font-size:12px;opacity:.9;margin-top:4px;}',
-      '.bl-addon-status.is-warn{opacity:1;}',
-      '.bl-addon-helper{margin-top:6px;font-size:12px;line-height:1.35;opacity:.9;}',
-      '.bl-addon-hint{font-size:12px;opacity:.9;}'
+      '.bl-addon-status{display:none !important;}',
+      '.bl-addon-notice{display:none;margin-top:0.75rem;font-size:12px;line-height:1.4;padding:0.65rem 0.8rem;border-radius:10px;border:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.03);}',
+      '.bl-addon-notice.is-warn{background:rgba(255,199,0,.14);border-color:rgba(255,199,0,.4);color:#5a4200;}'
     ].join('');
     document.head.appendChild(st);
   }
@@ -320,13 +324,7 @@
           select.appendChild(opt);
         });
 
-        var status = document.createElement('div');
-        status.className = 'bl-addon-status';
-        status.setAttribute('data-bl-addon-status', '1');
-        status.style.display = 'none';
-
         picker.appendChild(select);
-        picker.appendChild(status);
 
         // insert under title/price area if possible
         var target = card.querySelector('.upsell__content') || card;
@@ -334,7 +332,6 @@
       }
 
       var selectEl = card.querySelector('[data-bl-addon-select]');
-      var statusEl = card.querySelector('[data-bl-addon-status]');
       var hintEl = card.querySelector('[data-bl-addon-hint]');
 
       function removePills() {
@@ -344,30 +341,32 @@
         U.qsa(card, '.bl-addon-pill').forEach(function (btn) { btn.remove(); });
       }
 
-      function ensureHelperWrap() {
-        var content = card.querySelector('.upsell__content') || card;
-        if (!content) return null;
+      function ensureHelperWrap(container) {
+        var target = container || card.querySelector('.upsell__content') || card;
+        if (!target) return null;
 
-        var wrap = content.querySelector('.bl-addon-helper');
+        var wrap = target.querySelector('.bl-addon-helper');
         if (!wrap) {
           wrap = document.createElement('div');
           wrap.className = 'bl-addon-helper';
           wrap.setAttribute('data-bl-addon-helper', '1');
-          var topline = content.querySelector('.bl-addon-topline');
-          if (topline && topline.nextSibling) {
-            content.insertBefore(wrap, topline.nextSibling);
-          } else if (topline) {
-            content.appendChild(wrap);
-          } else {
-            content.appendChild(wrap);
-          }
+          target.insertBefore(wrap, target.firstChild || null);
         }
         return wrap;
       }
 
       function ensureHint() {
         if (!isMysteryAddon || !selectEl) return null;
-        var helperWrap = ensureHelperWrap();
+        var content = card.querySelector('.upsell__content') || card;
+        var topline = content ? content.querySelector('.bl-addon-topline') : null;
+        var titleStack = (topline && topline.querySelector('.bl-addon-title-stack')) || null;
+        if (!titleStack && topline) {
+          titleStack = document.createElement('div');
+          titleStack.className = 'bl-addon-title-stack';
+          topline.insertBefore(titleStack, topline.firstChild || null);
+        }
+
+        var helperWrap = ensureHelperWrap(titleStack || content);
         if (!helperWrap) return null;
         if (hintEl && helperWrap.contains(hintEl)) return hintEl;
 
@@ -389,7 +388,7 @@
         var price = card.querySelector('.upsell__price');
         var title = content.querySelector('.upsell__title');
         var topline = content.querySelector('.bl-addon-topline');
-        var helperWrap = ensureHelperWrap();
+        var titleStack = topline ? topline.querySelector('.bl-addon-title-stack') : null;
 
         if (!topline) {
           topline = document.createElement('div');
@@ -397,14 +396,26 @@
           content.insertBefore(topline, content.firstChild);
         }
 
-        if (title && title.parentNode !== topline) topline.appendChild(title);
-        if (picker && picker.parentNode !== topline) topline.appendChild(picker);
+        if (!titleStack) {
+          titleStack = document.createElement('div');
+          titleStack.className = 'bl-addon-title-stack';
+          topline.insertBefore(titleStack, topline.firstChild || null);
+        }
+
+        if (title && title.parentNode !== titleStack) titleStack.appendChild(title);
         if (price && price.parentNode !== topline) topline.appendChild(price);
 
-        if (helperWrap) {
-          if (hintEl && hintEl.parentNode !== helperWrap) helperWrap.insertBefore(hintEl, helperWrap.firstChild || null);
-          if (statusEl && statusEl.parentNode !== helperWrap) helperWrap.appendChild(statusEl);
+        var helperWrap = ensureHelperWrap(titleStack);
+        if (helperWrap && hintEl && hintEl.parentNode !== helperWrap) helperWrap.insertBefore(hintEl, helperWrap.firstChild || null);
+
+        var controls = content.querySelector('.bl-addon-controls');
+        if (!controls) {
+          controls = document.createElement('div');
+          controls.className = 'bl-addon-controls';
+          content.insertBefore(controls, topline.nextSibling || null);
         }
+
+        if (picker && picker.parentNode !== controls) controls.appendChild(picker);
       }
 
       function updateHint() {
@@ -416,17 +427,53 @@
         hintNode.textContent = hintForRarity(rarity, collectionName);
       }
 
+      var noticeTimer = null;
+
+      function getNoticeEl() {
+        var host = card.closest('[id^="UpsellsBlock-"]') || card.closest('[class*="upsells-container"]') || card.parentElement;
+        if (!host) return null;
+        var notice = host.querySelector('[data-bl-addon-notice]') || (host.parentElement && host.parentElement.querySelector('[data-bl-addon-notice]'));
+        if (!notice) {
+          notice = document.createElement('div');
+          notice.className = 'bl-addon-notice';
+          notice.setAttribute('data-bl-addon-notice', '1');
+          notice.setAttribute('role', 'status');
+          notice.setAttribute('aria-live', 'polite');
+          notice.setAttribute('aria-atomic', 'true');
+          (host.parentElement || host).appendChild(notice);
+        }
+        return notice;
+      }
+
+      function hideNotice() {
+        var notice = getNoticeEl();
+        if (!notice) return;
+        notice.textContent = '';
+        notice.style.display = 'none';
+        notice.classList.remove('is-warn');
+      }
+
       function setStatus(msg, warn) {
-        if (!statusEl) return;
+        var notice = getNoticeEl();
+        if (!notice) return;
+
+        if (noticeTimer) {
+          clearTimeout(noticeTimer);
+          noticeTimer = null;
+        }
+
         if (!msg) {
-          statusEl.textContent = '';
-          statusEl.style.display = 'none';
-          statusEl.classList.remove('is-warn');
+          hideNotice();
           return;
         }
-        statusEl.textContent = String(msg);
-        statusEl.style.display = '';
-        statusEl.classList.toggle('is-warn', !!warn);
+
+        notice.textContent = String(msg);
+        notice.style.display = '';
+        notice.classList.toggle('is-warn', !!warn);
+
+        noticeTimer = setTimeout(function () {
+          hideNotice();
+        }, 5000);
       }
 
       function disableIneligibleOptions() {
