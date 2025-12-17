@@ -92,10 +92,9 @@
   font-weight:800;
   font-size:1.05em;
   text-shadow:
-    0 0 6px rgba(255,75,75,.95),
-    0 0 16px rgba(200,0,20,.95),
-    0 4px 10px rgba(0,0,0,.55);
-  filter: url(#piht-goo) drop-shadow(0 8px 12px rgba(0,0,0,.45));
+    0 0 3px rgba(255,95,95,.95),
+    0 0 8px rgba(210,0,20,.95);
+  filter: url(#piht-goo);
   overflow: visible;
   animation: bl-myth-glow 2.6s ease-in-out infinite;
 }
@@ -104,7 +103,7 @@
   position:relative;
   display:inline-block;
   animation: bl-myth-wobble 1.8s ease-in-out infinite;
-  animation-delay: calc(var(--piht-char-index, 1) * 70ms);
+  animation-delay: calc(var(--piht-char-index, 1) * 90ms);
 }
 
 
@@ -123,7 +122,7 @@
   background-color: currentColor;
   top:68%;
   transform: translateY(0) scaleX(.9) rotate(45deg);
-  animation: bl-myth-drop 3s infinite both;
+  animation: bl-myth-drop 2.6s infinite both;
 }
 
 .piht__hl--mythical .piht__hl-drop--1{ left:14%; }
@@ -135,17 +134,13 @@
 @keyframes bl-myth-glow{
   0%,100%{
     text-shadow:
-      0 0 8px rgba(255,60,60,.98),
-      0 0 18px rgba(200,0,20,.98),
-      0 4px 12px rgba(0,0,0,.55);
-    transform:translateY(0);
+      0 0 4px rgba(255,80,80,.98),
+      0 0 10px rgba(210,0,20,.98);
   }
   45%{
     text-shadow:
-      0 0 12px rgba(255,80,80,1),
-      0 0 24px rgba(210,0,25,.98),
-      0 6px 14px rgba(0,0,0,.6);
-    transform:translateY(-1px);
+      0 0 8px rgba(255,105,105,1),
+      0 0 16px rgba(215,0,25,.98);
   }
 }
 
@@ -160,16 +155,20 @@
     transform: translateY(0) scaleX(.9) rotate(45deg);
     animation-timing-function: ease-out;
   }
-  55%{
-    transform: translateY(120%) scaleX(.9) rotate(45deg);
+  38%{
+    transform: translateY(140%) scaleX(.9) rotate(45deg);
     animation-timing-function: ease-in;
   }
-  78%{
-    transform: translateY(220%) scaleX(.9) rotate(45deg);
-    opacity:.95;
+  62%{
+    transform: translateY(280%) scaleX(.9) rotate(45deg);
+    opacity:1;
+  }
+  88%{
+    transform: translateY(420%) scaleX(.9) rotate(45deg);
+    opacity:.92;
   }
   100%{
-    transform: translateY(320%) scaleX(.9) rotate(45deg);
+    transform: translateY(480%) scaleX(.9) rotate(45deg);
     opacity:0;
   }
 }
