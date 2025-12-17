@@ -1,0 +1,28 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "settings": {},
+      "blocks": {
+        "e7a28cbe-03cb-4c9d-a2c4-0e3e76ffb3e5": {
+          "settings": {
+            "picker_type": "combined",
+            "desktop_variant_picker": false
+          }
+        }
+      }
+    }
+  },
+  "context": {
+    "market": "international"
+  },
+  "parent": "product.json"
+}
