@@ -1,4 +1,5 @@
 (function () {
+  // Updated to reliably flag internal cart mutations, avoid feedback loops, and enrich debug logging for cart stability detection.
   window.BL = window.BL || {};
   const BL = window.BL;
 
@@ -22,6 +23,7 @@
   let pendingCartUpdate = false;
   let pendingExpireTimer = null;
   let pendingTxnId = 0;
+  let pendingInternal = false;
   let mutationTxnCounter = 0;
 
   // Drawer DOM quiet detection (covers section re-render timing)
@@ -49,10 +51,9 @@
   }
 
   function markPending(txnId, internal) {
-    if (!internal) {
-      pendingCartUpdate = true;
-      if (txnId) pendingTxnId = txnId;
-    }
+    pendingCartUpdate = true;
+    pendingInternal = !!internal;
+    if (txnId) pendingTxnId = txnId;
 
     if (pendingCartUpdate) {
       clearTimeout(pendingExpireTimer);
@@ -60,6 +61,7 @@
       pendingExpireTimer = setTimeout(() => {
         pendingCartUpdate = false;
         pendingTxnId = 0;
+        pendingInternal = false;
       }, 4000);
     }
   }
@@ -92,25 +94,38 @@
       clearTimeout(pendingExpireTimer);
 
       const detailTxn = pendingTxnId || txnId;
+      const detailInternal = pendingInternal;
       pendingTxnId = 0;
+      pendingInternal = false;
 
-      log('stable', { reason, txnId: detailTxn });
-      document.dispatchEvent(new CustomEvent('bl:cart:stable', { detail: { reason, txnId: detailTxn } }));
+      log('stable', { reason, txnId: detailTxn, internal: detailInternal });
+      document.dispatchEvent(new CustomEvent('bl:cart:stable', { detail: { reason, txnId: detailTxn, internal: detailInternal } }));
     }, STABLE_DELAY_MS);
   }
 
-  function isInternalMutation(init) {
-    const headers = (init && init.headers) || {};
+  function headerMatches(headers, name, value) {
+    if (!headers) return false;
 
     try {
       if (typeof Headers !== 'undefined' && headers instanceof Headers) {
-        return headers.get(INTERNAL_HEADER) === INTERNAL_HEADER_VALUE;
+        return headers.get(name) === value;
       }
     } catch (e) {}
 
+    try {
+      if (headers && typeof headers.get === 'function') {
+        return headers.get(name) === value;
+      }
+    } catch (e2) {}
+
     const lower = (obj, key) => obj[key] || obj[String(key || '').toLowerCase()];
-    const val = lower(headers, INTERNAL_HEADER) || lower(headers, INTERNAL_HEADER.toLowerCase());
-    return String(val || '') === INTERNAL_HEADER_VALUE;
+    const val = lower(headers, name) || lower(headers, String(name || '').toLowerCase());
+    return String(val || '') === value;
+  }
+
+  function isInternalMutation(input, init) {
+    const candidateHeaders = (init && init.headers) || (input && input.headers) || null;
+    return headerMatches(candidateHeaders, INTERNAL_HEADER, INTERNAL_HEADER_VALUE);
   }
 
   function findDrawerEl() {
@@ -168,7 +183,7 @@
       if (!isCartMutationUrl(url)) return origFetch(input, init);
 
       const txnId = ++mutationTxnCounter;
-      const internal = isInternalMutation(init);
+      const internal = isInternalMutation(input, init);
       inFlight++;
       markPending(txnId, internal);
       log('cart fetch start', { inFlight, url, txnId, internal });
@@ -191,18 +206,29 @@
     const XHR = window.XMLHttpRequest;
     const origOpen = XHR.prototype.open;
     const origSend = XHR.prototype.send;
+    const origSetRequestHeader = XHR.prototype.setRequestHeader;
 
     XHR.prototype.open = function (method, url) {
       this.__bl_url = url;
       this.__bl_method = method;
+      this.__bl_headers = this.__bl_headers || {};
       return origOpen.apply(this, arguments);
+    };
+
+    XHR.prototype.setRequestHeader = function (name, value) {
+      this.__bl_headers = this.__bl_headers || {};
+      this.__bl_headers[name] = value;
+      if (String(name || '').toLowerCase() === INTERNAL_HEADER.toLowerCase() && String(value) === INTERNAL_HEADER_VALUE) {
+        this.__bl_internal = true;
+      }
+      return origSetRequestHeader.apply(this, arguments);
     };
 
     XHR.prototype.send = function () {
       const url = this.__bl_url || '';
       if (!isCartMutationUrl(url)) return origSend.apply(this, arguments);
 
-      const internal = isInternalMutation(this.__bl_init || this.__bl_headers);
+      const internal = this.__bl_internal || headerMatches(this.__bl_headers, INTERNAL_HEADER, INTERNAL_HEADER_VALUE);
 
       const txnId = ++mutationTxnCounter;
       inFlight++;
