@@ -118,10 +118,10 @@
   }
 
   function getSectionsPayload() {
-    const payload = { sections: [], sections_url: window.location ? window.location.pathname : '/' };
+    const payload = { sections: [], sections_url: window.location ? window.location.pathname + window.location.search : '/' };
 
-    const cartDrawerId = document.getElementById('cart-drawer');
-    const drawerEl = cartDrawerId || document.querySelector('#CartDrawer') || document.querySelector('cart-drawer');
+    const cartDrawerSection = document.getElementById('shopify-section-cart-drawer');
+    const drawerEl = cartDrawerSection || document.getElementById('cart-drawer') || document.querySelector('#CartDrawer') || document.querySelector('cart-drawer');
     if (drawerEl) payload.sections.push('cart-drawer');
 
     if (document.getElementById('cart-icon-bubble')) payload.sections.push('cart-icon-bubble');
@@ -132,6 +132,86 @@
     if (document.getElementById('cart-live-region-text')) payload.sections.push('cart-live-region-text');
 
     return payload.sections.length ? payload : null;
+  }
+
+  async function refreshCartUI(sectionsPayload) {
+    const payload = sectionsPayload || getSectionsPayload();
+    if (!payload || !payload.sections || !payload.sections.length) return;
+
+    const urlBase = payload.sections_url || (window.location ? window.location.pathname + window.location.search : '/');
+    const joiner = urlBase.includes('?') ? '&' : '?';
+    const fetchUrl = `${urlBase}${joiner}sections=${payload.sections.join(',')}`;
+
+    try {
+      const res = await fetch(fetchUrl, {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+          'X-BL-INTERNAL': '1',
+          [CFG.internalHeader]: '1'
+        }
+      });
+      const json = await res.json();
+
+      payload.sections.forEach((sectionId) => {
+        const html = json && json[sectionId];
+        if (!html) return;
+
+        if (sectionId === 'cart-icon-bubble') {
+          const bubble = document.getElementById('cart-icon-bubble');
+          if (bubble) bubble.innerHTML = html;
+          return;
+        }
+
+        const wrapperId = `shopify-section-${sectionId}`;
+        const container = document.getElementById(wrapperId) || document.getElementById(sectionId);
+        if (container) {
+          container.innerHTML = html;
+        }
+      });
+    } catch (e) {
+      log('refreshCartUI error', e);
+    }
+  }
+
+  BL.refreshCartUI = refreshCartUI;
+
+  function getDrawerQty(selectorHandle) {
+    const drawer = document.querySelector('cart-drawer') || document.getElementById('CartDrawer');
+    if (!drawer) return null;
+
+    const safeHandle = window.CSS && window.CSS.escape ? window.CSS.escape(selectorHandle) : selectorHandle;
+    const item = drawer.querySelector(`.cart-item--product-${safeHandle}`);
+    if (!item) return null;
+
+    const input = item.querySelector('input[name="updates[]"]');
+    if (!input) return null;
+
+    const parsed = Number(input.value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function checkDrawerDesync(cart, sectionsPayload) {
+    if (!debug || !cart || !Array.isArray(cart.items)) return false;
+
+    let desynced = false;
+    cart.items.forEach((item) => {
+      const cls = classifyItem(item);
+      if (!cls.isAddonFinal || !cls.handleExtracted) return;
+      const uiQty = getDrawerQty(cls.handleExtracted);
+      if (uiQty === null) return;
+      const cartQty = Number(item.quantity || 0);
+      if (uiQty !== cartQty) {
+        desynced = true;
+        log('UI DESYNC: drawer shows', uiQty, 'cart.js shows', cartQty, { handle: cls.handleExtracted, key: item.key });
+      }
+    });
+
+    if (desynced) {
+      refreshCartUI(sectionsPayload);
+    }
+
+    return desynced;
   }
 
   async function changeLineByKey(lineKey, quantity, sectionsPayload) {
@@ -290,6 +370,7 @@
     }
 
     const verified = await verifyAndRepair({ usedFallback: false, sectionsPayload, changeResults });
+    await refreshCartUI(sectionsPayload);
     return verified;
   }
 
@@ -317,6 +398,7 @@
 
     if (postPlan.addonUnits <= postPlan.parentUnits || !postPlan.changes.length) {
       log('post-mutation verified');
+      checkDrawerDesync(cartAfter, options.sectionsPayload);
       return true;
     }
 
@@ -338,6 +420,7 @@
     const fallbackReason = hadFailedMutation ? 'retry_after_failed_mutation' : 'retry_after_invalid_quota';
     log('retrying with line indexes', { filteredChanges, keyToLine, reason: fallbackReason });
     await applyPlanWithLineIndexes(Object.assign({}, postPlan, { changes: filteredChanges }), keyToLine, options.sectionsPayload || getSectionsPayload());
+    await refreshCartUI(options.sectionsPayload || getSectionsPayload());
 
     // Verify once more and stop (no further retries to avoid loops)
     return verifyAndRepair({ usedFallback: true, sectionsPayload: options.sectionsPayload });
