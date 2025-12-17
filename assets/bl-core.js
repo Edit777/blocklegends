@@ -106,6 +106,16 @@
     try {
       if (window.Shopify) {
         if (window.Shopify.currency && window.Shopify.currency.active) env.currency = window.Shopify.currency.active;
+        if (window.Shopify.currency && window.Shopify.currency.money_formats) {
+          var fmtInfo = window.Shopify.currency.money_formats[env.currency];
+          if (fmtInfo && fmtInfo.money_format) {
+            env.moneyFormat = fmtInfo.money_format;
+            env.source = env.source || 'Shopify.currency.money_formats';
+          } else if (fmtInfo) {
+            env.moneyFormat = fmtInfo;
+            env.source = env.source || 'Shopify.currency.money_formats';
+          }
+        }
         if (typeof window.Shopify.formatMoney === 'function') {
           env.formatter = function (cents, fmt) { return window.Shopify.formatMoney(Number(cents || 0), fmt || window.Shopify.money_format); };
           env.source = env.source || 'Shopify.formatMoney';
