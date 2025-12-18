@@ -38,6 +38,168 @@
     try { console.log.apply(console, ['[BL Mystery Addon]'].concat(args)); } catch (e) {}
   }
 
+  function generateUid(prefix) {
+    prefix = prefix || 'bl';
+    try {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') return prefix + '-' + window.crypto.randomUUID();
+    } catch (e) {}
+    return prefix + '-' + Math.random().toString(16).slice(2) + '-' + Date.now().toString(16);
+  }
+
+  function parseItemsFromFormData(fd) {
+    var items = {};
+    if (!fd || typeof fd.forEach !== 'function') return [];
+
+    try {
+      fd.forEach(function (value, key) {
+        var m = String(key || '').match(/^items\[(\d+)\]\[(id|quantity)\]$/);
+        if (m && m[1]) {
+          var idx = m[1];
+          items[idx] = items[idx] || { index: Number(idx), properties: {} };
+          items[idx][m[2]] = String(value || '');
+          return;
+        }
+
+        var p = String(key || '').match(/^items\[(\d+)\]\[properties\]\[(.+)\]$/);
+        if (p && p[1] && p[2]) {
+          var pIdx = p[1];
+          items[pIdx] = items[pIdx] || { index: Number(pIdx), properties: {} };
+          items[pIdx].properties[p[2]] = String(value || '');
+        }
+      });
+    } catch (e) {}
+
+    return Object.keys(items)
+      .map(function (k) { return items[k]; })
+      .sort(function (a, b) { return a.index - b.index; });
+  }
+
+  var addonVariantIdsPromise = null;
+  function getAddonVariantIdSet() {
+    if (addonVariantIdsPromise) return addonVariantIdsPromise;
+
+    addonVariantIdsPromise = Promise.resolve().then(function () {
+      var handle = getAddonHandle();
+      if (!handle || typeof fetch !== 'function') return new Set();
+
+      return fetch('/products/' + encodeURIComponent(handle) + '.js', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (json) {
+          var set = new Set();
+          if (json && Array.isArray(json.variants)) {
+            json.variants.forEach(function (v) {
+              if (v && v.id) set.add(String(v.id));
+            });
+          }
+          return set;
+        })
+        .catch(function () { return new Set(); });
+    });
+
+    return addonVariantIdsPromise;
+  }
+
+  function buildAddonFormFromItem(item, parentUid) {
+    var form = document.createElement('form');
+    form.setAttribute('data-bl-handle', getAddonHandle());
+
+    var idInput = document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.name = 'id';
+    idInput.value = item && item.id ? String(item.id) : '';
+    form.appendChild(idInput);
+
+    var props = Object.assign({}, item && item.properties ? item.properties : {});
+    if (parentUid && !props._bl_parent_uid) props._bl_parent_uid = parentUid;
+    if (!props._bl_is_addon) props._bl_is_addon = '1';
+
+    Object.keys(props).forEach(function (key) {
+      ensureHidden(form, key, props[key]);
+    });
+
+    return form;
+  }
+
+  function rewritePropertiesForIndex(fd, idx, props) {
+    if (!fd || typeof fd.forEach !== 'function') return;
+    var prefix = 'items[' + idx + '][properties][';
+    var toDelete = [];
+
+    try {
+      fd.forEach(function (_, key) {
+        if (String(key || '').indexOf(prefix) === 0) toDelete.push(key);
+      });
+    } catch (e) {}
+
+    toDelete.forEach(function (k) { try { fd.delete(k); } catch (eDel) {} });
+
+    Object.keys(props || {}).forEach(function (key) {
+      var val = props[key];
+      if (val === null || typeof val === 'undefined') return;
+      try { fd.append(prefix + key + ']', String(val)); } catch (e) {}
+    });
+  }
+
+  A.enrichCartAddFormData = async function (formData) {
+    if (!formData || !(formData instanceof FormData)) return;
+    if (!M || typeof M.computeAndApplyAssignment !== 'function') return;
+
+    var items = parseItemsFromFormData(formData);
+    if (!items.length) return;
+
+    var addonIds = await getAddonVariantIdSet().catch(function () { return new Set(); });
+    var lastParentUid = '';
+    var parentUidByIndex = {};
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i] || {};
+      var idx = item.index;
+      var id = String(item.id || '');
+      var props = item.properties || {};
+      var isAddon = String(props._bl_is_addon || '') === '1' || (addonIds && addonIds.has(id));
+
+      if (!isAddon) {
+        var parentUid = props._bl_parent_uid || props._bl_assignment_uid || parentUidByIndex[idx];
+        if (!parentUid) parentUid = generateUid('bl-parent');
+        parentUidByIndex[idx] = parentUid;
+        lastParentUid = parentUid;
+        continue;
+      }
+
+      if (!id) {
+        continue;
+      }
+
+      var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
+      var syntheticForm = buildAddonFormFromItem({ id: id, properties: props }, addonParentUid);
+
+      try {
+        await M.computeAndApplyAssignment(syntheticForm, getAddonHandle(), { force: true });
+      } catch (errCompute) {
+        debugLog('addon-enrich-compute-error', errCompute);
+      }
+
+      var computedProps = collectProperties(syntheticForm);
+      var mergedProps = Object.assign({}, props, computedProps);
+
+      var assignUid = mergedProps._bl_assignment_uid || mergedProps._bl_assign_uid || (syntheticForm.dataset && syntheticForm.dataset.blAssignmentUid) || '';
+      if (!assignUid) assignUid = generateUid('bl-assign');
+
+      mergedProps._bl_assignment_uid = assignUid;
+      mergedProps._bl_assign_uid = assignUid;
+      mergedProps._bl_is_addon = '1';
+      mergedProps._bl_parent_uid = addonParentUid;
+      if (!mergedProps._bl_assigned_variant_id && id) mergedProps._bl_assigned_variant_id = id;
+
+      if (props._bl_parent_handle && !mergedProps._bl_parent_handle) mergedProps._bl_parent_handle = props._bl_parent_handle;
+      if (props._bl_locked_collection && !mergedProps._bl_locked_collection) mergedProps._bl_locked_collection = props._bl_locked_collection;
+
+      rewritePropertiesForIndex(formData, idx, mergedProps);
+      parentUidByIndex[idx] = addonParentUid;
+      lastParentUid = addonParentUid;
+    }
+  };
+
 function ensureCssOnce() {
   if (document.getElementById('bl-addon-css')) return;
 
@@ -74,9 +236,8 @@ function ensureCssOnce() {
     '.upsell[data-upsell-addon="true"] .bl-addon-select option:disabled{color:rgba(0,0,0,.35);}',
     '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:12px;line-height:1.28;opacity:.85;}',
     '.upsell[data-upsell-addon="true"] .product-form__quantity,.upsell[data-upsell-addon="true"] .quantity__input,.upsell[data-upsell-addon="true"] .quantity__button{display:none !important;}',
-    '.upsell[data-upsell-addon="true"] .upsell__add-btn .icon-plus{display:none !important;}',
-    '.upsell[data-upsell-addon="true"] .bl-addon-controls{justify-content:flex-start;}',
-    '.upsell[data-upsell-addon="true"] .bl-addon-meta{align-items:flex-start;}',
+    '.upsell[data-upsell-addon="true"] .bl-addon-controls{justify-content:center;}',
+    '.upsell[data-upsell-addon="true"] .bl-addon-meta{align-items:center;text-align:center;}',
 
     /* Notice block */
     '.bl-addon-notice{margin-top:0.75rem;font-size:13px;line-height:1.4;color:#b33;padding:.6rem .8rem;border:1px solid rgba(179,51,51,.35);border-radius:8px;background:rgba(179,51,51,.08);width:100%;display:block;}',
@@ -88,7 +249,8 @@ function ensureCssOnce() {
 
     /* Keep selector narrower on small screens */
     '@media (max-width: 640px){' +
-      '.upsell[data-upsell-addon="true"] .bl-addon-controls{flex-wrap:nowrap;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-controls{flex-wrap:wrap;justify-content:center;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-meta{align-items:center;text-align:center;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-select{min-width:0;width:108px;max-width:46vw;}' +
     '}',
 
@@ -99,7 +261,7 @@ function ensureCssOnce() {
       '.upsell[data-upsell-addon="true"] .upsell__image .upsell__image__img{max-width:62px;}' +
 
       '.upsell[data-upsell-addon="true"] .upsell__title h3{font-size:13.5px;line-height:1.18;}' +
-      '.upsell[data-upsell-addon="true"] .bl-addon-controls{gap:.38rem;flex-wrap:nowrap;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-controls{gap:.38rem;flex-wrap:wrap;justify-content:center;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-controls label{font-size:10.8px;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-select{min-width:92px;height:28px;min-height:28px;padding:3px 8px;font-size:10.8px;border-radius:7px;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10.4px;line-height:1.18;}' +
@@ -120,7 +282,7 @@ function ensureCssOnce() {
       '.upsell[data-upsell-addon="true"] .upsell__title h3{font-size:12.9px;line-height:1.16;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-controls label{font-size:10.6px;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-select{max-width:92px;min-width:82px;height:28px;min-height:28px;padding:3px 7px;font-size:10.6px;border-radius:7px;}' +
-      '.upsell[data-upsell-addon="true"] .bl-addon-meta{margin-top:.1rem;}' +
+      '.upsell[data-upsell-addon="true"] .bl-addon-meta{margin-top:.1rem;align-items:center;text-align:center;}' +
       '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:10.25px;line-height:1.16;}' +
     '}',
 
