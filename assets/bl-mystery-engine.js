@@ -940,7 +940,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         upsertHidden(form, M.CFG.propVisiblePoolUsed, poolHandleUsed);
         upsertHidden(form, M.CFG.propVisibleMode, mode);
 
-        var assignmentUid = ensureAssignmentUid(form, sig, { alwaysNew: force });
+        var assignmentUid = ensureAssignmentUid(form, sig, { alwaysNew: assignNow });
         var assignedGid = buildVariantGid(chosen.variant_id);
         var assignedSku = getAssignedSku(chosen.variant_id, chosen);
 
@@ -988,6 +988,23 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           assigned_sku: assignedSku || '',
           properties: collectProperties(form)
         });
+
+        try {
+          var propsSnapshot = collectProperties(form);
+          mirrorPropertiesToItems(form, propsSnapshot);
+
+          if (assignNow && isDebug()) {
+            logDebugState('pre-submit-properties', {
+              handle: handle,
+              role: handle === M.CFG.mysteryAddonHandle ? 'addon' : 'parent',
+              properties: propsSnapshot
+            });
+            if (!propsSnapshot._bl_assignment_uid || !propsSnapshot._bl_assigned_variant_id) {
+              console.error('[BL Mystery] BLOCKED: missing assignment properties for', handle);
+              return false;
+            }
+          }
+        } catch (eDebug) {}
 
         return true;
       });
