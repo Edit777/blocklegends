@@ -31,7 +31,8 @@
     st.id = 'bl-preferred-css';
     st.textContent = [
       '.bl-mystery-card{margin-top:12px;padding:12px;border:1px solid rgba(0,0,0,.12);border-radius:10px;background:#fff;}',
-      '.bl-mystery-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;}',
+      '.bl-mystery-card .product-form__quantity,.bl-mystery-card .quantity__input,.bl-mystery-card .quantity__button{display:none !important;}',
+      '.bl-mystery-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;}',
       '.bl-mystery-label{font-size:13px;font-weight:600;min-width:96px;}',
       '.bl-pill-group{display:flex;flex-wrap:wrap;gap:8px;}',
       '.bl-pill{padding:9px 12px;border:1px solid rgba(0,0,0,.25);border-radius:999px;background:#fff;font-size:13px;line-height:1;cursor:pointer;transition:all .15s ease;}',
@@ -41,6 +42,7 @@
       '.bl-collection-select{min-width:200px;padding:8px 10px;border:1px solid rgba(0,0,0,.25);border-radius:8px;font-size:14px;}',
       '.bl-mystery-helper{font-size:12px;opacity:.9;margin-top:4px;}',
       '.bl-mystery-helper.is-warn{opacity:1;color:#a94442;}',
+      '.bl-mystery-row[data-bl-mode-row],.bl-mystery-row[data-bl-rarity-row]{justify-content:center;text-align:center;}', 
       '@media (max-width: 749px){.bl-pill{padding:11px 14px;font-size:14px;}}'
     ].join('');
     document.head.appendChild(st);

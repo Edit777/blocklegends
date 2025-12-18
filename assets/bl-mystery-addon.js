@@ -73,6 +73,10 @@ function ensureCssOnce() {
     '.upsell[data-upsell-addon="true"] .bl-addon-select{min-height:32px;height:32px;padding:4px 10px;border:1px solid rgba(0,0,0,.18);border-radius:8px;background:#fff;font-size:12px;line-height:1.1;max-width:100%;min-width:120px;}',
     '.upsell[data-upsell-addon="true"] .bl-addon-select option:disabled{color:rgba(0,0,0,.35);}',
     '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:12px;line-height:1.28;opacity:.85;}',
+    '.upsell[data-upsell-addon="true"] .product-form__quantity,.upsell[data-upsell-addon="true"] .quantity__input,.upsell[data-upsell-addon="true"] .quantity__button{display:none !important;}',
+    '.upsell[data-upsell-addon="true"] .upsell__add-btn .icon-plus{display:none !important;}',
+    '.upsell[data-upsell-addon="true"] .bl-addon-controls{justify-content:flex-start;}',
+    '.upsell[data-upsell-addon="true"] .bl-addon-meta{align-items:flex-start;}',
 
     /* Notice block */
     '.bl-addon-notice{margin-top:0.75rem;font-size:13px;line-height:1.4;color:#b33;padding:.6rem .8rem;border:1px solid rgba(179,51,51,.35);border-radius:8px;background:rgba(179,51,51,.08);width:100%;display:block;}',
@@ -252,7 +256,6 @@ function ensureCssOnce() {
   function patchCartDrawerProductForm(pfEl, form) {
     if (!pfEl || !form) return;
     if (pfEl.dataset && pfEl.dataset.blAddonPatched === '1') return;
-    if (pfEl.dataset && pfEl.dataset.isCartUpsell !== 'true') return;
 
     var formHandle = (form.getAttribute('data-bl-handle') || '').trim();
     if (formHandle && formHandle !== getAddonHandle()) return;
@@ -275,6 +278,7 @@ function ensureCssOnce() {
       return computePromise.then(function (ok) {
         if (!ok) {
           logAddonDebug('pre-submit-skip', { role: 'addon', handle: handle, reason: 'compute-failed' });
+          if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
           return false;
         }
 
@@ -295,6 +299,7 @@ function ensureCssOnce() {
             reason: 'missing-properties',
             properties: propsSnapshot
           });
+          if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
           return false;
         }
 
