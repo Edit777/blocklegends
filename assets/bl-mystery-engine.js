@@ -581,12 +581,43 @@
     return arr[Math.floor(Math.random() * arr.length)];
   }
 
-  function chooseAssignedProduct(poolHandle, rarity) {
+  function buildExcludeMap(list) {
+    if (!Array.isArray(list) || !list.length) return null;
+    var map = {};
+    list.forEach(function (id) {
+      var key = String(id || '').trim();
+      if (!key) return;
+      map[key] = true;
+    });
+    return Object.keys(map).length ? map : null;
+  }
+
+  function filterByExclude(list, excludeMap) {
+    if (!excludeMap) return list || [];
+    return (list || []).filter(function (item) {
+      var vid = item && (item.variant_id || item.variantId || item.id);
+      var key = String(vid || '');
+      if (!key) return true;
+      return !excludeMap[key];
+    });
+  }
+
+  function chooseAssignedProduct(poolHandle, rarity, opts) {
+    opts = opts || {};
+    var excludeMap = opts.excludeMap || null;
+
     var h = String(poolHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
     var r = normalizeRarity(rarity);
     var idx = state.pools[h];
     if (!idx || !idx[r] || !idx[r].length) return null;
-    return randPick(idx[r]);
+
+    var pool = idx[r];
+    if (excludeMap) {
+      var filtered = filterByExclude(pool, excludeMap);
+      if (filtered && filtered.length) return randPick(filtered);
+    }
+
+    return randPick(pool);
   }
 
   function flattenPool(idx) {
@@ -600,55 +631,81 @@
   }
 
   function pickWeightedRarity(idx) {
-  var rarities = M.CFG.allowedRarities.slice();
-  var weights = M.CFG.anyRarityWeights || {};
+    var rarities = M.CFG.allowedRarities.slice();
+    var weights = M.CFG.anyRarityWeights || {};
 
-  // Keep only rarities that actually exist in this pool
-  var available = rarities.filter(function (r) {
-    return idx && idx[r] && idx[r].length > 0;
-  });
+    // Keep only rarities that actually exist in this pool
+    var available = rarities.filter(function (r) {
+      return idx && idx[r] && idx[r].length > 0;
+    });
 
-  if (!available.length) return null;
+    if (!available.length) return null;
 
-  // Sum weights only over available rarities
-  var sum = 0;
-  for (var i = 0; i < available.length; i++) {
-    sum += Number(weights[available[i]] || 0);
+    // Sum weights only over available rarities
+    var sum = 0;
+    for (var i = 0; i < available.length; i++) {
+      sum += Number(weights[available[i]] || 0);
+    }
+
+    // If weights are missing/misconfigured, fall back to uniform over available rarities
+    if (sum <= 0) {
+      return available[Math.floor(Math.random() * available.length)];
+    }
+
+    // Weighted roulette wheel
+    var roll = Math.random() * sum;
+    for (var j = 0; j < available.length; j++) {
+      roll -= Number(weights[available[j]] || 0);
+      if (roll <= 0) return available[j];
+    }
+
+    return available[available.length - 1];
   }
 
-  // If weights are missing/misconfigured, fall back to uniform over available rarities
-  if (sum <= 0) {
-    return available[Math.floor(Math.random() * available.length)];
+  function chooseAssignedProductAny(poolHandle, opts) {
+    opts = opts || {};
+    var excludeMap = opts.excludeMap || null;
+
+    var h = String(poolHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
+    var idx = state.pools[h];
+    if (!idx) return null;
+
+    var filteredIdx = null;
+    var filteredTotal = 0;
+
+    if (excludeMap) {
+      filteredIdx = emptyPoolIndex();
+      for (var i = 0; i < M.CFG.allowedRarities.length; i++) {
+        var rar = M.CFG.allowedRarities[i];
+        var filteredPool = filterByExclude(idx[rar], excludeMap);
+        filteredIdx[rar] = filteredPool;
+        filteredTotal += filteredPool.length;
+      }
+    }
+
+    var targetIdx = (filteredIdx && filteredTotal > 0) ? filteredIdx : idx;
+
+    var r = pickWeightedRarity(targetIdx);
+    if (!r && targetIdx !== idx) {
+      targetIdx = idx;
+      r = pickWeightedRarity(targetIdx);
+    }
+    if (!r) return null;
+
+    var pool = targetIdx[r] || [];
+    if (!pool.length && targetIdx !== idx) pool = idx[r] || [];
+    if (!pool.length) return null;
+
+    var chosen = randPick(pool);
+    if (U && U.log) U.log('[BL Mystery] Lucky Box pick', { pool: h, rarity: r, poolCounts: {
+      common: (idx.common || []).length,
+      rare: (idx.rare || []).length,
+      epic: (idx.epic || []).length,
+      legendary: (idx.legendary || []).length
+    }});
+
+    return chosen;
   }
-
-  // Weighted roulette wheel
-  var roll = Math.random() * sum;
-  for (var j = 0; j < available.length; j++) {
-    roll -= Number(weights[available[j]] || 0);
-    if (roll <= 0) return available[j];
-  }
-
-  return available[available.length - 1];
-}
-
-function chooseAssignedProductAny(poolHandle) {
-  var h = String(poolHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
-  var idx = state.pools[h];
-  if (!idx) return null;
-
-  var r = pickWeightedRarity(idx);
-  if (!r) return null;
-
-  var chosen = randPick(idx[r] || []);
-  if (U && U.log) U.log('[BL Mystery] Lucky Box pick', { pool: h, rarity: r, poolCounts: {
-    common: (idx.common || []).length,
-    rare: (idx.rare || []).length,
-    epic: (idx.epic || []).length,
-    legendary: (idx.legendary || []).length
-  }});
-
-  return chosen;
-}
 
 
   /* -----------------------------
@@ -743,6 +800,16 @@ function chooseAssignedProductAny(poolHandle) {
     upsertHidden(form, 'DEBUG Locked/Preferred Collection', payload.collection || '');
   }
 
+  function purgeDebugInputs(form) {
+    if (!form || isDebug()) return;
+    try {
+      var debugInputs = form.querySelectorAll('input[name^="properties[DEBUG"]');
+      Array.prototype.slice.call(debugInputs || []).forEach(function (input) {
+        if (input && input.parentNode) input.parentNode.removeChild(input);
+      });
+    } catch (e) {}
+  }
+
   function logDebugState(label, meta) {
     if (!isDebug()) return;
     debugLog(label, meta);
@@ -761,10 +828,17 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
   opts = opts || {};
   var force = !!opts.force;
   var assignNow = !!opts.force || opts.assign === true;
-
   var handle = String(productHandle || '').trim();
+
+  var excludeMap = null;
+  if (handle === M.CFG.mysteryAddonHandle && opts && Array.isArray(opts.excludeVariantIds)) {
+    excludeMap = buildExcludeMap(opts.excludeVariantIds);
+  }
+
   if (!form) return Promise.resolve(false);
   if (!isTargetHandle(handle)) return Promise.resolve(false);
+
+  if (!isDebug()) purgeDebugInputs(form);
 
   // Prevent compute storms (separate from submit lock)
   try {
@@ -893,8 +967,8 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       // If forcing, we still overwrite everything (reroll)
       return M.fetchPoolAllPages(poolHandleUsed).then(function () {
         var chosen = isAny
-          ? chooseAssignedProductAny(poolHandleUsed)
-          : chooseAssignedProduct(poolHandleUsed, rarity);
+          ? chooseAssignedProductAny(poolHandleUsed, { excludeMap: excludeMap })
+          : chooseAssignedProduct(poolHandleUsed, rarity, { excludeMap: excludeMap });
 
         // deterministic fallback: if requested rarity is empty, fallback to weighted any but keep requested tier for visibility
         if (!chosen) {
