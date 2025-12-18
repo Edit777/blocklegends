@@ -258,6 +258,14 @@
     return '';
   }
 
+  function getLockedCollectionFromForm(form) {
+    try {
+      var b = form.querySelector('[name="properties[' + M.CFG.propLockedCollectionLegacy + ']"]');
+      if (b && b.value) return String(b.value).trim();
+    } catch (e) {}
+    return '';
+  }
+
   function upsertHidden(form, key, value) {
     if (!form) return;
     var name = 'properties[' + key + ']';
@@ -772,6 +780,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
   return Promise.all([pAll, pMap])
     .then(function () {
       var sel = getSelectionFromForm(form, handle);
+      var lockedCollection = getLockedCollectionFromForm(form);
 
       // Add-on forced preferred mode
       if (handle === M.CFG.mysteryAddonHandle) sel.mode = M.CFG.modePreferredLabel;
@@ -782,11 +791,17 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
       var requestedCollection =
         (mode === M.CFG.modePreferredLabel) ? getPreferredCollectionFromForm(form) : '';
+      if (handle === M.CFG.mysteryAddonHandle && lockedCollection) {
+        requestedCollection = lockedCollection;
+      }
 
       var poolHandleUsed =
         (mode === M.CFG.modePreferredLabel && requestedCollection)
           ? requestedCollection
           : M.CFG.defaultPoolCollectionHandle;
+      if (handle === M.CFG.mysteryAddonHandle && lockedCollection) {
+        poolHandleUsed = lockedCollection;
+      }
 
       // IMPORTANT: include CURRENT variant id in signature (fixes "I changed variant but it didn't reroll")
       var currentVariantId = '';
@@ -795,6 +810,9 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       var sig = buildSignature(handle, mode, rarity, requestedCollection) + '|' + currentVariantId;
 
       var preferredCollectionSafe = (mode === M.CFG.modePreferredLabel) ? (requestedCollection || '') : '';
+      if (handle === M.CFG.mysteryAddonHandle && lockedCollection) {
+        preferredCollectionSafe = lockedCollection;
+      }
 
       // If not assigning now, just persist requested state and clear stale assignment
       if (!assignNow) {
