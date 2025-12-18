@@ -158,6 +158,48 @@
     if (!items.length) return;
 
     var addonIds = await getAddonVariantIdSet().catch(function () { return new Set(); });
+    var assignmentPropKey = (M && M.CFG && M.CFG.propAssignedVariantId) || '_assigned_variant_id';
+    var parentAssignments = {};
+    var addonAssignments = {};
+
+    function recordParentAssignment(uid, variantId) {
+      var key = String(uid || '').trim();
+      var vid = String(variantId || '').trim();
+      if (!key || !vid) return;
+      parentAssignments[key] = vid;
+    }
+
+    function recordAddonAssignment(uid, variantId) {
+      var key = String(uid || '').trim();
+      var vid = String(variantId || '').trim();
+      if (!key || !vid) return;
+      addonAssignments[key] = addonAssignments[key] || [];
+      if (addonAssignments[key].indexOf(vid) === -1) addonAssignments[key].push(vid);
+    }
+
+    function stripDebugProps(obj) {
+      if (!obj || isDebug()) return obj;
+      Object.keys(obj).forEach(function (k) {
+        if (String(k || '').indexOf('DEBUG ') === 0) delete obj[k];
+      });
+      return obj;
+    }
+
+    // Seed assignments from existing properties when parent UID is explicitly present
+    items.forEach(function (it) {
+      var props = (it && it.properties) || {};
+      var uid = String(props._bl_parent_uid || props._bl_assignment_uid || '').trim();
+      if (!uid) return;
+
+      var assignedSeed = props._bl_assigned_variant_id || props[assignmentPropKey] || '';
+      if (!assignedSeed) return;
+
+      var idStr = String(assignedSeed || '').trim();
+      var isAddonSeed = String(props._bl_is_addon || '') === '1' || (addonIds && addonIds.has(String(it.id || '')));
+      if (isAddonSeed) recordAddonAssignment(uid, idStr);
+      else recordParentAssignment(uid, idStr);
+    });
+
     var lastParentUid = '';
     var parentUidByIndex = {};
 
@@ -173,6 +215,9 @@
         if (!parentUid) parentUid = generateUid('bl-parent');
         parentUidByIndex[idx] = parentUid;
         lastParentUid = parentUid;
+
+        var parentAssigned = props._bl_assigned_variant_id || props[assignmentPropKey];
+        if (parentAssigned) recordParentAssignment(parentUid, parentAssigned);
         continue;
       }
 
@@ -184,10 +229,23 @@
       var lockedCollection = props._bl_locked_collection || getLockedCollectionHandleFromDom();
       if (lockedCollection) props._bl_locked_collection = lockedCollection;
 
+      var excludeVariantIds = [];
+      if (addonParentUid && parentAssignments[addonParentUid]) excludeVariantIds.push(parentAssignments[addonParentUid]);
+      if (addonParentUid && addonAssignments[addonParentUid] && addonAssignments[addonParentUid].length) {
+        excludeVariantIds = excludeVariantIds.concat(addonAssignments[addonParentUid]);
+      }
+      var seenExcludes = {};
+      var dedupedExcludes = excludeVariantIds.filter(function (vid) {
+        var key = String(vid || '').trim();
+        if (!key || seenExcludes[key]) return false;
+        seenExcludes[key] = true;
+        return true;
+      });
+
       var syntheticForm = buildAddonFormFromItem({ id: id, properties: props }, addonParentUid);
 
       try {
-        await M.computeAndApplyAssignment(syntheticForm, getAddonHandle(), { force: true });
+        await M.computeAndApplyAssignment(syntheticForm, getAddonHandle(), { force: true, excludeVariantIds: dedupedExcludes });
       } catch (errCompute) {
         debugLog('addon-enrich-compute-error', errCompute);
       }
@@ -207,9 +265,14 @@
       if (props._bl_parent_handle && !mergedProps._bl_parent_handle) mergedProps._bl_parent_handle = props._bl_parent_handle;
       if (props._bl_locked_collection && !mergedProps._bl_locked_collection) mergedProps._bl_locked_collection = props._bl_locked_collection;
 
+      stripDebugProps(mergedProps);
+
       rewritePropertiesForIndex(formData, idx, mergedProps);
       parentUidByIndex[idx] = addonParentUid;
       lastParentUid = addonParentUid;
+
+      var addonAssignedVariant = mergedProps._bl_assigned_variant_id || mergedProps[assignmentPropKey] || '';
+      if (addonAssignedVariant) recordAddonAssignment(addonParentUid, addonAssignedVariant);
     }
   };
 
