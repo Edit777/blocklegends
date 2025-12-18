@@ -31,7 +31,7 @@
     st.id = 'bl-preferred-css';
     st.textContent = [
       '.bl-mystery-card{margin-top:12px;padding:12px;border:1px solid rgba(0,0,0,.12);border-radius:10px;background:#fff;}',
-      // '.bl-mystery-card .product-form__quantity,.bl-mystery-card .quantity__input,.bl-mystery-card .quantity__button{display:none !important;}',
+      '.bl-mystery-card .product-form__quantity,.bl-mystery-card .quantity__input,.bl-mystery-card .quantity__button{display:none !important;}',
       '.bl-mystery-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;}',
       '.bl-mystery-label{font-size:13px;font-weight:600;min-width:96px;}',
       '.bl-pill-group{display:flex;flex-wrap:wrap;gap:8px;}',
