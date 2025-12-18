@@ -220,3 +220,21 @@
 .cart-items .cart-item--product-mystery-add-on .cart-item__quantity .quantity__input {
   text-align: center;
 }
+
+/* EMERGENCY: restore +/- SVG icons for normal cart items (do not affect mystery add-on) */
+.cart-drawer .cart-drawer-item:not(.cart-item--product-mystery-add-on) .quantity__button svg {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  width: 1em !important;
+  height: 1em !important;
+}
+
+.cart-drawer .cart-drawer-item:not(.cart-item--product-mystery-add-on) .quantity__button {
+  color: rgb(var(--color-foreground)) !important;
+}
+
+.cart-drawer .cart-drawer-item:not(.cart-item--product-mystery-add-on) .quantity__button svg * {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
