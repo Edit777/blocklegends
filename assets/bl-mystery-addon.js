@@ -74,6 +74,16 @@
       .sort(function (a, b) { return a.index - b.index; });
   }
 
+  function getLockedCollectionHandleFromDom() {
+    try {
+      var selector = '.upsell[data-upsell-addon="true"][data-locked-collection]';
+      var el = (U && typeof U.qs === 'function') ? U.qs(document, selector) : document.querySelector(selector);
+      var handle = el ? (el.getAttribute('data-locked-collection') || '').trim() : '';
+      if (handle) return handle;
+    } catch (e) {}
+    return '';
+  }
+
   var addonVariantIdsPromise = null;
   function getAddonVariantIdSet() {
     if (addonVariantIdsPromise) return addonVariantIdsPromise;
@@ -171,6 +181,9 @@
       }
 
       var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
+      var lockedCollection = props._bl_locked_collection || getLockedCollectionHandleFromDom();
+      if (lockedCollection) props._bl_locked_collection = lockedCollection;
+
       var syntheticForm = buildAddonFormFromItem({ id: id, properties: props }, addonParentUid);
 
       try {
