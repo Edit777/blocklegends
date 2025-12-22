@@ -166,3 +166,29 @@
 .upsell[data-upsell-addon="true"] .upsell__price *{
   vertical-align:middle;
 }
+
+/* Cart drawer: Mystery Add-On meta alignment */
+.cart-drawer .cart-item--product-mystery-add-on .cart-item__details dl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.35rem 0 0;
+  align-items: flex-start;
+}
+
+.cart-drawer .cart-item--product-mystery-add-on .cart-item__details .product-option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  line-height: 1.35;
+}
+
+.cart-drawer .cart-item--product-mystery-add-on .cart-item__details .product-option dt,
+.cart-drawer .cart-item--product-mystery-add-on .cart-item__details .product-option dd {
+  margin: 0;
+}
+
+.cart-drawer .cart-item--product-mystery-add-on .cart-item__details .product-option dd {
+  display: flex;
+  align-items: center;
+}

@@ -10,6 +10,17 @@
       padding-bottom: {{ section.settings.padding_bottom }}px;
     }
   }
+
+  .cart-item__quantity--locked .quantity {
+    display: none !important;
+  }
+
+  .cart-item__quantity--locked [data-bl-locked-qty] {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 600;
+  }
 {%- endstyle -%}
 
 <cart-items class="page-width{% if cart == empty %} is-empty{% else %} section-{{ section.id }}-padding{% endif %}">
@@ -213,44 +224,57 @@
                       {%- endif -%}
                     </div>
                   </td>
-
-                  <td class="cart-item__quantity">
+                  {% assign bl_lock_qty = false %}
+                  {% if item.product.handle == 'mystery-figure' or item.product.handle == 'mystery-add-on' %}
+                    {% assign bl_lock_qty = true %}
+                  {% endif %}
+                  {% if item.properties._bl_is_addon == '1' or item.properties._bl_assignment_uid or item.properties._bl_assigned_variant_id %}
+                    {% assign bl_lock_qty = true %}
+                  {% endif %}
+                  <td class="cart-item__quantity{% if bl_lock_qty %} cart-item__quantity--locked{% endif %}">
                     <div class="cart-item__quantity-wrapper">
                       <label class="visually-hidden" for="Quantity-{{ item.index | plus: 1 }}">
                         {{ 'products.product.quantity.label' | t }}
                       </label>
-                      <quantity-input class="quantity main-quantity cart-quantity no-background color-{{ settings.quantity_color_scheme }} accent-color-{{ settings.quantity_overlay_color }} accent-2-color-{{ settings.quantity_text_color }}">
-                        <button class="quantity__button no-js-hidden" name="minus" type="button">
-                          <span class="visually-hidden">
-                            {{- 'products.product.quantity.decrease' | t: product: item.product.title | escape -}}
-                          </span>
-                          {% render 'icon-minus' %}
-                        </button>
-                        <input
-                          class="quantity__input"
-                          data-quantity-variant-id="{{ item.variant.id }}"
-                          type="number"
-                          name="updates[]"
-                          value="{{ item.quantity }}"
-                          {% # theme-check-disable %}
-                          data-cart-quantity="{{ cart | item_count_for_variant: item.variant.id }}"
-                          min="{{ item.variant.quantity_rule.min }}"
-                          {% if item.variant.quantity_rule.max != null %}
-                            max="{{ item.variant.quantity_rule.max }}"
-                          {% endif %}
-                          step="{{ item.variant.quantity_rule.increment }}"
-                          {% # theme-check-enable %}
-                          aria-label="{{ 'products.product.quantity.input_label' | t: product: item.product.title | escape }}"
-                          id="Quantity-{{ item.index | plus: 1 }}"
-                          data-index="{{ item.index | plus: 1 }}"
-                        >
-                        <button class="quantity__button no-js-hidden" name="plus" type="button">
-                          <span class="visually-hidden">
-                            {{- 'products.product.quantity.increase' | t: product: item.product.title | escape -}}
-                          </span>
-                          {% render 'icon-plus' %}
-                        </button>
-                      </quantity-input>
+                      {% if bl_lock_qty %}
+                        <div class="bl-locked-qty" data-bl-locked-qty="1">
+                          <span class="visually-hidden">{{ 'products.product.quantity.label' | t: product: item.product.title | escape }}: {{ item.quantity }}</span>
+                          <input type="hidden" name="updates[]" value="{{ item.quantity }}" id="Quantity-{{ item.index | plus: 1 }}" data-index="{{ item.index | plus: 1 }}">
+                        </div>
+                      {% else %}
+                        <quantity-input class="quantity main-quantity cart-quantity no-background color-{{ settings.quantity_color_scheme }} accent-color-{{ settings.quantity_overlay_color }} accent-2-color-{{ settings.quantity_text_color }}">
+                          <button class="quantity__button no-js-hidden" name="minus" type="button">
+                            <span class="visually-hidden">
+                              {{- 'products.product.quantity.decrease' | t: product: item.product.title | escape -}}
+                            </span>
+                            {% render 'icon-minus' %}
+                          </button>
+                          <input
+                            class="quantity__input"
+                            data-quantity-variant-id="{{ item.variant.id }}"
+                            type="number"
+                            name="updates[]"
+                            value="{{ item.quantity }}"
+                            {% # theme-check-disable %}
+                            data-cart-quantity="{{ cart | item_count_for_variant: item.variant.id }}"
+                            min="{{ item.variant.quantity_rule.min }}"
+                            {% if item.variant.quantity_rule.max != null %}
+                              max="{{ item.variant.quantity_rule.max }}"
+                            {% endif %}
+                            step="{{ item.variant.quantity_rule.increment }}"
+                            {% # theme-check-enable %}
+                            aria-label="{{ 'products.product.quantity.input_label' | t: product: item.product.title | escape }}"
+                            id="Quantity-{{ item.index | plus: 1 }}"
+                            data-index="{{ item.index | plus: 1 }}"
+                          >
+                          <button class="quantity__button no-js-hidden" name="plus" type="button">
+                            <span class="visually-hidden">
+                              {{- 'products.product.quantity.increase' | t: product: item.product.title | escape -}}
+                            </span>
+                            {% render 'icon-plus' %}
+                          </button>
+                        </quantity-input>
+                      {% endif %}
 
                       <cart-remove-button
                         id="Remove-{{ item.index | plus: 1 }}"
@@ -280,8 +304,7 @@
                       </svg>
                     </div>
                   </td>
-
-                  <td class="cart-item__totals right small-hide">
+                  <td class="cart-item__totals right small-hide">
                     <div class="loading-overlay hidden">
                       <div class="loading-overlay__spinner">
                         <svg

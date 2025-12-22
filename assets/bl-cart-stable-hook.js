@@ -176,7 +176,7 @@
     BL.__blFetchWrapped = true;
     const origFetch = window.fetch.bind(window);
 
-    window.fetch = function (input, init) {
+    window.fetch = async function (input, init) {
       let url = '';
       try { url = typeof input === 'string' ? input : (input && input.url) || ''; } catch (e) {}
 
@@ -188,15 +188,32 @@
       markPending(txnId, internal);
       log('cart fetch start', { inFlight, url, txnId, internal });
 
-      return origFetch(input, init)
-        .finally(() => {
-          inFlight = Math.max(0, inFlight - 1);
-          log('cart fetch done', { inFlight, url, txnId, internal });
-          document.dispatchEvent(new CustomEvent('bl:cart:mutated', { detail: { reason: 'cart_fetch_done', txnId, internal } }));
-          // After cart request completes, the theme may still be re-rendering drawer sections.
-          // Our drawer observer (if present) will extend the quiet window as needed.
-          scheduleStable('cart_fetch_done');
-        });
+      const shouldEnrich =
+        /\/cart\/add(\.js)?(\?|$)/i.test(url) &&
+        init &&
+        init.body &&
+        typeof FormData !== 'undefined' &&
+        init.body instanceof FormData &&
+        window.BL &&
+        window.BL.mysteryAddon &&
+        typeof window.BL.mysteryAddon.enrichCartAddFormData === 'function';
+
+      try {
+        if (shouldEnrich) {
+          try { await window.BL.mysteryAddon.enrichCartAddFormData(init.body); }
+          catch (e) { log('cart add enrich error', e); }
+        }
+
+        const res = await origFetch(input, init);
+        return res;
+      } finally {
+        inFlight = Math.max(0, inFlight - 1);
+        log('cart fetch done', { inFlight, url, txnId, internal });
+        document.dispatchEvent(new CustomEvent('bl:cart:mutated', { detail: { reason: 'cart_fetch_done', txnId, internal } }));
+        // After cart request completes, the theme may still be re-rendering drawer sections.
+        // Our drawer observer (if present) will extend the quiet window as needed.
+        scheduleStable('cart_fetch_done');
+      }
     };
   }
 

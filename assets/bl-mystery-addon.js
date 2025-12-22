@@ -29,13 +29,7 @@
   }
 
   function isDebug() {
-    try {
-      if (typeof localStorage !== 'undefined' && localStorage.getItem('bl_mystery_debug') === '1') return true;
-    } catch (e) {}
-    try {
-      if (window.location && String(window.location.search || '').indexOf('mystery_debug=1') !== -1) return true;
-    } catch (e2) {}
-    return false;
+    try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
   }
 
   function debugLog() {
@@ -43,6 +37,244 @@
     var args = Array.prototype.slice.call(arguments);
     try { console.log.apply(console, ['[BL Mystery Addon]'].concat(args)); } catch (e) {}
   }
+
+  function generateUid(prefix) {
+    prefix = prefix || 'bl';
+    try {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') return prefix + '-' + window.crypto.randomUUID();
+    } catch (e) {}
+    return prefix + '-' + Math.random().toString(16).slice(2) + '-' + Date.now().toString(16);
+  }
+
+  function parseItemsFromFormData(fd) {
+    var items = {};
+    if (!fd || typeof fd.forEach !== 'function') return [];
+
+    try {
+      fd.forEach(function (value, key) {
+        var m = String(key || '').match(/^items\[(\d+)\]\[(id|quantity)\]$/);
+        if (m && m[1]) {
+          var idx = m[1];
+          items[idx] = items[idx] || { index: Number(idx), properties: {} };
+          items[idx][m[2]] = String(value || '');
+          return;
+        }
+
+        var p = String(key || '').match(/^items\[(\d+)\]\[properties\]\[(.+)\]$/);
+        if (p && p[1] && p[2]) {
+          var pIdx = p[1];
+          items[pIdx] = items[pIdx] || { index: Number(pIdx), properties: {} };
+          items[pIdx].properties[p[2]] = String(value || '');
+        }
+      });
+    } catch (e) {}
+
+    return Object.keys(items)
+      .map(function (k) { return items[k]; })
+      .sort(function (a, b) { return a.index - b.index; });
+  }
+
+  function getLockedCollectionHandleFromDom() {
+    try {
+      var selector = '.upsell[data-upsell-addon="true"][data-locked-collection]';
+      var el = (U && typeof U.qs === 'function') ? U.qs(document, selector) : document.querySelector(selector);
+      var handle = el ? (el.getAttribute('data-locked-collection') || '').trim() : '';
+      if (handle) return handle;
+    } catch (e) {}
+    return '';
+  }
+
+  var addonVariantIdsPromise = null;
+  function getAddonVariantIdSet() {
+    if (addonVariantIdsPromise) return addonVariantIdsPromise;
+
+    addonVariantIdsPromise = Promise.resolve().then(function () {
+      var handle = getAddonHandle();
+      if (!handle || typeof fetch !== 'function') return new Set();
+
+      return fetch('/products/' + encodeURIComponent(handle) + '.js', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (json) {
+          var set = new Set();
+          if (json && Array.isArray(json.variants)) {
+            json.variants.forEach(function (v) {
+              if (v && v.id) set.add(String(v.id));
+            });
+          }
+          return set;
+        })
+        .catch(function () { return new Set(); });
+    });
+
+    return addonVariantIdsPromise;
+  }
+
+  function buildAddonFormFromItem(item, parentUid) {
+    var form = document.createElement('form');
+    form.setAttribute('data-bl-handle', getAddonHandle());
+
+    var idInput = document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.name = 'id';
+    idInput.value = item && item.id ? String(item.id) : '';
+    form.appendChild(idInput);
+
+    var props = Object.assign({}, item && item.properties ? item.properties : {});
+    if (parentUid && !props._bl_parent_uid) props._bl_parent_uid = parentUid;
+    if (!props._bl_is_addon) props._bl_is_addon = '1';
+
+    Object.keys(props).forEach(function (key) {
+      ensureHidden(form, key, props[key]);
+    });
+
+    return form;
+  }
+
+  function rewritePropertiesForIndex(fd, idx, props) {
+    if (!fd || typeof fd.forEach !== 'function') return;
+    var prefix = 'items[' + idx + '][properties][';
+    var toDelete = [];
+
+    try {
+      fd.forEach(function (_, key) {
+        if (String(key || '').indexOf(prefix) === 0) toDelete.push(key);
+      });
+    } catch (e) {}
+
+    toDelete.forEach(function (k) { try { fd.delete(k); } catch (eDel) {} });
+
+    Object.keys(props || {}).forEach(function (key) {
+      var val = props[key];
+      if (val === null || typeof val === 'undefined') return;
+      try { fd.append(prefix + key + ']', String(val)); } catch (e) {}
+    });
+  }
+
+  A.enrichCartAddFormData = async function (formData) {
+    if (!formData || !(formData instanceof FormData)) return;
+    if (!M || typeof M.computeAndApplyAssignment !== 'function') return;
+
+    var items = parseItemsFromFormData(formData);
+    if (!items.length) return;
+
+    var addonIds = await getAddonVariantIdSet().catch(function () { return new Set(); });
+    var assignmentPropKey = (M && M.CFG && M.CFG.propAssignedVariantId) || '_assigned_variant_id';
+    var parentAssignments = {};
+    var addonAssignments = {};
+
+    function recordParentAssignment(uid, variantId) {
+      var key = String(uid || '').trim();
+      var vid = String(variantId || '').trim();
+      if (!key || !vid) return;
+      parentAssignments[key] = vid;
+    }
+
+    function recordAddonAssignment(uid, variantId) {
+      var key = String(uid || '').trim();
+      var vid = String(variantId || '').trim();
+      if (!key || !vid) return;
+      addonAssignments[key] = addonAssignments[key] || [];
+      if (addonAssignments[key].indexOf(vid) === -1) addonAssignments[key].push(vid);
+    }
+
+    function stripDebugProps(obj) {
+      if (!obj || isDebug()) return obj;
+      Object.keys(obj).forEach(function (k) {
+        if (String(k || '').indexOf('DEBUG ') === 0) delete obj[k];
+      });
+      return obj;
+    }
+
+    // Seed assignments from existing properties when parent UID is explicitly present
+    items.forEach(function (it) {
+      var props = (it && it.properties) || {};
+      var uid = String(props._bl_parent_uid || props._bl_assignment_uid || '').trim();
+      if (!uid) return;
+
+      var assignedSeed = props._bl_assigned_variant_id || props[assignmentPropKey] || '';
+      if (!assignedSeed) return;
+
+      var idStr = String(assignedSeed || '').trim();
+      var isAddonSeed = String(props._bl_is_addon || '') === '1' || (addonIds && addonIds.has(String(it.id || '')));
+      if (isAddonSeed) recordAddonAssignment(uid, idStr);
+      else recordParentAssignment(uid, idStr);
+    });
+
+    var lastParentUid = '';
+    var parentUidByIndex = {};
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i] || {};
+      var idx = item.index;
+      var id = String(item.id || '');
+      var props = item.properties || {};
+      var isAddon = String(props._bl_is_addon || '') === '1' || (addonIds && addonIds.has(id));
+
+      if (!isAddon) {
+        var parentUid = props._bl_parent_uid || props._bl_assignment_uid || parentUidByIndex[idx];
+        if (!parentUid) parentUid = generateUid('bl-parent');
+        parentUidByIndex[idx] = parentUid;
+        lastParentUid = parentUid;
+
+        var parentAssigned = props._bl_assigned_variant_id || props[assignmentPropKey];
+        if (parentAssigned) recordParentAssignment(parentUid, parentAssigned);
+        continue;
+      }
+
+      if (!id) {
+        continue;
+      }
+
+      var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
+      var lockedCollection = props._bl_locked_collection || getLockedCollectionHandleFromDom();
+      if (lockedCollection) props._bl_locked_collection = lockedCollection;
+
+      var excludeVariantIds = [];
+      if (addonParentUid && parentAssignments[addonParentUid]) excludeVariantIds.push(parentAssignments[addonParentUid]);
+      if (addonParentUid && addonAssignments[addonParentUid] && addonAssignments[addonParentUid].length) {
+        excludeVariantIds = excludeVariantIds.concat(addonAssignments[addonParentUid]);
+      }
+      var seenExcludes = {};
+      var dedupedExcludes = excludeVariantIds.filter(function (vid) {
+        var key = String(vid || '').trim();
+        if (!key || seenExcludes[key]) return false;
+        seenExcludes[key] = true;
+        return true;
+      });
+
+      var syntheticForm = buildAddonFormFromItem({ id: id, properties: props }, addonParentUid);
+
+      try {
+        await M.computeAndApplyAssignment(syntheticForm, getAddonHandle(), { force: true, excludeVariantIds: dedupedExcludes });
+      } catch (errCompute) {
+        debugLog('addon-enrich-compute-error', errCompute);
+      }
+
+      var computedProps = collectProperties(syntheticForm);
+      var mergedProps = Object.assign({}, props, computedProps);
+
+      var assignUid = mergedProps._bl_assignment_uid || mergedProps._bl_assign_uid || (syntheticForm.dataset && syntheticForm.dataset.blAssignmentUid) || '';
+      if (!assignUid) assignUid = generateUid('bl-assign');
+
+      mergedProps._bl_assignment_uid = assignUid;
+      mergedProps._bl_assign_uid = assignUid;
+      mergedProps._bl_is_addon = '1';
+      mergedProps._bl_parent_uid = addonParentUid;
+      if (!mergedProps._bl_assigned_variant_id && id) mergedProps._bl_assigned_variant_id = id;
+
+      if (props._bl_parent_handle && !mergedProps._bl_parent_handle) mergedProps._bl_parent_handle = props._bl_parent_handle;
+      if (props._bl_locked_collection && !mergedProps._bl_locked_collection) mergedProps._bl_locked_collection = props._bl_locked_collection;
+
+      stripDebugProps(mergedProps);
+
+      rewritePropertiesForIndex(formData, idx, mergedProps);
+      parentUidByIndex[idx] = addonParentUid;
+      lastParentUid = addonParentUid;
+
+      var addonAssignedVariant = mergedProps._bl_assigned_variant_id || mergedProps[assignmentPropKey] || '';
+      if (addonAssignedVariant) recordAddonAssignment(addonParentUid, addonAssignedVariant);
+    }
+  };
 
 function ensureCssOnce() {
   if (document.getElementById('bl-addon-css')) return;
@@ -79,6 +311,10 @@ function ensureCssOnce() {
     '.upsell[data-upsell-addon="true"] .bl-addon-select{min-height:32px;height:32px;padding:4px 10px;border:1px solid rgba(0,0,0,.18);border-radius:8px;background:#fff;font-size:12px;line-height:1.1;max-width:100%;min-width:120px;}',
     '.upsell[data-upsell-addon="true"] .bl-addon-select option:disabled{color:rgba(0,0,0,.35);}',
     '.upsell[data-upsell-addon="true"] .bl-addon-hint{font-size:12px;line-height:1.28;opacity:.85;}',
+    '.upsell[data-upsell-addon="true"] .product-form__quantity,.upsell[data-upsell-addon="true"] .quantity__input,.upsell[data-upsell-addon="true"] .quantity__button{display:none !important;}',
+    '.upsell[data-upsell-addon="true"] .upsell__add-btn .icon-plus{display:none !important;}',
+    '.upsell[data-upsell-addon="true"] .bl-addon-controls{justify-content:flex-start;}',
+    '.upsell[data-upsell-addon="true"] .bl-addon-meta{align-items:flex-start;}',
 
     /* Notice block */
     '.bl-addon-notice{margin-top:0.75rem;font-size:13px;line-height:1.4;color:#b33;padding:.6rem .8rem;border:1px solid rgba(179,51,51,.35);border-radius:8px;background:rgba(179,51,51,.08);width:100%;display:block;}',
@@ -207,6 +443,109 @@ function ensureCssOnce() {
     return el;
   }
 
+  function collectProperties(form) {
+    var props = {};
+    if (!form) return props;
+
+    try {
+      var inputs = form.querySelectorAll('input[name^="properties["]');
+      Array.prototype.slice.call(inputs || []).forEach(function (input) {
+        var name = input.getAttribute('name') || '';
+        var match = name.match(/^properties\[(.*)\]$/);
+        if (!match || match.length < 2) return;
+        var key = match[1];
+        props[key] = input.value || '';
+      });
+    } catch (e) {}
+
+    return props;
+  }
+
+  function mirrorPropertiesToItems(form, props) {
+    if (!form || !props) return;
+
+    var idInputs = form.querySelectorAll('input[name^="items["][name$="[id]"]');
+    if (!idInputs || !idInputs.length) return;
+
+    Array.prototype.slice.call(idInputs || []).forEach(function (idInput, autoIdx) {
+      var name = idInput.getAttribute('name') || '';
+      var m = name.match(/^(items\[[^\]]*\])\[id\]$/);
+      var itemKey = (m && m[1]) ? m[1] : 'items[' + autoIdx + ']';
+
+      Object.keys(props).forEach(function (key) {
+        var propName = itemKey + '[properties[' + key + ']]';
+        var existing = form.querySelector('input[name="' + propName.replace(/"/g, '\\"') + '"]');
+        if (!existing) {
+          existing = document.createElement('input');
+          existing.type = 'hidden';
+          existing.name = propName;
+          form.appendChild(existing);
+        }
+        existing.value = props[key] || '';
+      });
+    });
+  }
+
+  function logAddonDebug(label, meta) {
+    if (!isDebug()) return;
+    debugLog(label, meta);
+  }
+
+  function patchCartDrawerProductForm(pfEl, form) {
+    if (!pfEl || !form) return;
+    if (pfEl.dataset && pfEl.dataset.blAddonPatched === '1') return;
+
+    var formHandle = (form.getAttribute('data-bl-handle') || '').trim();
+    if (formHandle && formHandle !== getAddonHandle()) return;
+
+    var originalSubmit = typeof pfEl.onSubmit === 'function' ? pfEl.onSubmit.bind(pfEl) : null;
+    if (!originalSubmit) return;
+
+    try { pfEl.dataset.blAddonPatched = '1'; } catch (e) {}
+
+    pfEl.onSubmit = function (evt) {
+      var handle = getAddonHandle();
+
+      var computePromise = Promise.resolve(true);
+      try {
+        if (M && typeof M.computeAndApplyAssignment === 'function') {
+          computePromise = M.computeAndApplyAssignment(form, handle, { force: true });
+        }
+      } catch (e) {}
+
+      return computePromise.then(function (ok) {
+        if (!ok) {
+          logAddonDebug('pre-submit-skip', { role: 'addon', handle: handle, reason: 'compute-failed' });
+          if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+          return false;
+        }
+
+        var propsSnapshot = collectProperties(form);
+        mirrorPropertiesToItems(form, propsSnapshot);
+
+        logAddonDebug('pre-submit', {
+          role: 'addon',
+          handle: handle,
+          properties: propsSnapshot
+        });
+
+        if (isDebug() && (!propsSnapshot._bl_assigned_variant_id || !propsSnapshot._bl_assignment_uid)) {
+          console.error('[BL Mystery][addon] BLOCKED: missing swap properties');
+          logAddonDebug('blocked', {
+            role: 'addon',
+            handle: handle,
+            reason: 'missing-properties',
+            properties: propsSnapshot
+          });
+          if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+          return false;
+        }
+
+        return originalSubmit(evt);
+      });
+    };
+  }
+
   function parseVariants(card) {
     var script = card.querySelector('script[data-bl-addon-variants]');
     if (!script) return [];
@@ -315,6 +654,8 @@ function ensureCssOnce() {
       card.querySelector('form[action^="/cart/add"]') ||
       card.querySelector('form');
 
+    var productFormEl = card.querySelector('product-form');
+
     if (form) {
       var idInput = form.querySelector('input[name="id"]') || form.querySelector('select[name="id"]');
       if (idInput) idInput.value = String(v.id);
@@ -351,10 +692,10 @@ function ensureCssOnce() {
       img.removeAttribute('sizes');
     }
 
-    // precompute assignment (so add is instant)
+    // Sync requested state but defer assignment until add-to-cart
     try {
       if (M && form && typeof M.computeAndApplyAssignment === 'function') {
-        M.computeAndApplyAssignment(form, M.CFG.mysteryAddonHandle).catch(function () {});
+        M.computeAndApplyAssignment(form, M.CFG.mysteryAddonHandle, { assign: false }).catch(function () {});
       }
     } catch (e) {}
   }
@@ -495,6 +836,8 @@ function ensureCssOnce() {
       card.querySelector('form[action^="/cart/add"]') ||
       card.querySelector('form');
 
+    var productFormEl = card.querySelector('product-form');
+
     var locked = String(card.getAttribute('data-locked-collection') || '').trim();
     var parentHandle = String(card.getAttribute('data-parent-handle') || '').trim();
 
@@ -507,7 +850,13 @@ function ensureCssOnce() {
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
         if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+
+        // assignment happens in engine submit safety; keep flags in sync
       });
+    }
+
+    if (productFormEl && form) {
+      patchCartDrawerProductForm(productFormEl, form);
     }
 
     var selectEl = buildSelect(card, variants);
