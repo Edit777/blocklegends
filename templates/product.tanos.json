@@ -1,0 +1,1061 @@
+/*
+ * ------------------------------------------------------------
+ * IMPORTANT: The contents of this file are auto-generated.
+ *
+ * This file may be updated by the Shopify admin theme editor
+ * or related systems. Please exercise caution as any changes
+ * made to this file may be overwritten.
+ * ------------------------------------------------------------
+ */
+{
+  "sections": {
+    "main": {
+      "type": "main-product",
+      "blocks": {
+        "product_collection_yhmK6m": {
+          "type": "product_collection",
+          "settings": {
+            "label": "Collection:",
+            "show_link": true,
+            "font_size": 12,
+            "margin_top": 0,
+            "margin_bottom": 0
+          }
+        },
+        "pi_highlight_text_V7kqmr": {
+          "type": "pi_highlight_text",
+          "settings": {
+            "before_text": "Rarity:",
+            "highlight_text": "Legendary",
+            "after_text": "",
+            "show_separator": true,
+            "label_color": "#111111",
+            "highlight_color": "#ff2d2d",
+            "style": "text",
+            "pill_bg_color": "#ff2d2d1f",
+            "layout": "inline",
+            "align": "left",
+            "highlight_bold": true,
+            "font_size": 14,
+            "margin_top": 0,
+            "margin_bottom": 0,
+            "padding_x": 0,
+            "padding_y": 0,
+            "bg_color": "rgba(0,0,0,0)",
+            "border_color": "rgba(0,0,0,0)",
+            "border_width": 0,
+            "border_radius": 0
+          }
+        },
+        "title": {
+          "type": "title",
+          "settings": {
+            "text_size": "h1",
+            "title_alignment": "left",
+            "uppercase_title": false,
+            "margin_top": 0,
+            "margin_bottom": 0
+          }
+        },
+        "a6eb81db-40e4-43e0-972f-32db010a4a56": {
+          "type": "rating_stars",
+          "settings": {
+            "rating": 4.4,
+            "star_color": "#ffcc00",
+            "bg_stars_style": "full",
+            "bg_star_color": "#ececec",
+            "label": "<em><strong>340+ Positive reviews</strong></em>",
+            "size": 15,
+            "alignment": "flex-start",
+            "scroll_id": "",
+            "margin_top": 0,
+            "margin_bottom": 0
+          }
+        },
+        "price": {
+          "type": "price",
+          "settings": {
+            "layout": "price_first",
+            "price_color": "accent-1",
+            "compare_price_color": "text",
+            "displayed_badge": "sale",
+            "icon_scale": 140,
+            "custom_badge_text": "[icon_1] SPECIAL OFFER",
+            "icon_1": "redeem",
+            "filled_icon_1": false,
+            "icon_2": "check_circle",
+            "filled_icon_2": false,
+            "margin_top": 0,
+            "margin_bottom": 0
+          }
+        },
+        "inventory_dtBgQD": {
+          "type": "inventory",
+          "settings": {
+            "enable_limited_stock": true,
+            "force_limited_stock": true,
+            "inventory_threshold": 10,
+            "bulb_in_stock": "#3ed660",
+            "bulb_low_stock": "#ee4141",
+            "bulb_continue_selling": "#3ed660",
+            "bulb_out_of_stock": "#c8c8c8",
+            "bulb_animation_in_stock": "glow",
+            "bulb_animation_low_stock": "pulse_strong",
+            "bulb_animation_speed": 2200,
+            "inv_text_in_stock": "In stock",
+            "inv_text_low_stock": "Limited stock",
+            "inv_text_continue": "Ships on backorder",
+            "inv_text_out_of_stock": "Out of stock",
+            "inv_font_size": 14,
+            "inv_pad_y": 0,
+            "inv_pad_x": 0,
+            "inv_gap": 6,
+            "inv_boxed": false,
+            "inv_radius": 200,
+            "inv_text_color": "",
+            "inv_bg": "",
+            "inv_bg_opacity": 0,
+            "inv_border_color": "",
+            "inv_border_width": 0,
+            "text_style": "uppercase",
+            "margin_top": 0,
+            "margin_bottom": 6,
+            "inv_bold": false,
+            "inv_font_size_mobile": 14
+          }
+        },
+        "text_mk3jNi": {
+          "type": "text",
+          "disabled": true,
+          "settings": {
+            "mobile_text_size": 16,
+            "desktop_text_size": 16,
+            "alignment": "left",
+            "text_color": "#121212",
+            "text_1": "Premium <strong>ABS</strong> Plastic",
+            "text_2": "<strong>High-Precision</strong> Detail",
+            "text_3": "Step-by-Step<strong> Instructions</strong>",
+            "icon_scale": 120,
+            "icon_color": "#121212",
+            "icon_1": "diamond",
+            "filled_icon_1": false,
+            "icon_2": "stars",
+            "filled_icon_2": false,
+            "icon_3": "developer_guide",
+            "filled_icon_3": false,
+            "width": "100%",
+            "direction": "vertical",
+            "column_gap": 2,
+            "enable_bg": false,
+            "bg_color": "#f3f3f3",
+            "corner_radius": 40,
+            "padding": 3,
+            "border_size": 0,
+            "border_color": "#b7b7b7",
+            "margin_top": 6,
+            "margin_bottom": 0
+          }
+        },
+        "custom_liquid_DBHDWN": {
+          "type": "custom_liquid",
+          "settings": {
+            "custom_liquid": "<!-- Подключаем иконки Google Material Symbols -->\n<link rel=\"stylesheet\"\n      href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500\" />\n\n{% style %}\n.bl-feature-list {\n  font-size: 16px;\n  line-height: 1.4;\n  display: flex;\n  flex-direction: column;\n  gap: 6px; /* расстояние между строками */\n}\n\n.bl-feature-list__item {\n  display: flex;\n  align-items: flex-start;\n  gap: 8px; /* расстояние между иконкой и текстом */\n}\n\n.material-symbols-outlined {\n  font-size: 24px;\n  line-height: 1;\n  margin-top: 2px; /* визуальное выравнивание по центру строки */\n}\n\n.bl-feature-list__content {\n  display: flex;\n  flex-direction: column;\n}\n\n.bl-feature-list__title {\n  white-space: nowrap;\n}\n\n.bl-feature-list__note {\n  font-size: 14px;\n  line-height: 1.3;\n  margin-top: 1px; /* расстояние между основной строкой и текстом в скобках */\n}\n{% endstyle %}\n\n<div class=\"bl-feature-list\">\n\n  <div class=\"bl-feature-list__item\">\n    <span class=\"material-symbols-outlined\">diamond</span>\n    <div class=\"bl-feature-list__content\">\n      <span class=\"bl-feature-list__title\">\n        Premium <strong>ABS</strong> Plastic\n      </span>\n    </div>\n  </div>\n\n  <div class=\"bl-feature-list__item\">\n    <span class=\"material-symbols-outlined\">star</span>\n    <div class=\"bl-feature-list__content\">\n      <span class=\"bl-feature-list__title\">\n        <strong>High-Precision</strong> Detail\n      </span>\n    </div>\n  </div>\n\n  <div class=\"bl-feature-list__item\">\n    <span class=\"material-symbols-outlined\">description</span>\n    <div class=\"bl-feature-list__content\">\n      <span class=\"bl-feature-list__title\">\n        Step-by-Step <strong>Instructions</strong>\n      </span>\n      <span class=\"bl-feature-list__note\">\n        (PDF, QR code, inside)\n      </span>\n    </div>\n  </div>\n\n</div>"
+          }
+        },
+        "04ba004e-2f54-4936-8b1c-8bcadf6573f6": {
+          "type": "quantity_selector",
+          "disabled": true,
+          "settings": {
+            "full_width_classic": false,
+            "atc_append": "none",
+            "atc_append_heights": "original",
+            "enable_quantity_discounts": false,
+            "style": "compact",
+            "headline": "BUNDLE & SAVE",
+            "preselected": "option_1",
+            "display_selected_indicator": true,
+            "border_radius": 10,
+            "border_width": 2,
+            "color_scheme": "accent-1",
+            "enable_variant_selectors": true,
+            "enable_variant_selectors_on_quantity_of_1": false,
+            "update_prices": false,
+            "skip_unavailable": false,
+            "full_width_pickers": false,
+            "hide_pickers_overlay": true,
+            "pickers_label": "",
+            "image_width": 70,
+            "space_images": true,
+            "vertical_images_position": "top",
+            "vertical_prices_layout": "vertical",
+            "option_1_quantity": 1,
+            "option_1_badge": "",
+            "option_1_badge_style": "1",
+            "option_1_badge_color": "accent-1",
+            "option_1_label": "Buy [quantity]",
+            "option_1_benefit": "",
+            "option_1_benefit_position": "top",
+            "option_1_benefit_style": "outlined",
+            "option_1_benefit_color": "accent-1",
+            "option_1_caption": "You save [amount_saved]",
+            "option_1_percentage_off_text": "0",
+            "option_1_fixed_amount_off": "0",
+            "option_1_price_text": "[price]",
+            "option_1_compare_price": "compare_price",
+            "option_1_compare_price_text": "[compare_price]",
+            "option_2_quantity": 2,
+            "option_2_badge": "",
+            "option_2_badge_style": "1",
+            "option_2_badge_color": "accent-1",
+            "option_2_label": "Buy [quantity]",
+            "option_2_benefit": "",
+            "option_2_benefit_position": "top",
+            "option_2_benefit_style": "outlined",
+            "option_2_benefit_color": "accent-1",
+            "option_2_caption": "You save [amount_saved]",
+            "option_2_percentage_off_text": "0",
+            "option_2_fixed_amount_off": "0",
+            "option_2_price_text": "[price]",
+            "option_2_compare_price": "compare_price",
+            "option_2_compare_price_text": "[compare_price]",
+            "option_3_quantity": 3,
+            "option_3_badge": "",
+            "option_3_badge_style": "1",
+            "option_3_badge_color": "accent-1",
+            "option_3_label": "Buy [quantity]",
+            "option_3_benefit": "",
+            "option_3_benefit_position": "top",
+            "option_3_benefit_style": "outlined",
+            "option_3_benefit_color": "accent-1",
+            "option_3_caption": "You save [amount_saved]",
+            "option_3_percentage_off_text": "0",
+            "option_3_fixed_amount_off": "0",
+            "option_3_price_text": "[price]",
+            "option_3_compare_price": "compare_price",
+            "option_3_compare_price_text": "[compare_price]",
+            "option_4_quantity": 4,
+            "option_4_badge": "",
+            "option_4_badge_style": "1",
+            "option_4_badge_color": "accent-1",
+            "option_4_label": "Buy [quantity]",
+            "option_4_benefit": "",
+            "option_4_benefit_position": "top",
+            "option_4_benefit_style": "outlined",
+            "option_4_benefit_color": "accent-1",
+            "option_4_caption": "You save [amount_saved]",
+            "option_4_percentage_off_text": "0",
+            "option_4_fixed_amount_off": "0",
+            "option_4_price_text": "[price]",
+            "option_4_compare_price": "compare_price",
+            "option_4_compare_price_text": "[compare_price]",
+            "margin_top": 15,
+            "margin_bottom": 0
+          }
+        },
+        "product_upsell_xMcNd4": {
+          "type": "product_upsell",
+          "settings": {
+            "style": "checkbox_2",
+            "btn_position": "right",
+            "toggle_element": "container",
+            "add_btn_label": "<strong>Add</strong>",
+            "stacking": "row",
+            "accent_color": "accent-1",
+            "color_scheme": "background-1",
+            "product_list": [
+              "hot-royaled-battle-anime-character-building-blocks-mage-warrior-game-brickheadz-figures-assembly-model-puzzle-toy-birthday-gift-2",
+              "moc-model-kit-for-sets-adults-diy-cheap-action-figure-brickheadz-montessori-craft-toys-for-children-magical-building-block-4",
+              "moc-movie-characters-loki-scarlet-witch-halloween-scarlet-witch-aku-headz-puzzles-birthday-cartoon-anim-figures-toy-gifts-2"
+            ],
+            "enable_dynamic_recommendations": true,
+            "upsell_collection": "",
+            "prdouct_1_preselected": false,
+            "product_1_desc": "",
+            "product_1_percentage_discount": "0",
+            "product_1_fixed_amount_discount": "0",
+            "prdouct_2_preselected": false,
+            "product_2_desc": "",
+            "product_2_percentage_discount": "0",
+            "product_2_fixed_amount_discount": "0",
+            "prdouct_3_preselected": false,
+            "product_3_desc": "",
+            "product_3_percentage_discount": "0",
+            "product_3_fixed_amount_discount": "0",
+            "show_images": true,
+            "images_size": "5.75",
+            "images_corner_radius": 0,
+            "title_size": "1.2",
+            "title_link": true,
+            "desc_size": "1.05",
+            "price_position": "next_to_title",
+            "price_size": "1.4",
+            "hide_compare_price": false,
+            "show_variant_picker": false,
+            "update_prices": false,
+            "skip_unavailable": false,
+            "container_title": "Better Together",
+            "container_title_position": "outside",
+            "container_title_mobile_text_size": 20,
+            "container_title_desktop_text_size": 20,
+            "corner_radius": 0,
+            "show_box_shadow": true,
+            "show_border": true,
+            "regular_border_color": "#e6e6e6",
+            "selected_border_color": "#0d0d0d",
+            "border_width": "0.2",
+            "show_custom_bg": false,
+            "regular_bg_color": "#f2f2f2",
+            "selected_bg_color": "#f2f2f2",
+            "margin_top": 21,
+            "margin_bottom": 21
+          }
+        },
+        "buy_buttons": {
+          "type": "buy_buttons",
+          "settings": {
+            "show_dynamic_checkout": false,
+            "skip_cart": false,
+            "uppercase_text": true,
+            "icon_scale": 120,
+            "icon_spacing": 10,
+            "display_price": false,
+            "enable_custom_color": false,
+            "custom_color": "#53af01",
+            "enable_secondary_btn": false,
+            "secondary_btn_label": "Buy It Now",
+            "secondary_btn_enable_custom_color": false,
+            "secondary_btn_custom_color": "#dd1d1d",
+            "margin_top": 9,
+            "margin_bottom": 24
+          }
+        },
+        "collapsible_tab_iwUbN8": {
+          "type": "collapsible_tab",
+          "settings": {
+            "heading": "30-Day Money-Back Guarantee",
+            "heading_size": "medium",
+            "icon": "verified_user",
+            "filled_icon": false,
+            "collapse_icon": "carret",
+            "display_top_border": true,
+            "open": false,
+            "content": "<p>Not happy with your figure? Return it within <strong>30 days</strong> for a <strong>full refund</strong>. No questions asked.</p>",
+            "page": "",
+            "margin_top": 24,
+            "margin_bottom": 0
+          }
+        },
+        "collapsible_tab_Bc7gQE": {
+          "type": "collapsible_tab",
+          "settings": {
+            "heading": "Premium Quality Assurance",
+            "heading_size": "medium",
+            "icon": "social_leaderboard",
+            "filled_icon": false,
+            "collapse_icon": "carret",
+            "display_top_border": true,
+            "open": false,
+            "content": "<p>Every figure is <strong>hand-checked</strong> for defects before shipping to ensure <strong>perfect </strong>condition.</p>",
+            "page": "",
+            "margin_top": 24,
+            "margin_bottom": 0
+          }
+        },
+        "collapsible_tab_6H6enG": {
+          "type": "collapsible_tab",
+          "settings": {
+            "heading": "Worldwide Shipping",
+            "heading_size": "medium",
+            "icon": "globe",
+            "filled_icon": false,
+            "collapse_icon": "carret",
+            "display_top_border": true,
+            "open": false,
+            "content": "<p><strong>Fast Worldwide Shipping</strong><br/>We offer fully tracked and insured global delivery. Your order will be carefully packaged and typically arrives at your doorstep within <strong>3–7 business days</strong>.</p>",
+            "page": "",
+            "margin_top": 24,
+            "margin_bottom": 0
+          }
+        },
+        "e7a28cbe-03cb-4c9d-a2c4-0e3e76ffb3e5": {
+          "type": "sticky_atc",
+          "settings": {
+            "function": "add_to_cart",
+            "display_when": "after_scroll",
+            "button_label": "Add to cart",
+            "enable_custom_btn_color": false,
+            "custom_btn_color": "#dd1d1d",
+            "color_scheme": "background-1",
+            "star_color": "#ffcc00",
+            "stars_label": "(xxxx Reviews)",
+            "picker_type": "combined",
+            "desktop_show_image": true,
+            "desktop_show_title": true,
+            "desktop_rating_stars": false,
+            "desktop_show_price": true,
+            "desktop_show_sale_badge": true,
+            "desktop_variant_picker": false,
+            "desktop_full_button_width": false,
+            "desktop_show_price_in_button": false,
+            "desktop_transparent_bg": false,
+            "mobile_show_image": false,
+            "mobile_show_title": true,
+            "mobile_rating_stars": false,
+            "mobile_show_price": true,
+            "mobile_show_sale_badge": false,
+            "mobile_variant_picker": false,
+            "mobile_full_button_width": false,
+            "mobile_show_price_in_button": false,
+            "mobile_transparent_bg": false
+          }
+        },
+        "description": {
+          "type": "description",
+          "settings": {
+            "margin_top": 24,
+            "margin_bottom": 24
+          }
+        }
+      },
+      "block_order": [
+        "product_collection_yhmK6m",
+        "pi_highlight_text_V7kqmr",
+        "title",
+        "a6eb81db-40e4-43e0-972f-32db010a4a56",
+        "price",
+        "inventory_dtBgQD",
+        "text_mk3jNi",
+        "custom_liquid_DBHDWN",
+        "04ba004e-2f54-4936-8b1c-8bcadf6573f6",
+        "product_upsell_xMcNd4",
+        "buy_buttons",
+        "collapsible_tab_iwUbN8",
+        "collapsible_tab_Bc7gQE",
+        "collapsible_tab_6H6enG",
+        "e7a28cbe-03cb-4c9d-a2c4-0e3e76ffb3e5",
+        "description"
+      ],
+      "custom_css": [],
+      "settings": {
+        "display_id": false,
+        "enable_sticky_info": false,
+        "display_variant_image_first": false,
+        "disable_prepend": true,
+        "hide_variants": false,
+        "variant_image_filtering": "none",
+        "image_zoom": "none",
+        "thumbnails_ratio": "square",
+        "arrows_color_scheme": "inverse",
+        "transparent_arrows": false,
+        "dots_color_scheme": "inverse",
+        "video_player": "play_btn",
+        "enable_video_looping": false,
+        "autoplay_videos_pause_btn": false,
+        "video_sound_btn": false,
+        "video_timeline": false,
+        "play_btn_color_scheme": "accent-1",
+        "sound_btn_color_scheme": "inverse",
+        "timeline_color": "accent-1",
+        "media_size": "small",
+        "media_position": "left",
+        "gallery_layout": "stacked",
+        "desktop_thumbnails_position": "bottom",
+        "desktop_thumbnails_count": 5,
+        "desktop_vertical_thumbnails_width": 16,
+        "desktop_vertical_thumbnails_hide_arrows": false,
+        "constrain_to_viewport": true,
+        "media_fit": "cover",
+        "desktop_arrows_position": "hidden",
+        "mobile_media_corner_radius": 30,
+        "mobile_spacing_pixels": 0,
+        "mobile_arrows_position": "sides",
+        "mobile_pagination": "dots_overlay",
+        "mobile_thumbnails_position": "hidden",
+        "mobile_thumbnails_count": 5,
+        "mobile_vertical_thumbnails_width": 22,
+        "mobile_vertical_thumbnails_hide_arrows": true,
+        "mobile_scroll_padding_percentage": 0,
+        "mobile_scroll_padding_pixels": 14,
+        "enable_mobile_outher_spacing": false,
+        "mobile_slides_container_width": 100,
+        "mobile_slides_inner_width": 95,
+        "trust_badge_position": "top-right",
+        "trust_badge_size": "medium",
+        "mobile_padding_top": 8,
+        "mobile_padding_bottom": 16,
+        "desktop_padding_top": 36,
+        "desktop_padding_bottom": 36
+      }
+    },
+    "slideshow_hero_M6hWWz": {
+      "type": "slideshow-hero",
+      "blocks": {
+        "slide_Renf8W": {
+          "type": "slide",
+          "settings": {
+            "desktop_bg_image": "shopify://shop_images/Prompt_en_use_2k_202512281625.jpg",
+            "desktop_overlay_color": "#000000",
+            "desktop_overlay_opacity": 0,
+            "mobile_overlay_color": "#000000",
+            "mobile_overlay_opacity": 0,
+            "display_sound_btn": false,
+            "sound_btn_color_scheme": "inverse",
+            "heading_prefix": "",
+            "heading": "",
+            "title_highlight_color": "#6d388b",
+            "heading_size": "h1",
+            "heading_suffix": "",
+            "heading_prefix_size": "h4",
+            "text": "",
+            "button_label_1": "",
+            "button_link_1": "",
+            "button_style_secondary_1": false,
+            "button_label_2": "",
+            "button_link_2": "",
+            "button_style_secondary_2": false,
+            "color_scheme": "background-1",
+            "full_page_width": false,
+            "content_max_width": "unlimited",
+            "content_pixels_max_width": 500,
+            "content_percentage_max_width": 50,
+            "content_vertical_position": "flex-end",
+            "content_horizontal_position": "flex-start",
+            "content_text_alignment": "left",
+            "mobile_content_vertical_position": "center",
+            "mobile_content_text_alignment": "center",
+            "custom_colors_text": "#2e2a39",
+            "custom_colors_solid_button_background": "#dd1d1d",
+            "custom_colors_solid_button_text": "#ffffff",
+            "custom_colors_outline_button": "#dd1d1d"
+          }
+        }
+      },
+      "block_order": [
+        "slide_Renf8W"
+      ],
+      "name": "Slideshow hero",
+      "settings": {
+        "visibility": "always-display",
+        "min_desktop_height_type": "autofit",
+        "desktop_pixels_height": 600,
+        "min_mobile_height_type": "autofit",
+        "mobile_pixels_height": 400,
+        "transparent_header": false,
+        "transparent_header_text_color": "text",
+        "transparent_header_highlighted_link_color": "background-1",
+        "transparent_header_hover_link_color": "accent-1",
+        "transparent_header_logo": "main",
+        "hide_announcement_bars": false,
+        "slider_type": "loop",
+        "drag": false,
+        "autoplay": false,
+        "autoplay_speed": 10,
+        "enable_dots": true,
+        "dots_color_scheme": "background-1",
+        "padding_top": 50,
+        "padding_bottom": 50
+      }
+    },
+    "rich_text_zhJKdc": {
+      "type": "rich-text",
+      "blocks": {
+        "heading_4HXAdM": {
+          "type": "heading",
+          "settings": {
+            "title": "Talk about your brand",
+            "title_highlight_color": "#6d388b",
+            "heading_size": "h1"
+          }
+        },
+        "text_JnTJ6H": {
+          "type": "text",
+          "settings": {
+            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+          }
+        }
+      },
+      "block_order": [
+        "heading_4HXAdM",
+        "text_JnTJ6H"
+      ],
+      "name": "t:sections.rich-text.presets.name",
+      "settings": {
+        "display_id": false,
+        "visibility": "always-display",
+        "desktop_content_position": "center",
+        "content_alignment": "center",
+        "full_width": true,
+        "color_scheme": "custom",
+        "padding_top": 40,
+        "padding_bottom": 52,
+        "custom_colors_background": "#ffffff",
+        "custom_gradient_background": "",
+        "custom_colors_text": "#2e2a39",
+        "custom_colors_solid_button_background": "#dd1d1d",
+        "custom_colors_solid_button_text": "#ffffff",
+        "custom_colors_outline_button": "#dd1d1d"
+      }
+    },
+    "slideshow_hero_AjAtPx": {
+      "type": "slideshow-hero",
+      "blocks": {
+        "slide_3pLURd": {
+          "type": "slide",
+          "settings": {
+            "desktop_bg_image": "shopify://shop_images/Use_reference_1_2k_202512281638.jpg",
+            "desktop_overlay_color": "#000000",
+            "desktop_overlay_opacity": 0,
+            "mobile_overlay_color": "#000000",
+            "mobile_overlay_opacity": 0,
+            "display_sound_btn": false,
+            "sound_btn_color_scheme": "inverse",
+            "heading_prefix": "Header prefix",
+            "heading": "Slideshow hero",
+            "title_highlight_color": "#6d388b",
+            "heading_size": "h1",
+            "heading_suffix": "",
+            "heading_prefix_size": "h4",
+            "text": "<p>Tell your brand's story with a slideshow hero.</p>",
+            "button_label_1": "Button label",
+            "button_link_1": "",
+            "button_style_secondary_1": false,
+            "button_label_2": "",
+            "button_link_2": "",
+            "button_style_secondary_2": false,
+            "color_scheme": "custom",
+            "full_page_width": false,
+            "content_max_width": "unlimited",
+            "content_pixels_max_width": 500,
+            "content_percentage_max_width": 50,
+            "content_vertical_position": "center",
+            "content_horizontal_position": "flex-start",
+            "content_text_alignment": "center",
+            "mobile_content_vertical_position": "center",
+            "mobile_content_text_alignment": "center",
+            "custom_colors_text": "#ffffff",
+            "custom_colors_solid_button_background": "#dd1d1d",
+            "custom_colors_solid_button_text": "#ffffff",
+            "custom_colors_outline_button": "#dd1d1d"
+          }
+        }
+      },
+      "block_order": [
+        "slide_3pLURd"
+      ],
+      "name": "Slideshow hero",
+      "settings": {
+        "visibility": "always-display",
+        "min_desktop_height_type": "pixels",
+        "desktop_pixels_height": 600,
+        "min_mobile_height_type": "pixels",
+        "mobile_pixels_height": 400,
+        "transparent_header": false,
+        "transparent_header_text_color": "text",
+        "transparent_header_highlighted_link_color": "background-1",
+        "transparent_header_hover_link_color": "accent-1",
+        "transparent_header_logo": "main",
+        "hide_announcement_bars": false,
+        "slider_type": "loop",
+        "drag": false,
+        "autoplay": false,
+        "autoplay_speed": 10,
+        "enable_dots": true,
+        "dots_color_scheme": "background-1",
+        "padding_top": 50,
+        "padding_bottom": 50
+      }
+    },
+    "rich_text_Vxx6Jr": {
+      "type": "rich-text",
+      "blocks": {
+        "heading_7DGqrX": {
+          "type": "heading",
+          "settings": {
+            "title": "Talk about your brand",
+            "title_highlight_color": "#6d388b",
+            "heading_size": "h1"
+          }
+        },
+        "text_6KWdpe": {
+          "type": "text",
+          "settings": {
+            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+          }
+        },
+        "button_VkBXVT": {
+          "type": "button",
+          "settings": {
+            "button_label": "Button label",
+            "button_link": "",
+            "button_style_secondary": false,
+            "button_label_2": "",
+            "button_link_2": "",
+            "button_style_secondary_2": false
+          }
+        }
+      },
+      "block_order": [
+        "heading_7DGqrX",
+        "text_6KWdpe",
+        "button_VkBXVT"
+      ],
+      "name": "t:sections.rich-text.presets.name",
+      "settings": {
+        "display_id": false,
+        "visibility": "always-display",
+        "desktop_content_position": "center",
+        "content_alignment": "center",
+        "full_width": true,
+        "color_scheme": "background-1",
+        "padding_top": 40,
+        "padding_bottom": 52,
+        "custom_colors_background": "#ffffff",
+        "custom_gradient_background": "",
+        "custom_colors_text": "#2e2a39",
+        "custom_colors_solid_button_background": "#dd1d1d",
+        "custom_colors_solid_button_text": "#ffffff",
+        "custom_colors_outline_button": "#dd1d1d"
+      }
+    },
+    "slideshow_hero_wfMggU": {
+      "type": "slideshow-hero",
+      "blocks": {
+        "slide_9JnwR4": {
+          "type": "slide",
+          "settings": {
+            "desktop_bg_image": "shopify://shop_images/Use_reference_1_2k_202512281626.jpg",
+            "desktop_overlay_color": "#000000",
+            "desktop_overlay_opacity": 0,
+            "mobile_bg_image": "shopify://shop_images/Use_reference_1_2k_202512281626_1.jpg",
+            "mobile_overlay_color": "#000000",
+            "mobile_overlay_opacity": 0,
+            "display_sound_btn": false,
+            "sound_btn_color_scheme": "inverse",
+            "heading_prefix": "фцвфцвфцв",
+            "heading": "Фцвцфвфцвфвфцв",
+            "title_highlight_color": "#6d388b",
+            "heading_size": "h1",
+            "heading_suffix": "",
+            "heading_prefix_size": "h4",
+            "text": "<p>цвфвфвцфвфцвфц вфцв цф вфцввцфв</p><p>фцвцвфцвфцвфцвфвцфвцфв</p>",
+            "button_label_1": "",
+            "button_link_1": "shopify://products/moc-movie-characters-loki-scarlet-witch-halloween-scarlet-witch-aku-headz-puzzles-birthday-cartoon-anim-figures-toy-gifts-2",
+            "button_style_secondary_1": false,
+            "button_label_2": "",
+            "button_link_2": "",
+            "button_style_secondary_2": false,
+            "color_scheme": "custom",
+            "full_page_width": false,
+            "content_max_width": "unlimited",
+            "content_pixels_max_width": 500,
+            "content_percentage_max_width": 50,
+            "content_vertical_position": "center",
+            "content_horizontal_position": "flex-end",
+            "content_text_alignment": "center",
+            "mobile_content_vertical_position": "center",
+            "mobile_content_text_alignment": "center",
+            "custom_colors_text": "#ffffff",
+            "custom_colors_solid_button_background": "#dd1d1d",
+            "custom_colors_solid_button_text": "#ffffff",
+            "custom_colors_outline_button": "#dd1d1d"
+          }
+        }
+      },
+      "block_order": [
+        "slide_9JnwR4"
+      ],
+      "name": "Slideshow hero",
+      "settings": {
+        "visibility": "always-display",
+        "min_desktop_height_type": "pixels",
+        "desktop_pixels_height": 600,
+        "min_mobile_height_type": "pixels",
+        "mobile_pixels_height": 400,
+        "transparent_header": false,
+        "transparent_header_text_color": "text",
+        "transparent_header_highlighted_link_color": "background-1",
+        "transparent_header_hover_link_color": "accent-1",
+        "transparent_header_logo": "main",
+        "hide_announcement_bars": false,
+        "slider_type": "loop",
+        "drag": false,
+        "autoplay": false,
+        "autoplay_speed": 10,
+        "enable_dots": true,
+        "dots_color_scheme": "background-1",
+        "padding_top": 50,
+        "padding_bottom": 50
+      }
+    },
+    "multirow_dzzQHA": {
+      "type": "multirow",
+      "blocks": {
+        "row_tgEiHi": {
+          "type": "row",
+          "settings": {
+            "image": "shopify://shop_images/A_highquality_macro_202512091459.jpg",
+            "video_muted_autoplay": true,
+            "caption": "",
+            "title": "Immersive Build Experience",
+            "title_highlight_color": "#6d388b",
+            "text": "<p>Rediscover the joy of construction. Standing <strong>3–4 inches (8–10 cm)</strong> tall, this figure is built entirely from high-quality bricks, offering a satisfying challenge compared to standard minifigures. Every piece is engineered to fit perfectly, creating a sturdy model that looks impressive on any desk or shelf.</p>",
+            "button_label": "",
+            "button_link": "",
+            "atc_button_label": "",
+            "atc_product": "",
+            "atc_skip_cart": false
+          }
+        },
+        "row_GWAGhd": {
+          "type": "row",
+          "settings": {
+            "image": "shopify://shop_images/A_highquality_macro_202512091454.jpg",
+            "video_muted_autoplay": true,
+            "caption": "",
+            "title": "Premium Detail. Zero Stickers",
+            "title_highlight_color": "#6d388b",
+            "text": "<p>We believe durability is key. That’s why you won’t find cheap stickers here. Every graphical detail is <strong>UV-printed directly onto the ABS plastic</strong> elements, ensuring vibrant colors and sharp lines that never peel or fade. Enjoy a premium finish that looks professional from every angle.</p>",
+            "button_label": "",
+            "button_link": "",
+            "atc_button_label": "",
+            "atc_product": "",
+            "atc_skip_cart": false
+          }
+        }
+      },
+      "block_order": [
+        "row_tgEiHi",
+        "row_GWAGhd"
+      ],
+      "disabled": true,
+      "name": "t:sections.multirow.presets.name",
+      "settings": {
+        "display_id": false,
+        "visibility": "always-display",
+        "image_height": "medium",
+        "desktop_image_width": "medium",
+        "heading_size": "h1",
+        "text_style": "body",
+        "button_style": "secondary",
+        "desktop_content_position": "middle",
+        "desktop_content_alignment": "left",
+        "image_layout": "alternate-left",
+        "row_color_scheme": "background-1",
+        "section_color_scheme": "background-1",
+        "mobile_full_media_width": false,
+        "mobile_direction": "normal",
+        "mobile_content_alignment": "left",
+        "padding_top": 36,
+        "padding_bottom": 36,
+        "custom_colors_background": "#2e2a39",
+        "custom_gradient_background": "",
+        "custom_colors_text": "#ffffff",
+        "custom_colors_solid_button_background": "#dd1d1d",
+        "custom_colors_solid_button_text": "#ffffff",
+        "custom_colors_outline_button": "#dd1d1d",
+        "custom_section_colors_background": "#ffffff",
+        "custom_section_gradient_background": ""
+      }
+    },
+    "testimonials_bHYEJJ": {
+      "type": "testimonials",
+      "blocks": {
+        "column_btb4Qh": {
+          "type": "column",
+          "settings": {
+            "star_rating": 5,
+            "title": "",
+            "text": "<p>Bought this as a gift for my boyfriend who loves this universe. The packaging was sturdy and arrived in perfect condition. He really loved that there are no stickers involved just pure brick building!</p>",
+            "author": "<strong>Elena K.</strong>"
+          }
+        },
+        "column_qwpEw4": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/IMG_5386.jpg",
+            "star_rating": 5,
+            "title": "",
+            "text": "<p>Beautiful figure, smooth build, everything fits perfectly. Looks premium on display.</p>",
+            "author": "<strong>Daniel</strong>"
+          }
+        },
+        "column_3wH4zY": {
+          "type": "column",
+          "settings": {
+            "star_rating": 5,
+            "title": "",
+            "text": "<p>Looks even better in person. The build was quick, but the final figure feels solid and premium.</p>",
+            "author": "<strong>Daniel</strong>"
+          }
+        },
+        "column_TLqL8g": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/IMG_5385.jpg",
+            "star_rating": 5,
+            "title": "",
+            "text": "<p>The detail for this scale is crazy. The way the tie and suit are built with separate tiles is very clever. Shipping was fast, arrived in just 5 days.</p>",
+            "author": "<strong>Dmitry V.</strong>"
+          }
+        },
+        "column_LGaHeN": {
+          "type": "column",
+          "settings": {
+            "star_rating": 4,
+            "title": "",
+            "text": "<p>Fast delivery and solid design. Slightly tighter connections than expected.</p>",
+            "author": "<strong>Emma R.</strong>"
+          }
+        },
+        "column_yMjrEV": {
+          "type": "column",
+          "settings": {
+            "star_rating": 4,
+            "title": "",
+            "text": "<p>The design is a solid 10/10. My only small gripe is that a couple of the bricks were a tight fit, so I had to push hard. But once assembled, the figure is rock solid and doesn't fall apart.</p>",
+            "author": "<strong>Alex J.</strong>"
+          }
+        },
+        "column_KrBVdk": {
+          "type": "column",
+          "settings": {
+            "star_rating": 5,
+            "title": "",
+            "text": "<p>Better than expected. Solid build, expressive design, everything fits flawlessly.</p>",
+            "author": "<strong>Lucas</strong>"
+          }
+        },
+        "column_GyNjDY": {
+          "type": "column",
+          "settings": {
+            "image": "shopify://shop_images/IMG_5387.jpg",
+            "star_rating": 5,
+            "title": "",
+            "text": "<p>The figure turned out way better than I expected. Small, dense, premium feel - perfect for my desk.</p>",
+            "author": "<strong>Ethan</strong>"
+          }
+        },
+        "column_D3kKzF": {
+          "type": "column",
+          "settings": {
+            "star_rating": 5,
+            "title": "",
+            "text": "<p>The build was enjoyable, though a couple of small pieces required a bit of extra attention. Once assembled, the figure looked solid and well-balanced, and the colors came out very clean. I like how compact it is — doesn’t take much space but still draws the eye.</p>",
+            "author": "<strong>Ava</strong>"
+          }
+        },
+        "column_GGaeLX": {
+          "type": "column",
+          "settings": {
+            "star_rating": 4,
+            "title": "",
+            "text": "<p>Smooth assembly and cute final look. Would love more character choices soon.</p>",
+            "author": "<strong>Grace</strong>"
+          }
+        },
+        "column_FKPRQG": {
+          "type": "column",
+          "settings": {
+            "star_rating": 5,
+            "title": "",
+            "text": "<p>The gloss on the pieces makes it look super polished. Standout item on my shelf.</p>",
+            "author": "<strong>Henry</strong>"
+          }
+        }
+      },
+      "block_order": [
+        "column_btb4Qh",
+        "column_qwpEw4",
+        "column_3wH4zY",
+        "column_TLqL8g",
+        "column_LGaHeN",
+        "column_yMjrEV",
+        "column_KrBVdk",
+        "column_GyNjDY",
+        "column_D3kKzF",
+        "column_GGaeLX",
+        "column_FKPRQG"
+      ],
+      "name": "Testimonials",
+      "settings": {
+        "display_id": false,
+        "visibility": "always-display",
+        "title": "What Our Collectors Say",
+        "title_highlight_color": "#6d388b",
+        "heading_size": "h1",
+        "text": "",
+        "color_scheme": "background-1",
+        "image_width": "half",
+        "image_ratio": "portrait",
+        "column_alignment": "center",
+        "show_stars": true,
+        "inactive_stars_style": "solid",
+        "star_color": "#ffcc00",
+        "bg_star_color": "#ececec",
+        "show_quotes": true,
+        "quotes_color_scheme": "accent-2",
+        "cards_color_scheme": "bg-overlay",
+        "type": "loop",
+        "autoplay": false,
+        "autoplay_speed": 5,
+        "arrows_color_scheme": "inverse",
+        "transparent_arrows": true,
+        "dots_color_scheme": "inverse",
+        "desktop_full_page": false,
+        "columns_desktop": 3,
+        "slider_desktop": true,
+        "per_move_desktop": 1,
+        "desktop_spacing": 20,
+        "desktop_side_padding": 0,
+        "desktop_padding_calc": true,
+        "desktop_adaptive_height": false,
+        "desktop_dots_position": "under",
+        "desktop_arrows_position": "sides",
+        "slider_mobile": true,
+        "enable_mobile_preview": false,
+        "mobile_adaptive_height": true,
+        "mobile_dots_position": "under",
+        "mobile_arrows_position": "hidden",
+        "padding_top": 36,
+        "padding_bottom": 36,
+        "custom_colors_background": "#ffffff",
+        "custom_gradient_background": "",
+        "custom_colors_text": "#2e2a39",
+        "custom_cards_colors_background": "#f3f3f3",
+        "custom_cards_gradient_background": "",
+        "custom_cards_colors_text": "#2e2a39"
+      }
+    },
+    "related-products": {
+      "type": "related-products",
+      "settings": {
+        "display_id": false,
+        "title": "You may also like",
+        "title_highlight_color": "#6d388b",
+        "heading_size": "h2",
+        "products_to_show": 4,
+        "columns_desktop": 4,
+        "color_scheme": "background-1",
+        "image_ratio": "square",
+        "show_secondary_image": false,
+        "show_vendor": false,
+        "show_rating": false,
+        "enable_quick_add": false,
+        "columns_mobile": "2",
+        "padding_top": 36,
+        "padding_bottom": 24
+      }
+    }
+  },
+  "order": [
+    "main",
+    "slideshow_hero_M6hWWz",
+    "rich_text_zhJKdc",
+    "slideshow_hero_AjAtPx",
+    "rich_text_Vxx6Jr",
+    "slideshow_hero_wfMggU",
+    "multirow_dzzQHA",
+    "testimonials_bHYEJJ",
+    "related-products"
+  ]
+}
