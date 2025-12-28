@@ -493,7 +493,7 @@
         "slide_Renf8W": {
           "type": "slide",
           "settings": {
-            "desktop_bg_image": "shopify://shop_images/Prompt_en_use_2k_202512281625.jpg",
+            "desktop_bg_image": "shopify://shop_images/Create_a_169_2k_202512281718.jpg",
             "desktop_overlay_color": "#000000",
             "desktop_overlay_opacity": 0,
             "mobile_overlay_color": "#000000",
@@ -602,7 +602,7 @@
         "slide_3pLURd": {
           "type": "slide",
           "settings": {
-            "desktop_bg_image": "shopify://shop_images/Use_reference_1_2k_202512281638.jpg",
+            "desktop_bg_image": "shopify://shop_images/Create_a_169_2k_202512281706.jpg",
             "desktop_overlay_color": "#000000",
             "desktop_overlay_opacity": 0,
             "mobile_overlay_color": "#000000",
@@ -723,10 +723,10 @@
         "slide_9JnwR4": {
           "type": "slide",
           "settings": {
-            "desktop_bg_image": "shopify://shop_images/Use_reference_1_2k_202512281626.jpg",
+            "desktop_bg_image": "shopify://shop_images/Create_a_169_2k_202512281701.jpg",
             "desktop_overlay_color": "#000000",
             "desktop_overlay_opacity": 0,
-            "mobile_bg_image": "shopify://shop_images/Use_reference_1_2k_202512281626_1.jpg",
+            "mobile_bg_image": "shopify://shop_images/Create_a_169_2k_202512281701.jpg",
             "mobile_overlay_color": "#000000",
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
