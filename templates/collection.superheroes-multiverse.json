@@ -45,7 +45,7 @@
       "settings": {
         "display_id": false,
         "visibility": "mobile-hidden",
-        "image_height": "adapt",
+        "image_height": "small",
         "desktop_image_width": "medium",
         "heading_size": "h1",
         "text_style": "body",
