@@ -562,7 +562,7 @@
         "heading_4HXAdM": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "A Veteran, Not a Symbol",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -570,7 +570,7 @@
         "text_JnTJ6H": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>He’s been doing this for years. Long enough to learn that rules don’t scare criminals - and that mercy gets people buried. What’s left is discipline, paranoia, and a belief that the night must be controlled, not survived.</p>"
           }
         }
       },
@@ -610,14 +610,14 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "Header prefix",
-            "heading": "Slideshow hero",
+            "heading_prefix": "THE TURNING POINT",
+            "heading": "When Fear Changes Target",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>Tell your brand's story with a slideshow hero.</p>",
-            "button_label_1": "Button label",
+            "text": "<p>After a public catastrophe,he stopped asking “who will save us?” and started asking “who can end us?” From that moment, he treated power like a threat that needs a contingency.</p>",
+            "button_label_1": "",
             "button_link_1": "",
             "button_style_secondary_1": false,
             "button_label_2": "",
@@ -625,11 +625,11 @@
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
-            "content_horizontal_position": "flex-start",
+            "content_horizontal_position": "flex-end",
             "content_text_alignment": "center",
             "mobile_content_vertical_position": "center",
             "mobile_content_text_alignment": "center",
@@ -672,7 +672,7 @@
         "heading_7DGqrX": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "The Green Contingency",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -680,13 +680,13 @@
         "text_6KWdpe": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>He didn’t look for a fair fight. He looked for a weakness. A rare green mineral became a weapon - turned into dust, gas, and “insurance” that makes the unstoppable bleed. It’s not heroism. It’s preparation.</p>"
           }
         },
         "button_VkBXVT": {
           "type": "button",
           "settings": {
-            "button_label": "Button label",
+            "button_label": "",
             "button_link": "",
             "button_style_secondary": false,
             "button_label_2": "",
@@ -732,13 +732,13 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "фцвфцвфцв",
-            "heading": "Фцвцфвфцвфвфцв",
+            "heading_prefix": "ONE NIGHT, ONE DECISION",
+            "heading": "Win, Whatever It Costs",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>цвфвфвцфвфцвфц вфцв цф вфцввцфв</p><p>фцвцвфцвфцвфцвфвцфвцфв</p>",
+            "text": "<p>He built armor because he knew he would be outmatched.He brought the green agent because he knew steel alone wouldn’t be enough. In the end, his advantage wasn’t strength - it was the willingness to go further than anyone expects.</p>",
             "button_label_1": "",
             "button_link_1": "shopify://products/moc-movie-characters-loki-scarlet-witch-halloween-scarlet-witch-aku-headz-puzzles-birthday-cartoon-anim-figures-toy-gifts-2",
             "button_style_secondary_1": false,
@@ -747,11 +747,11 @@
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
-            "content_horizontal_position": "flex-end",
+            "content_horizontal_position": "flex-start",
             "content_text_alignment": "center",
             "mobile_content_vertical_position": "center",
             "mobile_content_text_alignment": "center",
