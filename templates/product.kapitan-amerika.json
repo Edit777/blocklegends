@@ -562,7 +562,7 @@
         "heading_4HXAdM": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "The Man Who Refused to Bend",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -570,7 +570,7 @@
         "text_JnTJ6H": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>He wasn’t chosen for strength. He was chosen because he wouldn’t compromise who he was. War made him a symbol, but the symbol never mattered as much as the person behind it - stubborn, loyal, and willing to stand alone if it meant doing the right thing.</p>"
           }
         }
       },
@@ -596,39 +596,40 @@
         "custom_colors_outline_button": "#dd1d1d"
       }
     },
-    "slideshow_hero_AjAtPx": {
+    "slideshow_hero_wfMggU": {
       "type": "slideshow-hero",
       "blocks": {
-        "slide_3pLURd": {
+        "slide_9JnwR4": {
           "type": "slide",
           "settings": {
-            "desktop_bg_image": "shopify://shop_images/Create_a_169_2k_202512281706.jpg",
+            "desktop_bg_image": "shopify://shop_images/Create_a_169_2k_202512281701.jpg",
             "desktop_overlay_color": "#000000",
             "desktop_overlay_opacity": 0,
+            "mobile_bg_image": "shopify://shop_images/Create_a_169_2k_202512281701.jpg",
             "mobile_overlay_color": "#000000",
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "Header prefix",
-            "heading": "Slideshow hero",
+            "heading_prefix": "FROZEN TIME",
+            "heading": "The Soldier Who Woke Up Late",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>Tell your brand's story with a slideshow hero.</p>",
-            "button_label_1": "Button label",
-            "button_link_1": "",
+            "text": "<p>He paid for duty with decades stolen from his life. When he returned, the world had moved on - and he had to learn how to fight for it without losing himself.</p>",
+            "button_label_1": "",
+            "button_link_1": "shopify://products/moc-movie-characters-loki-scarlet-witch-halloween-scarlet-witch-aku-headz-puzzles-birthday-cartoon-anim-figures-toy-gifts-2",
             "button_style_secondary_1": false,
             "button_label_2": "",
             "button_link_2": "",
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
-            "content_horizontal_position": "flex-start",
+            "content_horizontal_position": "flex-end",
             "content_text_alignment": "center",
             "mobile_content_vertical_position": "center",
             "mobile_content_text_alignment": "center",
@@ -640,7 +641,7 @@
         }
       },
       "block_order": [
-        "slide_3pLURd"
+        "slide_9JnwR4"
       ],
       "name": "Slideshow hero",
       "settings": {
@@ -671,7 +672,7 @@
         "heading_7DGqrX": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "Leadership Under Fire",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -679,25 +680,13 @@
         "text_6KWdpe": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
-          }
-        },
-        "button_VkBXVT": {
-          "type": "button",
-          "settings": {
-            "button_label": "Button label",
-            "button_link": "",
-            "button_style_secondary": false,
-            "button_label_2": "",
-            "button_link_2": "",
-            "button_style_secondary_2": false
+            "text": "<p>He doesn’t lead with speeches. He leads by example - first into danger, last to leave. Even when allies disagree, he stays the same: protect the innocent, hold the line, don’t surrender to fear.</p>"
           }
         }
       },
       "block_order": [
         "heading_7DGqrX",
-        "text_6KWdpe",
-        "button_VkBXVT"
+        "text_6KWdpe"
       ],
       "name": "t:sections.rich-text.presets.name",
       "settings": {
@@ -717,40 +706,39 @@
         "custom_colors_outline_button": "#dd1d1d"
       }
     },
-    "slideshow_hero_wfMggU": {
+    "slideshow_hero_AjAtPx": {
       "type": "slideshow-hero",
       "blocks": {
-        "slide_9JnwR4": {
+        "slide_3pLURd": {
           "type": "slide",
           "settings": {
-            "desktop_bg_image": "shopify://shop_images/Create_a_169_2k_202512281701.jpg",
+            "desktop_bg_image": "shopify://shop_images/Create_a_169_2k_202512281706.jpg",
             "desktop_overlay_color": "#000000",
             "desktop_overlay_opacity": 0,
-            "mobile_bg_image": "shopify://shop_images/Create_a_169_2k_202512281701.jpg",
             "mobile_overlay_color": "#000000",
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "фцвфцвфцв",
-            "heading": "Фцвцфвфцвфвфцв",
+            "heading_prefix": "WORTHY",
+            "heading": "More Than a Shield",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>цвфвфвцфвфцвфц вфцв цф вфцввцфв</p><p>фцвцвфцвфцвфцвфвцфвцфв</p>",
+            "text": "<p>The world remembers the shield. But his true power is the part that can’t be forged - the calm will to carry what others can’t, and still choose mercy when he could choose force.</p>",
             "button_label_1": "",
-            "button_link_1": "shopify://products/moc-movie-characters-loki-scarlet-witch-halloween-scarlet-witch-aku-headz-puzzles-birthday-cartoon-anim-figures-toy-gifts-2",
+            "button_link_1": "",
             "button_style_secondary_1": false,
             "button_label_2": "",
             "button_link_2": "",
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
-            "content_horizontal_position": "flex-end",
+            "content_horizontal_position": "flex-start",
             "content_text_alignment": "center",
             "mobile_content_vertical_position": "center",
             "mobile_content_text_alignment": "center",
@@ -762,7 +750,7 @@
         }
       },
       "block_order": [
-        "slide_9JnwR4"
+        "slide_3pLURd"
       ],
       "name": "Slideshow hero",
       "settings": {
@@ -1051,9 +1039,9 @@
     "main",
     "slideshow_hero_M6hWWz",
     "rich_text_zhJKdc",
-    "slideshow_hero_AjAtPx",
-    "rich_text_Vxx6Jr",
     "slideshow_hero_wfMggU",
+    "rich_text_Vxx6Jr",
+    "slideshow_hero_AjAtPx",
     "multirow_dzzQHA",
     "testimonials_bHYEJJ",
     "related-products"
