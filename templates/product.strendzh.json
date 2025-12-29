@@ -562,7 +562,7 @@
         "heading_4HXAdM": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "The Hands That Learned Again",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -570,7 +570,7 @@
         "text_JnTJ6H": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>Once, everything was precision—steady fingers, perfect control, lives saved by skill alone. Then one bad night took that certainty away. Chasing a cure for broken hands became a chase for something bigger: a path where discipline matters more than pride. And when the first ring of light sparks to life, it isn’t a trick—it’s proof that even after losing everything, a new kind of power can be earned.</p>"
           }
         }
       },
@@ -609,14 +609,14 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "Header prefix",
-            "heading": "Slideshow hero",
+            "heading_prefix": "MULTIVERSE WARNING",
+            "heading": "One Spell Too Far",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>Tell your brand's story with a slideshow hero.</p>",
-            "button_label_1": "Button label",
+            "text": "<p><strong>There are worlds where the same choice ends differently—and worlds where that choice ends everything. The more realities you see, the clearer the truth becomes: intent isn’t enough; consequences still arrive. So the task is brutal and endless—close what must be closed, fix what can be fixed, and keep moving forward before the cracks learn your name.</strong></p>",
+            "button_label_1": "",
             "button_link_1": "",
             "button_style_secondary_1": false,
             "button_label_2": "",
@@ -624,7 +624,7 @@
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
@@ -671,7 +671,7 @@
         "heading_7DGqrX": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "A Guardian Made by Loss",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -679,25 +679,13 @@
         "text_6KWdpe": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
-          }
-        },
-        "button_VkBXVT": {
-          "type": "button",
-          "settings": {
-            "button_label": "Button label",
-            "button_link": "",
-            "button_style_secondary": false,
-            "button_label_2": "",
-            "button_link_2": "",
-            "button_style_secondary_2": false
+            "text": "<p>Power didn’t come as a reward—it came as a responsibility. Every shortcut has a cost, every victory leaves a mark, and every door opened can invite something through. So the lesson becomes simple: protect first, ask later. Not because the world is grateful, but because someone has to stand between ordinary lives and the things that don’t belong in their sky.</p>"
           }
         }
       },
       "block_order": [
         "heading_7DGqrX",
-        "text_6KWdpe",
-        "button_VkBXVT"
+        "text_6KWdpe"
       ],
       "name": "t:sections.rich-text.presets.name",
       "settings": {
@@ -731,13 +719,13 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "фцвфцвфцв",
-            "heading": "Фцвцфвфцвфвфцв",
+            "heading_prefix": "REALITY ON THE EDGE",
+            "heading": "When the City Starts to Fold",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>цвфвфвцфвфцвфц вфцв цф вфцввцфв</p><p>фцвцвфцвфцвфцвфвцфвцфв</p>",
+            "text": "<p><strong>Some battles aren’t fought in streets—they’re fought in the rules that keep streets real. The world bends, angles collapse, the horizon turns inside out. In that chaos, the only anchor is willpower and focus: hold the spell, hold the line, keep one reality from tearing into many. Because if the structure fails, it isn’t one life at risk—it’s every life, everywhere.</strong></p>",
             "button_label_1": "",
             "button_link_1": "shopify://products/moc-movie-characters-loki-scarlet-witch-halloween-scarlet-witch-aku-headz-puzzles-birthday-cartoon-anim-figures-toy-gifts-2",
             "button_style_secondary_1": false,
@@ -746,7 +734,7 @@
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
