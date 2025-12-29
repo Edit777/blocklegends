@@ -563,7 +563,7 @@
         "heading_4HXAdM": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "The Price of Crossing Worlds",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -571,7 +571,7 @@
         "text_JnTJ6H": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>He didn’t walk into this fight — he forced his way in. A mind pushed across realities, a body that shouldn’t move, and a choice that stains the soul. But even with death on his shoulders, the mission stays the same: keep the innocent alive, no matter what it costs him.</p>"
           }
         }
       },
@@ -611,14 +611,14 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "Header prefix",
-            "heading": "Slideshow hero",
+            "heading_prefix": "FORBIDDEN PAGES",
+            "heading": "The Look of Someone Who Kept Going",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>Tell your brand's story with a slideshow hero.</p>",
-            "button_label_1": "Button label",
+            "text": "<p>The spell left marks you can’t wash off. It filled the air with whispers, pulled shadows to his back, and turned every breath into a warning. Yet behind those dead eyes is the same decision — to stand up one more time, when everyone else would fall.</p>",
+            "button_label_1": "",
             "button_link_1": "",
             "button_style_secondary_1": false,
             "button_label_2": "",
@@ -626,7 +626,7 @@
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
@@ -673,7 +673,7 @@
         "heading_7DGqrX": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "A Monster That Still Protects",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -681,25 +681,13 @@
         "text_6KWdpe": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
-          }
-        },
-        "button_VkBXVT": {
-          "type": "button",
-          "settings": {
-            "button_label": "Button label",
-            "button_link": "",
-            "button_style_secondary": false,
-            "button_label_2": "",
-            "button_link_2": "",
-            "button_style_secondary_2": false
+            "text": "<p>The world sees a corpse and panic does the rest. He sees a doorway that must be held, a hallway that must stay closed, a few seconds that must be bought for someone else. If fear is the only armor left, then he’ll wear it — and keep the line from breaking.</p>"
           }
         }
       },
       "block_order": [
         "heading_7DGqrX",
-        "text_6KWdpe",
-        "button_VkBXVT"
+        "text_6KWdpe"
       ],
       "name": "t:sections.rich-text.presets.name",
       "settings": {
@@ -733,13 +721,13 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "фцвфцвфцв",
-            "heading": "Фцвцфвфцвфвфцв",
+            "heading_prefix": "FINAL BARRIER",
+            "heading": "Against the Red Storm",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>цвфвфвцфвфцвфц вфцв цф вфцввцфв</p><p>фцвцвфцвфцвфцвфвцфвцфв</p>",
+            "text": "<p>When the red power tears through stone and air itself, he answers with black wind and a swarm of shadows. Not to win — to stop the massacre. Every step forward is a bargain with darkness, and every second he holds is another life that gets to run.</p>",
             "button_label_1": "",
             "button_link_1": "shopify://products/moc-movie-characters-loki-scarlet-witch-halloween-scarlet-witch-aku-headz-puzzles-birthday-cartoon-anim-figures-toy-gifts-2",
             "button_style_secondary_1": false,
@@ -748,7 +736,7 @@
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
