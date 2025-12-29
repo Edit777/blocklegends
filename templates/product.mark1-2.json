@@ -563,7 +563,7 @@
         "heading_4HXAdM": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "Built in Captivity",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -571,7 +571,7 @@
         "text_JnTJ6H": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>He was a genius who lived like nothing could touch him - until he was forced to face the cost of his own creations. Trapped with scraps and seconds, he made a choice: stop being the man who sells destruction, and become the man who escapes it.</p>"
           }
         }
       },
@@ -611,14 +611,14 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "Header prefix",
-            "heading": "Slideshow hero",
+            "heading_prefix": "SCRAP ARMOR",
+            "heading": "The Suit That Bought Him One Chance",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>Tell your brand's story with a slideshow hero.</p>",
-            "button_label_1": "Button label",
+            "text": "<p><strong>It wasn’t designed to impress - it was designed to endure. Riveted from scraps, powered by pure urgency, it turned a prison into a workshop and a deadline into an escape route. The first suit didn’t make him a hero - it forced him to become one.</strong></p>",
+            "button_label_1": "",
             "button_link_1": "",
             "button_style_secondary_1": false,
             "button_label_2": "",
@@ -673,7 +673,7 @@
         "heading_7DGqrX": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "From Ego to Responsibility",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -681,25 +681,13 @@
         "text_6KWdpe": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
-          }
-        },
-        "button_VkBXVT": {
-          "type": "button",
-          "settings": {
-            "button_label": "Button label",
-            "button_link": "",
-            "button_style_secondary": false,
-            "button_label_2": "",
-            "button_link_2": "",
-            "button_style_secondary_2": false
+            "text": "<p>After he walked free, the real battle started. Not against enemies - against himself. He had to rebuild his life with a new rule: power means nothing if it isn’t used to protect.</p>"
           }
         }
       },
       "block_order": [
         "heading_7DGqrX",
-        "text_6KWdpe",
-        "button_VkBXVT"
+        "text_6KWdpe"
       ],
       "name": "t:sections.rich-text.presets.name",
       "settings": {
@@ -733,13 +721,13 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "фцвфцвфцв",
-            "heading": "Фцвцфвфцвфвфцв",
+            "heading_prefix": "SPARK IN THE SAND",
+            "heading": "The Moment It Began",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>цвфвфвцфвфцвфц вфцв цф вфцввцфв</p><p>фцвцвфцвфцвфцвфвцфвцфв</p>",
+            "text": "<p><strong>In the heat and dust, with nothing but tools and will, he created the first proof of a new identity. Not a legend yet - just a man who decided to change, and built the first step with his own hands.</strong></p>",
             "button_label_1": "",
             "button_link_1": "shopify://products/moc-movie-characters-loki-scarlet-witch-halloween-scarlet-witch-aku-headz-puzzles-birthday-cartoon-anim-figures-toy-gifts-2",
             "button_style_secondary_1": false,
