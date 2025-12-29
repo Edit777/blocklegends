@@ -673,7 +673,7 @@
         "heading_7DGqrX": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "A City That Creates Its Own Monsters",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -681,13 +681,13 @@
         "text_6KWdpe": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>The system failed first - care that vanished, work that didn’t come, voices that never answered. He didn’t “snap” in a moment. He changed step by step, learning that chaos can feel like control when you’ve had none.</p>"
           }
         },
         "button_VkBXVT": {
           "type": "button",
           "settings": {
-            "button_label": "Button label",
+            "button_label": "",
             "button_link": "",
             "button_style_secondary": false,
             "button_label_2": "",
