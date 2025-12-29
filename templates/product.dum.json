@@ -562,7 +562,7 @@
         "heading_4HXAdM": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "The Masked Monarch",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -570,7 +570,7 @@
         "text_JnTJ6H": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>He was a prodigy who refused to accept limits. When ambition cost him everything, he rebuilt himself into something harder - a ruler in iron, driven by one belief: the world only stays safe when someone strong enough enforces order.</p>"
           }
         }
       },
@@ -609,14 +609,14 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "Header prefix",
-            "heading": "Slideshow hero",
+            "heading_prefix": "IRON THRONE",
+            "heading": "Rule Without Apology",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>Tell your brand's story with a slideshow hero.</p>",
-            "button_label_1": "Button label",
+            "text": "<p>He doesn’t campaign for loyalty - he demands results. His authority is built on discipline, fear, and a promise that chaos will be crushed before it spreads.</p>",
+            "button_label_1": "",
             "button_link_1": "",
             "button_style_secondary_1": false,
             "button_label_2": "",
@@ -624,7 +624,7 @@
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
