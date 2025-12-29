@@ -562,7 +562,7 @@
         "heading_4HXAdM": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "Almost Headless. Fully Iconic.",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -570,7 +570,7 @@
         "text_JnTJ6H": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>He glides through candlelit stone like an old legend that refused to fade. A courteous bow, a witty remark — and a sudden chill that reminds everyone: some stories don’t end cleanly. He didn’t leave the castle. He became part of it.</p>"
           }
         }
       },
@@ -610,14 +610,14 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "Header prefix",
-            "heading": "Slideshow hero",
+            "heading_prefix": "CANDLEFOG",
+            "heading": "The Polite Haunt",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>Tell your brand's story with a slideshow hero.</p>",
-            "button_label_1": "Button label",
+            "text": "<p>Not a monster, not a threat — just a noble spirit with a crooked fate. He appears where laughter echoes too loudly, softening it with charm and a whisper of the beyond. A gentleman of the halls… and a ghost of unfinished justice.</p>",
+            "button_label_1": "",
             "button_link_1": "",
             "button_style_secondary_1": false,
             "button_label_2": "",
@@ -625,7 +625,7 @@
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
@@ -672,7 +672,7 @@
         "heading_7DGqrX": {
           "type": "heading",
           "settings": {
-            "title": "Talk about your brand",
+            "title": "A Knight Made of Mist",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1"
           }
@@ -680,25 +680,13 @@
         "text_6KWdpe": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
-          }
-        },
-        "button_VkBXVT": {
-          "type": "button",
-          "settings": {
-            "button_label": "Button label",
-            "button_link": "",
-            "button_style_secondary": false,
-            "button_label_2": "",
-            "button_link_2": "",
-            "button_style_secondary_2": false
+            "text": "<p>Armor remembered, honor intact. He drifts between torches and shadows, carrying centuries in his silence. When he passes, the air turns lighter — and colder — as if the castle itself exhales.</p>"
           }
         }
       },
       "block_order": [
         "heading_7DGqrX",
-        "text_6KWdpe",
-        "button_VkBXVT"
+        "text_6KWdpe"
       ],
       "name": "t:sections.rich-text.presets.name",
       "settings": {
@@ -732,22 +720,22 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "фцвфцвфцв",
-            "heading": "Фцвцфвфцвфвфцв",
+            "heading_prefix": "STONE & SILVER",
+            "heading": "The Whisper in the Corridor",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>цвфвфвцфвфцвфц вфцв цф вфцввцфв</p><p>фцвцвфцвфцвфцвфвцфвцфв</p>",
+            "text": "<p>He doesn’t slam doors or rattle chains — he simply appears. A pale glow, a practiced smile, a presence that turns every hallway into a stage for old tales. And somewhere in that elegance lives the punchline of his name: almost.</p>",
             "button_label_1": "",
-            "button_link_1": "shopify://products/moc-movie-characters-loki-scarlet-witch-halloween-scarlet-witch-aku-headz-puzzles-birthday-cartoon-anim-figures-toy-gifts-2",
+            "button_link_1": "",
             "button_style_secondary_1": false,
             "button_label_2": "",
             "button_link_2": "",
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
