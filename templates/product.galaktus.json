@@ -571,7 +571,7 @@
         "text_JnTJ6H": {
           "type": "text",
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>He is not a tyrant chasing power. He is a force that arrived with the universe itself - ancient, patient, and unstoppable. To him, worlds are fuel, and civilizations are a brief spark before the dark.</p>"
           }
         }
       },
@@ -611,13 +611,13 @@
             "mobile_overlay_opacity": 0,
             "display_sound_btn": false,
             "sound_btn_color_scheme": "inverse",
-            "heading_prefix": "Header prefix",
-            "heading": "Slideshow hero",
+            "heading_prefix": "COSMIC SCALE",
+            "heading": "When the Sky Has a Shadow",
             "title_highlight_color": "#6d388b",
             "heading_size": "h1",
             "heading_suffix": "",
             "heading_prefix_size": "h4",
-            "text": "<p>Tell your brand's story with a slideshow hero.</p>",
+            "text": "<p>His presence turns distances meaningless. The moment he is near, the world feels smaller - as if the universe itself is leaning in to watch.</p>",
             "button_label_1": "Button label",
             "button_link_1": "",
             "button_style_secondary_1": false,
@@ -626,7 +626,7 @@
             "button_style_secondary_2": false,
             "color_scheme": "custom",
             "full_page_width": false,
-            "content_max_width": "unlimited",
+            "content_max_width": "pixels",
             "content_pixels_max_width": 500,
             "content_percentage_max_width": 50,
             "content_vertical_position": "center",
