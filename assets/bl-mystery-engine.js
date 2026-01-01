@@ -90,6 +90,9 @@
     poolPromises: {},     // { collectionHandle: Promise }
     variantIdToSelection: {},
     variantIdToSku: {},
+    variantIdToPrice: {},
+    handleToVariantId: {},
+    handleToAvailability: {},
     variantMapPromise: null
   };
 
@@ -113,6 +116,38 @@
     if (s.indexOf('random') !== -1) return M.CFG.modeRandomLabel;
 
     return M.CFG.modeRandomLabel;
+  }
+
+  function isAnyImageHandle(handle) {
+    return /-1$/.test(String(handle || '').trim());
+  }
+
+  function getVariantPrice(variantId) {
+    var key = String(variantId || '').trim();
+    if (!key) return null;
+    return state.variantIdToPrice[key] || null;
+  }
+
+  function formatPriceLabel(priceCents) {
+    if (priceCents === null || typeof priceCents === 'undefined') return '';
+    var cents = Number(priceCents);
+    if (isNaN(cents)) return '';
+    if (U && typeof U.money === 'function') {
+      try {
+        var env = (U && typeof U.getMoneyEnvironment === 'function') ? U.getMoneyEnvironment() : {};
+        return U.money(cents, { moneyFormat: env && env.moneyFormat, currency: env && env.currency });
+      } catch (e) {}
+    }
+    return (cents / 100).toFixed(2);
+  }
+
+  function buildExpectedPriceLabel(priceMode, rarity, priceCents) {
+    var rarityLabel = String(rarity || '').toLowerCase() === M.CFG.anyRarityKey ? 'Any' : String(rarity || '').charAt(0).toUpperCase() + String(rarity || '').slice(1);
+    var prefix = 'Mystery Random';
+    if (priceMode === 'addon') prefix = 'Addon';
+    if (priceMode === 'mystery_preferred') prefix = 'Mystery Preferred';
+    var formatted = formatPriceLabel(priceCents);
+    return formatted ? (prefix + ' ' + rarityLabel + ': ' + formatted) : (prefix + ' ' + rarityLabel);
   }
 
   /* -----------------------------
@@ -179,6 +214,10 @@
 
   M.getVariantSelectionMap = function () {
     return state.variantIdToSelection;
+  };
+
+  M.getVariantPrice = function (variantId) {
+    return getVariantPrice(variantId);
   };
 
   M.getPoolCounts = function (collectionHandle) {
@@ -407,6 +446,9 @@
       var p = list[i];
       if (!p) continue;
 
+      var handle = String(p.handle || '').trim();
+      var anyImageHandle = isAnyImageHandle(handle);
+
       var excludeFlag =
         p.exclude_from_mystery === true ||
         String(p.exclude_from_mystery).toLowerCase() === 'true' ||
@@ -425,6 +467,7 @@
       var excluded = excludeFlag || tagExclude;
 
       if (excluded) {
+        if (handle) state.handleToAvailability[handle] = false;
         U.warn('[BL Mystery] REJECT exclude_from_mystery true:', p.handle);
         continue;
       }
@@ -437,11 +480,21 @@
         if (matchVar && (matchVar.available === false || String(matchVar.available || '').toLowerCase() === 'false')) soldOut = true;
       }
       if (soldOut) {
+        if (handle) state.handleToAvailability[handle] = false;
         U.warn('[BL Mystery] REJECT sold-out:', p.handle);
         continue;
       }
 
+      if (handle) state.handleToAvailability[handle] = true;
+
       var rawR = String(p.rarity || '').trim().toLowerCase();
+      var vid = String(p.variant_id || '').trim();
+      if (handle && /^\d+$/.test(vid)) state.handleToVariantId[handle] = vid;
+
+      if (anyImageHandle) {
+        continue;
+      }
+
       if (!rawR) {
         U.warn('[BL Mystery] REJECT missing rarity:', p.handle);
         continue;
@@ -457,7 +510,6 @@
         continue;
       }
 
-      var vid = String(p.variant_id || '').trim();
       if (!/^\d+$/.test(vid)) {
         U.warn('[BL Mystery] REJECT invalid variant_id:', p.handle, p.variant_id);
         continue;
@@ -596,7 +648,10 @@
     if (!excludeMap) return list || [];
     return (list || []).filter(function (item) {
       var vid = item && (item.variant_id || item.variantId || item.id);
+      var handle = item && item.handle;
       var key = String(vid || '');
+      var handleKey = String(handle || '');
+      if (handleKey && excludeMap[handleKey]) return false;
       if (!key) return true;
       return !excludeMap[key];
     });
@@ -707,6 +762,57 @@
     return chosen;
   }
 
+  M.mapToAnyHandle = function (baseHandle) {
+    var h = String(baseHandle || '').trim();
+    if (!h) return '';
+    var anyHandle = h + '-1';
+    if (state.handleToAvailability[anyHandle] === false) return '';
+    return anyHandle;
+  };
+
+  M.resolveVariantIdByHandle = function (handle) {
+    var h = String(handle || '').trim();
+    if (!h) return Promise.resolve(null);
+
+    if (state.handleToAvailability[h] === false) return Promise.resolve(null);
+    if (state.handleToVariantId[h]) return Promise.resolve(state.handleToVariantId[h]);
+
+    return fetch('/products/' + encodeURIComponent(h) + '.js', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (json) {
+        if (!json || !Array.isArray(json.variants)) return null;
+        var match = json.variants.find(function (v) { return v && v.available !== false; }) || json.variants[0];
+        if (!match || !match.id) return null;
+        state.handleToVariantId[h] = String(match.id);
+        state.handleToAvailability[h] = match.available !== false;
+        return state.handleToVariantId[h];
+      })
+      .catch(function () { return null; });
+  };
+
+  M.getBaseCandidate = function (lockedCollectionKey, requestedRarity, excludeHandlesOrVariantIds) {
+    var poolHandle = String(lockedCollectionKey || '').trim() || M.CFG.defaultPoolCollectionHandle;
+    var rarity = normalizeRarity(requestedRarity);
+    var isAny = rarity === M.CFG.anyRarityKey;
+    var excludeMap = buildExcludeMap(excludeHandlesOrVariantIds);
+
+    return M.fetchPoolAllPages(poolHandle).then(function () {
+      var chosen = isAny
+        ? chooseAssignedProductAny(poolHandle, { excludeMap: excludeMap })
+        : chooseAssignedProduct(poolHandle, rarity, { excludeMap: excludeMap });
+
+      if (!chosen) {
+        var fallbackRarity = pickWeightedRarity(state.pools[poolHandle]);
+        if (fallbackRarity) {
+          chosen = chooseAssignedProduct(poolHandle, fallbackRarity, { excludeMap: excludeMap });
+          if (chosen) chosen.rarity = fallbackRarity;
+        }
+      }
+
+      return chosen || null;
+    });
+  };
+
 
   /* -----------------------------
      VARIANT MAP
@@ -743,6 +849,7 @@
 
             state.variantIdToSelection[String(v.id)] = { rarity: sel.rarity, mode: sel.mode };
             state.variantIdToSku[String(v.id)] = v.sku || '';
+            state.variantIdToPrice[String(v.id)] = typeof v.price !== 'undefined' ? Number(v.price) : null;
           });
         });
 
@@ -824,7 +931,7 @@
      If user paid for Legendary in a collection, we only assign from that collection.
      (UI should hide/disable non-eligible tiers; this prevents pricing mismatch.)
   ------------------------------ */
-M.computeAndApplyAssignment = function (form, productHandle, opts) {
+  M.computeAndApplyAssignment = function (form, productHandle, opts) {
   opts = opts || {};
   var force = !!opts.force;
   var assignNow = !!opts.force || opts.assign === true;
@@ -862,6 +969,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       var mode = normalizeMode(sel.mode);
       var rarity = normalizeRarity(sel.rarity);
       var isAny = (rarity === M.CFG.anyRarityKey);
+      var requestedRarity = rarity;
 
       var requestedCollection =
         (mode === M.CFG.modePreferredLabel) ? getPreferredCollectionFromForm(form) : '';
@@ -882,6 +990,10 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       try { currentVariantId = String(getNumericVariantIdFromForm(form) || ''); } catch (e2) {}
 
       var sig = buildSignature(handle, mode, rarity, requestedCollection) + '|' + currentVariantId;
+      var priceMode = (handle === M.CFG.mysteryAddonHandle)
+        ? 'addon'
+        : (mode === M.CFG.modePreferredLabel ? 'mystery_preferred' : 'mystery_random');
+      var expectedPriceLabel = buildExpectedPriceLabel(priceMode, requestedRarity, getVariantPrice(currentVariantId));
 
       var preferredCollectionSafe = (mode === M.CFG.modePreferredLabel) ? (requestedCollection || '') : '';
       if (handle === M.CFG.mysteryAddonHandle && lockedCollection) {
@@ -897,6 +1009,8 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         upsertHidden(form, '_bl_mode', mode === M.CFG.modePreferredLabel ? 'preferred' : 'random');
         upsertHidden(form, '_bl_locked_collection', preferredCollectionSafe);
         upsertHidden(form, '_bl_requested_rarity', isAny ? M.CFG.anyRarityKey : rarity);
+        upsertHidden(form, '_bl_price_mode', priceMode);
+        upsertHidden(form, '_bl_expected_price_label', expectedPriceLabel);
 
         // Clear any previous assignment to avoid reuse
         [
@@ -1018,12 +1132,17 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         upsertHidden(form, '_bl_mode', mode === M.CFG.modePreferredLabel ? 'preferred' : 'random');
         upsertHidden(form, '_bl_locked_collection', preferredCollectionSafe);
         upsertHidden(form, '_bl_requested_rarity', isAny ? M.CFG.anyRarityKey : rarity);
+        upsertHidden(form, '_bl_price_mode', priceMode);
+        upsertHidden(form, '_bl_expected_price_label', expectedPriceLabel);
 
         // Assigned payload (internal)
         upsertHidden(form, M.CFG.propAssignedHandle, chosen.handle);
         upsertHidden(form, M.CFG.propAssignedTitle, chosen.title);
         upsertHidden(form, M.CFG.propAssignedVariantId, chosen.variant_id);
         upsertHidden(form, M.CFG.propAssignedRarity, chosen.rarity);
+        upsertHidden(form, '_bl_assigned_base_handle', chosen.handle);
+        upsertHidden(form, '_bl_added_handle', chosen.handle);
+        upsertHidden(form, '_bl_assigned_rarity', chosen.rarity);
 
         // Assigned payload (visible in cart)
         upsertHidden(form, M.CFG.propVisibleAssignedTitle, chosen.title);
