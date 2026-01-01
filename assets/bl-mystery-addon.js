@@ -84,6 +84,15 @@
     return '';
   }
 
+  function getAddonCardForNotice() {
+    try {
+      var selector = '.upsell[data-upsell-addon="true"]';
+      return (U && typeof U.qs === 'function') ? U.qs(document, selector) : document.querySelector(selector);
+    } catch (e) {
+      return null;
+    }
+  }
+
   var addonVariantIdsPromise = null;
   function getAddonVariantIdSet() {
     if (addonVariantIdsPromise) return addonVariantIdsPromise;
@@ -303,6 +312,12 @@
         if (anyVariantId) {
           addedHandle = anyHandle;
           addedVariantId = anyVariantId;
+        } else {
+          debugLog('addon-enrich-any-fallback', { baseHandle: baseHandle, anyHandle: anyHandle });
+          var noticeCard = getAddonCardForNotice();
+          if (noticeCard) {
+            showNotice(noticeCard, 'Any-image product is unavailable. Falling back to the standard image.');
+          }
         }
       }
 

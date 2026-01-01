@@ -765,9 +765,7 @@
   M.mapToAnyHandle = function (baseHandle) {
     var h = String(baseHandle || '').trim();
     if (!h) return '';
-    var anyHandle = h + '-1';
-    if (state.handleToAvailability[anyHandle] === false) return '';
-    return anyHandle;
+    return h + '-1';
   };
 
   M.resolveVariantIdByHandle = function (handle) {
@@ -778,11 +776,27 @@
     if (state.handleToVariantId[h]) return Promise.resolve(state.handleToVariantId[h]);
 
     return fetch('/products/' + encodeURIComponent(h) + '.js', { credentials: 'same-origin' })
-      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (r) {
+        if (!r.ok) {
+          state.handleToAvailability[h] = false;
+          U.warn('[BL Mystery] Handle unavailable', h, 'HTTP', r.status, '- make sure the product is published to the Online Store channel.');
+          debugLog('variant-handle-miss', { handle: h, status: r.status });
+          return null;
+        }
+        return r.json();
+      })
       .then(function (json) {
-        if (!json || !Array.isArray(json.variants)) return null;
-        var match = json.variants.find(function (v) { return v && v.available !== false; }) || json.variants[0];
-        if (!match || !match.id) return null;
+        if (!json || !Array.isArray(json.variants)) {
+          state.handleToAvailability[h] = false;
+          debugLog('variant-handle-empty', { handle: h });
+          return null;
+        }
+        var match = json.variants.find(function (v) { return v && v.available !== false; });
+        if (!match || !match.id) {
+          state.handleToAvailability[h] = false;
+          debugLog('variant-handle-no-id', { handle: h });
+          return null;
+        }
         state.handleToVariantId[h] = String(match.id);
         state.handleToAvailability[h] = match.available !== false;
         return state.handleToVariantId[h];
