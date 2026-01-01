@@ -109,27 +109,6 @@
     return addonVariantIdsPromise;
   }
 
-  function buildAddonFormFromItem(item, parentUid) {
-    var form = document.createElement('form');
-    form.setAttribute('data-bl-handle', getAddonHandle());
-
-    var idInput = document.createElement('input');
-    idInput.type = 'hidden';
-    idInput.name = 'id';
-    idInput.value = item && item.id ? String(item.id) : '';
-    form.appendChild(idInput);
-
-    var props = Object.assign({}, item && item.properties ? item.properties : {});
-    if (parentUid && !props._bl_parent_uid) props._bl_parent_uid = parentUid;
-    if (!props._bl_is_addon) props._bl_is_addon = '1';
-
-    Object.keys(props).forEach(function (key) {
-      ensureHidden(form, key, props[key]);
-    });
-
-    return form;
-  }
-
   function rewritePropertiesForIndex(fd, idx, props) {
     if (!fd || typeof fd.forEach !== 'function') return;
     var prefix = 'items[' + idx + '][properties][';
@@ -150,31 +129,67 @@
     });
   }
 
+  function rewriteItemIdForIndex(fd, idx, id) {
+    if (!fd) return;
+    var key = 'items[' + idx + '][id]';
+    try { fd.delete(key); } catch (e) {}
+    try { fd.append(key, String(id)); } catch (e) {}
+  }
+
+  function formatPriceLabel(priceCents) {
+    if (priceCents === null || typeof priceCents === 'undefined') return '';
+    var cents = Number(priceCents);
+    if (isNaN(cents)) return '';
+    if (U && typeof U.money === 'function') {
+      try {
+        var env = (U && typeof U.getMoneyEnvironment === 'function') ? U.getMoneyEnvironment() : {};
+        return U.money(cents, { moneyFormat: env && env.moneyFormat, currency: env && env.currency });
+      } catch (e) {}
+    }
+    return (cents / 100).toFixed(2);
+  }
+
+  function buildExpectedPriceLabel(priceMode, rarity, priceCents) {
+    var rarityLabel = String(rarity || '').toLowerCase() === 'any' ? 'Any' : String(rarity || '').charAt(0).toUpperCase() + String(rarity || '').slice(1);
+    var prefix = priceMode === 'addon' ? 'Addon' : 'Mystery Random';
+    var formatted = formatPriceLabel(priceCents);
+    return formatted ? (prefix + ' ' + rarityLabel + ': ' + formatted) : (prefix + ' ' + rarityLabel);
+  }
+
   A.enrichCartAddFormData = async function (formData) {
     if (!formData || !(formData instanceof FormData)) return;
-    if (!M || typeof M.computeAndApplyAssignment !== 'function') return;
+    if (!M || typeof M.getBaseCandidate !== 'function') return;
 
     var items = parseItemsFromFormData(formData);
     if (!items.length) return;
 
     var addonIds = await getAddonVariantIdSet().catch(function () { return new Set(); });
+    if (M && typeof M.fetchVariantMap === 'function') {
+      try { await M.fetchVariantMap(); } catch (e) {}
+    }
     var assignmentPropKey = (M && M.CFG && M.CFG.propAssignedVariantId) || '_assigned_variant_id';
+    var assignedHandleKey = (M && M.CFG && M.CFG.propAssignedHandle) || '_assigned_handle';
     var parentAssignments = {};
     var addonAssignments = {};
 
-    function recordParentAssignment(uid, variantId) {
+    function recordParentAssignment(uid, variantId, handle) {
       var key = String(uid || '').trim();
       var vid = String(variantId || '').trim();
+      var h = String(handle || '').trim();
       if (!key || !vid) return;
-      parentAssignments[key] = vid;
+      parentAssignments[key] = parentAssignments[key] || { variantIds: [], handles: [] };
+      if (parentAssignments[key].variantIds.indexOf(vid) === -1) parentAssignments[key].variantIds.push(vid);
+      if (h && parentAssignments[key].handles.indexOf(h) === -1) parentAssignments[key].handles.push(h);
     }
 
-    function recordAddonAssignment(uid, variantId) {
+    function recordAddonAssignment(uid, variantId, handle) {
       var key = String(uid || '').trim();
       var vid = String(variantId || '').trim();
+      var h = String(handle || '').trim();
       if (!key || !vid) return;
-      addonAssignments[key] = addonAssignments[key] || [];
-      if (addonAssignments[key].indexOf(vid) === -1) addonAssignments[key].push(vid);
+      addonAssignments[key] = addonAssignments[key] || { variantIds: [], handles: [] };
+      if (addonAssignments[key].variantIds.indexOf(vid) === -1) addonAssignments[key].variantIds.push(vid);
+      if (h && addonAssignments[key].handles.indexOf(h) === -1) addonAssignments[key].handles.push(h);
     }
 
     function stripDebugProps(obj) {
@@ -192,12 +207,13 @@
       if (!uid) return;
 
       var assignedSeed = props._bl_assigned_variant_id || props[assignmentPropKey] || '';
+      var assignedHandle = props._bl_assigned_base_handle || props[assignedHandleKey] || props._bl_added_handle || '';
       if (!assignedSeed) return;
 
       var idStr = String(assignedSeed || '').trim();
       var isAddonSeed = String(props._bl_is_addon || '') === '1' || (addonIds && addonIds.has(String(it.id || '')));
-      if (isAddonSeed) recordAddonAssignment(uid, idStr);
-      else recordParentAssignment(uid, idStr);
+      if (isAddonSeed) recordAddonAssignment(uid, idStr, assignedHandle);
+      else recordParentAssignment(uid, idStr, assignedHandle);
     });
 
     var lastParentUid = '';
@@ -217,7 +233,8 @@
         lastParentUid = parentUid;
 
         var parentAssigned = props._bl_assigned_variant_id || props[assignmentPropKey];
-        if (parentAssigned) recordParentAssignment(parentUid, parentAssigned);
+        var parentHandle = props._bl_assigned_base_handle || props[assignedHandleKey] || props._bl_added_handle || '';
+        if (parentAssigned) recordParentAssignment(parentUid, parentAssigned, parentHandle);
         continue;
       }
 
@@ -230,9 +247,13 @@
       if (lockedCollection) props._bl_locked_collection = lockedCollection;
 
       var excludeVariantIds = [];
-      if (addonParentUid && parentAssignments[addonParentUid]) excludeVariantIds.push(parentAssignments[addonParentUid]);
-      if (addonParentUid && addonAssignments[addonParentUid] && addonAssignments[addonParentUid].length) {
-        excludeVariantIds = excludeVariantIds.concat(addonAssignments[addonParentUid]);
+      if (addonParentUid && parentAssignments[addonParentUid]) {
+        excludeVariantIds = excludeVariantIds.concat(parentAssignments[addonParentUid].variantIds || []);
+        excludeVariantIds = excludeVariantIds.concat(parentAssignments[addonParentUid].handles || []);
+      }
+      if (addonParentUid && addonAssignments[addonParentUid]) {
+        excludeVariantIds = excludeVariantIds.concat(addonAssignments[addonParentUid].variantIds || []);
+        excludeVariantIds = excludeVariantIds.concat(addonAssignments[addonParentUid].handles || []);
       }
       var seenExcludes = {};
       var dedupedExcludes = excludeVariantIds.filter(function (vid) {
@@ -242,37 +263,85 @@
         return true;
       });
 
-      var syntheticForm = buildAddonFormFromItem({ id: id, properties: props }, addonParentUid);
+      var anyKey = (M && M.CFG && M.CFG.anyRarityKey) || 'any';
+      var requestedRarity = String(props._bl_requested_rarity || '').trim().toLowerCase();
+      if (!requestedRarity || requestedRarity === 'undefined') {
+        requestedRarity = '';
+        try {
+          var sel = M.getVariantSelection ? M.getVariantSelection(id) : null;
+          if (sel && sel.rarity) requestedRarity = String(sel.rarity || '');
+        } catch (e) {}
+      }
+      if (!requestedRarity) requestedRarity = anyKey;
+      requestedRarity = M.normalizeRarity ? M.normalizeRarity(requestedRarity) : requestedRarity;
 
+      var baseCandidate = null;
       try {
-        await M.computeAndApplyAssignment(syntheticForm, getAddonHandle(), { force: true, excludeVariantIds: dedupedExcludes });
+        baseCandidate = await M.getBaseCandidate(lockedCollection, requestedRarity, dedupedExcludes);
       } catch (errCompute) {
-        debugLog('addon-enrich-compute-error', errCompute);
+        debugLog('addon-enrich-base-candidate-error', errCompute);
       }
 
-      var computedProps = collectProperties(syntheticForm);
-      var mergedProps = Object.assign({}, props, computedProps);
+      if (!baseCandidate || !baseCandidate.handle) {
+        debugLog('addon-enrich-no-candidate', { lockedCollection: lockedCollection, requestedRarity: requestedRarity });
+        continue;
+      }
 
-      var assignUid = mergedProps._bl_assignment_uid || mergedProps._bl_assign_uid || (syntheticForm.dataset && syntheticForm.dataset.blAssignmentUid) || '';
+      var baseHandle = String(baseCandidate.handle || '').trim();
+      var assignedRarity = String(baseCandidate.rarity || requestedRarity || anyKey);
+      var baseVariantId = baseCandidate.variant_id || '';
+      if (!baseVariantId && M.resolveVariantIdByHandle) {
+        baseVariantId = await M.resolveVariantIdByHandle(baseHandle);
+      }
+
+      var addedHandle = baseHandle;
+      var addedVariantId = baseVariantId;
+
+      if (String(requestedRarity || '').toLowerCase() === String(anyKey || '').toLowerCase()) {
+        var anyHandle = M.mapToAnyHandle ? M.mapToAnyHandle(baseHandle) : (baseHandle ? baseHandle + '-1' : '');
+        var anyVariantId = anyHandle && M.resolveVariantIdByHandle ? await M.resolveVariantIdByHandle(anyHandle) : null;
+        if (anyVariantId) {
+          addedHandle = anyHandle;
+          addedVariantId = anyVariantId;
+        }
+      }
+
+      if (!addedVariantId) {
+        debugLog('addon-enrich-missing-variant', { baseHandle: baseHandle, addedHandle: addedHandle });
+        continue;
+      }
+
+      var mergedProps = Object.assign({}, props);
+
+      var assignUid = mergedProps._bl_assignment_uid || mergedProps._bl_assign_uid || '';
       if (!assignUid) assignUid = generateUid('bl-assign');
 
       mergedProps._bl_assignment_uid = assignUid;
       mergedProps._bl_assign_uid = assignUid;
       mergedProps._bl_is_addon = '1';
       mergedProps._bl_parent_uid = addonParentUid;
-      if (!mergedProps._bl_assigned_variant_id && id) mergedProps._bl_assigned_variant_id = id;
+      mergedProps._bl_assigned_variant_id = String(addedVariantId || '');
+      mergedProps[assignmentPropKey] = String(addedVariantId || '');
+      mergedProps._bl_assigned_base_handle = baseHandle;
+      mergedProps._bl_added_handle = addedHandle;
+      mergedProps._bl_assigned_rarity = assignedRarity;
+      mergedProps._bl_requested_rarity = requestedRarity;
+      mergedProps._bl_locked_collection = lockedCollection || mergedProps._bl_locked_collection || '';
+      mergedProps._bl_mode = 'preferred';
+      mergedProps._bl_price_mode = 'addon';
+      mergedProps._bl_expected_price_label = buildExpectedPriceLabel('addon', requestedRarity, M.getVariantPrice ? M.getVariantPrice(id) : null);
 
       if (props._bl_parent_handle && !mergedProps._bl_parent_handle) mergedProps._bl_parent_handle = props._bl_parent_handle;
-      if (props._bl_locked_collection && !mergedProps._bl_locked_collection) mergedProps._bl_locked_collection = props._bl_locked_collection;
 
       stripDebugProps(mergedProps);
 
+      rewriteItemIdForIndex(formData, idx, addedVariantId);
       rewritePropertiesForIndex(formData, idx, mergedProps);
       parentUidByIndex[idx] = addonParentUid;
       lastParentUid = addonParentUid;
 
       var addonAssignedVariant = mergedProps._bl_assigned_variant_id || mergedProps[assignmentPropKey] || '';
-      if (addonAssignedVariant) recordAddonAssignment(addonParentUid, addonAssignedVariant);
+      if (addonAssignedVariant) recordAddonAssignment(addonParentUid, addonAssignedVariant, baseHandle);
     }
   };
 
