@@ -93,6 +93,8 @@
     variantIdToPrice: {},
     handleToVariantId: {},
     handleToAvailability: {},
+    anyHandleByBase: {},
+    anyHandleByBaseByPool: {},
     variantMapPromise: null
   };
 
@@ -438,16 +440,21 @@
     return { common: [], rare: [], epic: [], legendary: [] };
   }
 
-  function buildPoolIndex(poolJson) {
+  function buildPoolIndex(poolJson, poolHandle) {
     var byR = emptyPoolIndex();
     var list = (poolJson && poolJson.products) ? poolJson.products : [];
+    var anyHandleByBase = {};
 
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       if (!p) continue;
 
       var handle = String(p.handle || '').trim();
-      var anyImageHandle = isAnyImageHandle(handle);
+      var baseHandle = String(p.base_handle || '').trim();
+      var anyImageHandle = isAnyImageHandle(handle) || !!baseHandle;
+      if (handle && baseHandle) {
+        anyHandleByBase[baseHandle] = handle;
+      }
 
       var excludeFlag =
         p.exclude_from_mystery === true ||
@@ -524,6 +531,13 @@
       });
     }
 
+    if (poolHandle) {
+      state.anyHandleByBaseByPool[poolHandle] = anyHandleByBase;
+    }
+    Object.keys(anyHandleByBase).forEach(function (key) {
+      state.anyHandleByBase[key] = anyHandleByBase[key];
+    });
+
     return byR;
   }
 
@@ -566,7 +580,7 @@
         }
 
         return loop().then(function () {
-          var idx = buildPoolIndex({ products: all });
+          var idx = buildPoolIndex({ products: all }, h);
           state.pools[h] = idx;
 
           U.log('[BL Mystery] Pool loaded', h, {
@@ -739,19 +753,49 @@
     }
 
     var targetIdx = (filteredIdx && filteredTotal > 0) ? filteredIdx : idx;
+    var anyMap = state.anyHandleByBaseByPool[h] || state.anyHandleByBase;
+    var anyMapKeys = anyMap ? Object.keys(anyMap) : [];
+    var anyFilteredIdx = null;
+    var anyFilteredTotal = 0;
+    var rerollApplied = false;
+
+    if (!anyMapKeys.length) {
+      debugLog('any-handle-mapping-empty', { pool: h });
+      return null;
+    }
+
+    anyFilteredIdx = emptyPoolIndex();
+    for (var j = 0; j < M.CFG.allowedRarities.length; j++) {
+      var rarKey = M.CFG.allowedRarities[j];
+      var pool = targetIdx[rarKey] || [];
+      var filteredAny = pool.filter(function (item) {
+        var base = String(item && item.handle || '').trim();
+        return base && anyMap[base];
+      });
+      if (filteredAny.length !== pool.length) rerollApplied = true;
+      anyFilteredIdx[rarKey] = filteredAny;
+      anyFilteredTotal += filteredAny.length;
+    }
+
+    if (anyFilteredTotal === 0) {
+      debugLog('any-handle-mapping-miss', { pool: h, rerollApplied: rerollApplied });
+      return null;
+    }
+
+    targetIdx = anyFilteredIdx;
 
     var r = pickWeightedRarity(targetIdx);
     if (!r && targetIdx !== idx) {
-      targetIdx = idx;
+      targetIdx = anyFilteredIdx;
       r = pickWeightedRarity(targetIdx);
     }
     if (!r) return null;
 
     var pool = targetIdx[r] || [];
-    if (!pool.length && targetIdx !== idx) pool = idx[r] || [];
     if (!pool.length) return null;
 
     var chosen = randPick(pool);
+    debugLog('any-handle-reroll', { pool: h, rerollApplied: rerollApplied });
     if (U && U.log) U.log('[BL Mystery] Lucky Box pick', { pool: h, rarity: r, poolCounts: {
       common: (idx.common || []).length,
       rare: (idx.rare || []).length,
@@ -762,10 +806,14 @@
     return chosen;
   }
 
-  M.mapToAnyHandle = function (baseHandle) {
+  M.mapToAnyHandle = function (baseHandle, poolHandle) {
     var h = String(baseHandle || '').trim();
     if (!h) return '';
-    return h + '-1';
+    var poolKey = String(poolHandle || '').trim();
+    var anyMap = poolKey ? state.anyHandleByBaseByPool[poolKey] : null;
+    var anyHandle = (anyMap && anyMap[h]) ? anyMap[h] : (state.anyHandleByBase[h] || '');
+    debugLog('any-handle-map', { baseHandle: h, anyHandle: anyHandle, hit: !!anyHandle, pool: poolKey });
+    return anyHandle;
   };
 
   M.resolveVariantIdByHandle = function (handle) {
@@ -815,7 +863,7 @@
         ? chooseAssignedProductAny(poolHandle, { excludeMap: excludeMap })
         : chooseAssignedProduct(poolHandle, rarity, { excludeMap: excludeMap });
 
-      if (!chosen) {
+      if (!chosen && !isAny) {
         var fallbackRarity = pickWeightedRarity(state.pools[poolHandle]);
         if (fallbackRarity) {
           chosen = chooseAssignedProduct(poolHandle, fallbackRarity, { excludeMap: excludeMap });
@@ -1099,7 +1147,7 @@
           : chooseAssignedProduct(poolHandleUsed, rarity, { excludeMap: excludeMap });
 
         // deterministic fallback: if requested rarity is empty, fallback to weighted any but keep requested tier for visibility
-        if (!chosen) {
+        if (!chosen && !isAny) {
           debugLog('no-eligible-choice', {
             pool: poolHandleUsed,
             rarity: rarity,

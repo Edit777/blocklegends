@@ -307,18 +307,23 @@
       var addedVariantId = baseVariantId;
 
       if (String(requestedRarity || '').toLowerCase() === String(anyKey || '').toLowerCase()) {
-        var anyHandle = M.mapToAnyHandle ? M.mapToAnyHandle(baseHandle) : (baseHandle ? baseHandle + '-1' : '');
+        var anyHandle = M.mapToAnyHandle ? M.mapToAnyHandle(baseHandle, lockedCollection) : '';
         var anyVariantId = anyHandle && M.resolveVariantIdByHandle ? await M.resolveVariantIdByHandle(anyHandle) : null;
-        if (anyVariantId) {
-          addedHandle = anyHandle;
-          addedVariantId = anyVariantId;
-        } else {
-          debugLog('addon-enrich-any-fallback', { baseHandle: baseHandle, anyHandle: anyHandle });
+        debugLog('addon-enrich-any-handle', {
+          baseHandle: baseHandle,
+          anyHandle: anyHandle,
+          mappingHit: !!anyHandle,
+          assignedVariantId: anyVariantId || ''
+        });
+        if (!anyHandle || !anyVariantId) {
           var noticeCard = getAddonCardForNotice();
           if (noticeCard) {
-            showNotice(noticeCard, 'Any-image product is unavailable. Falling back to the standard image.');
+            showNotice(noticeCard, 'Any-image version missing for selected item.');
           }
+          continue;
         }
+        addedHandle = anyHandle;
+        addedVariantId = anyVariantId;
       }
 
       if (!addedVariantId) {
