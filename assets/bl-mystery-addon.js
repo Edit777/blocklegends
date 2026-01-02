@@ -315,15 +315,10 @@
           mappingHit: !!anyHandle,
           assignedVariantId: anyVariantId || ''
         });
-        if (!anyHandle || !anyVariantId) {
-          var noticeCard = getAddonCardForNotice();
-          if (noticeCard) {
-            showNotice(noticeCard, 'Any-image version missing for selected item.');
-          }
-          continue;
+        if (anyHandle && anyVariantId) {
+          addedHandle = anyHandle;
+          addedVariantId = anyVariantId;
         }
-        addedHandle = anyHandle;
-        addedVariantId = anyVariantId;
       }
 
       if (!addedVariantId) {
