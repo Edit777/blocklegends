@@ -17,6 +17,16 @@
     }
   }
 
+  function isDebug() {
+    try { return window.BL && typeof window.BL.isDebug === 'function' ? window.BL.isDebug() : false; } catch (e) { return false; }
+  }
+
+  function debugLog() {
+    if (!isDebug()) return;
+    var args = Array.prototype.slice.call(arguments);
+    try { console.log.apply(console, ['[BL Mystery][debug]'].concat(args)); } catch (e) {}
+  }
+
   function safeText(el, text) {
     if (!el) return;
     var next = text || '';
@@ -29,6 +39,36 @@
     var target = show ? '' : 'none';
     if (el.style.display === target) return;
     el.style.display = target;
+  }
+
+  function collectProperties(form) {
+    var props = {};
+    try {
+      var inputs = form.querySelectorAll('input[name^="properties["]');
+      Array.prototype.slice.call(inputs || []).forEach(function (input) {
+        var name = input.getAttribute('name') || '';
+        var match = name.match(/^properties\[(.*)\]$/);
+        if (!match || match.length < 2) return;
+        var key = match[1];
+        props[key] = input.value || '';
+      });
+    } catch (e) {}
+    return props;
+  }
+
+  function getQuantity(form) {
+    try {
+      var input = form.querySelector('input[name="quantity"]');
+      var val = input ? parseInt(input.value, 10) : 1;
+      if (isNaN(val) || val < 1) return 1;
+      return val;
+    } catch (e) {
+      return 1;
+    }
+  }
+
+  function showError(message) {
+    try { alert(message); } catch (e) {}
   }
 
   function parseCollections(root) {
@@ -275,6 +315,7 @@
     if (!dropdown || !collectionRow || !rarityEntries.length || !modeButtons.length) return;
 
     root.dataset.blMysteryBound = '1';
+    form.dataset.blMysteryDirectAdd = '1';
 
     var availability = findVariantAvailability(root);
     var state = {
@@ -385,6 +426,142 @@
       state.rarity = sel.rarity || state.rarity;
       refresh();
     });
+
+    if (!form.__blMysterySubmitBound) {
+      form.__blMysterySubmitBound = true;
+      form.addEventListener('submit', function (evt) {
+        if (form.dataset.blMysteryDirectAdd !== '1') return;
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+
+        if (form.dataset.blMysterySubmitting === '1') return;
+        form.dataset.blMysterySubmitting = '1';
+
+        var btn = form.querySelector('[type="submit"]');
+        if (btn) btn.setAttribute('disabled', 'disabled');
+
+        var requestedMode = state.mode;
+        var requestedRarity = state.rarity;
+        var requestedCollection = state.collection;
+        var quantity = getQuantity(form);
+        var usedFallback = false;
+
+        Promise.resolve()
+          .then(function () { return M.computeAndApplyAssignment(form, HANDLE, { force: true }); })
+          .then(function (ok) {
+            if (!ok) {
+              showError('This option is temporarily unavailable. Please choose a different rarity/collection and try again.');
+              throw new Error('mystery-assign-failed');
+            }
+
+            var props = collectProperties(form);
+            var assignedBaseHandle = props._bl_assigned_base_handle || props[M.CFG.propAssignedHandle] || '';
+            var assignedTitle = props._bl_assigned_title || props[M.CFG.propAssignedTitle] || props[M.CFG.propVisibleAssignedTitle] || '';
+            var assignedRarity = props._bl_assigned_rarity || props[M.CFG.propAssignedRarity] || '';
+            var requestedRarityValue = props._bl_requested_rarity || props[M.CFG.propRequestedTier] || requestedRarity || '';
+            var modeValue = props._bl_mode || props[M.CFG.propSelectedMode] || requestedMode || '';
+            var collectionValue = props._bl_locked_collection || props[M.CFG.propPreferredCollection] || requestedCollection || '';
+            var assignedVariantId = props._bl_assigned_variant_id || props[M.CFG.propAssignedVariantId] || '';
+            var normalizedMode = (typeof M.normalizeMode === 'function') ? M.normalizeMode(modeValue) : modeValue;
+            var modeKey = normalizedMode === M.CFG.modePreferredLabel ? 'preferred' : 'random';
+            var assignmentUid = props._bl_assignment_uid || form.dataset.blAssignmentUid || '';
+
+            if (!assignedBaseHandle) {
+              showError('We could not prepare your Mystery Figure. Please try again.');
+              throw new Error('mystery-missing-base-handle');
+            }
+
+            var isAny = String(requestedRarityValue || '').toLowerCase() === ANY_KEY;
+            var addedHandle = assignedBaseHandle;
+            if (isAny && typeof M.mapToAnyHandle === 'function') {
+              addedHandle = M.mapToAnyHandle(assignedBaseHandle) || assignedBaseHandle;
+            } else if (isAny) {
+              addedHandle = assignedBaseHandle + '-1';
+            }
+
+            function resolveVariantId(handle) {
+              if (!handle) return Promise.resolve(null);
+              if (handle === assignedBaseHandle && assignedVariantId) return Promise.resolve(String(assignedVariantId));
+              if (typeof M.resolveVariantIdByHandle === 'function') {
+                return M.resolveVariantIdByHandle(handle);
+              }
+              return Promise.resolve(null);
+            }
+
+            return resolveVariantId(addedHandle)
+              .then(function (variantId) {
+                if (!variantId && isAny && addedHandle !== assignedBaseHandle) {
+                  usedFallback = true;
+                  addedHandle = assignedBaseHandle;
+                  return resolveVariantId(addedHandle);
+                }
+                return variantId;
+              })
+              .then(function (variantId) {
+                if (!variantId) {
+                  showError('This option is sold out right now. Please choose another and try again.');
+                  throw new Error('mystery-no-variant');
+                }
+
+                props._bl_mode = props._bl_mode || modeKey;
+                props._bl_requested_rarity = props._bl_requested_rarity || requestedRarityValue;
+                props._bl_locked_collection = props._bl_locked_collection || collectionValue;
+                props._bl_price_mode = props._bl_price_mode || (normalizedMode === M.CFG.modePreferredLabel ? 'mystery_preferred' : 'mystery_random');
+                props._bl_assignment_uid = assignmentUid;
+                props._bl_assigned_base_handle = assignedBaseHandle;
+                props._bl_added_handle = addedHandle;
+                props._bl_assigned_rarity = assignedRarity;
+                props._bl_assigned_title = assignedTitle;
+                delete props._bl_is_addon;
+
+                debugLog('mystery-add', {
+                  mode: modeValue,
+                  rarity: requestedRarityValue,
+                  collection: collectionValue,
+                  assignedBaseHandle: assignedBaseHandle,
+                  addedHandle: addedHandle,
+                  assignedVariantId: variantId,
+                  fallbackUsed: usedFallback
+                });
+
+                var payload = {
+                  items: [{
+                    id: variantId,
+                    quantity: quantity,
+                    properties: props
+                  }]
+                };
+
+                return fetch('/cart/add.js', {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                  },
+                  body: JSON.stringify(payload)
+                });
+              })
+              .then(function (res) {
+                if (!res || !res.ok) {
+                  showError('Unable to add your Mystery Figure right now. Please try again.');
+                  throw new Error('mystery-add-failed');
+                }
+                return res.json().catch(function () { return null; });
+              })
+              .then(function () {
+                try {
+                  form.dispatchEvent(new CustomEvent('bl:mystery:added', { bubbles: true }));
+                } catch (e) {}
+              });
+          })
+          .catch(function () {})
+          .finally(function () {
+            form.dataset.blMysterySubmitting = '0';
+            if (btn) btn.removeAttribute('disabled');
+          });
+      }, true);
+    }
 
     Promise.all([
       (typeof M.fetchVariantMap === 'function') ? M.fetchVariantMap() : Promise.resolve(),

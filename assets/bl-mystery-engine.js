@@ -1313,6 +1313,7 @@
 
       var handle = getHandleForForm(form);
       if (!isTargetHandle(handle)) return;
+      if (handle === M.CFG.mysteryFigureHandle && form.dataset.blMysteryDirectAdd === '1') return;
 
       // Block re-entrancy
       if (form.dataset.blMysteryAssigning === '1') {
