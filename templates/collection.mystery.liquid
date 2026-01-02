@@ -7,17 +7,22 @@
   "pages": {{ paginate.pages | json }},
   "next_page": {% if paginate.next %}{{ paginate.current_page | plus: 1 }}{% else %}null{% endif %},
   "products": [
+    {%- assign emitted = 0 -%}
     {%- for p in collection.products -%}
-      {
-        "handle": {{ p.handle | json }},
-        "title": {{ p.title | json }},
-        "rarity": {{ p.metafields.custom.rarity.value | default: p.metafields.custom.rarity | downcase | json }},
-        "exclude_from_mystery": {{ p.metafields.custom.exclude_from_mystery.value | default: false | json }},
-        "variant_id": {{ p.selected_or_first_available_variant.id | json }},
-        "available": {{ p.available | json }},
-        "variant_available": {{ p.selected_or_first_available_variant.available | json }},
-        "base_handle": {{ p.metafields.custom.base_handle.value | default: p.metafields.custom.base_handle | default: '' | json }}
-      }{%- unless forloop.last -%},{%- endunless -%}
+      {%- assign exclude_flag = p.metafields.custom.exclude_from_mystery.value | default: p.metafields.custom.exclude_from_mystery | default: false -%}
+      {%- if p.title == "Mystery Figure" and p.handle != "mystery-figure" and exclude_flag != true and exclude_flag != 'true' -%}
+        {%- if emitted > 0 -%},{%- endif -%}
+        {
+          "handle": {{ p.handle | json }},
+          "title": {{ p.title | json }},
+          "rarity": {{ p.metafields.custom.rarity.value | default: p.metafields.custom.rarity | downcase | json }},
+          "collection_key": {{ p.metafields.custom.collection_key.value | default: p.metafields.custom.collection_key | json }},
+          "variant_id": {{ p.selected_or_first_available_variant.id | json }},
+          "available": {{ p.available | json }},
+          "variant_available": {{ p.selected_or_first_available_variant.available | json }}
+        }
+        {%- assign emitted = emitted | plus: 1 -%}
+      {%- endif -%}
     {%- endfor -%}
   ]
 }

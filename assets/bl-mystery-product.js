@@ -476,18 +476,9 @@
             var anyHandle = '';
             var anyHandleHit = false;
             if (isAny && typeof M.mapToAnyHandle === 'function') {
-              anyHandle = M.mapToAnyHandle(assignedBaseHandle);
-              anyHandleHit = !!anyHandle;
-              if (!anyHandle) {
-                debugLog('any-handle-miss', { baseHandle: assignedBaseHandle });
-                showError('Any-image version missing for selected item');
-                throw new Error('mystery-any-missing');
-              }
-              addedHandle = anyHandle;
-            } else if (isAny) {
-              debugLog('any-handle-miss', { baseHandle: assignedBaseHandle });
-              showError('Any-image version missing for selected item');
-              throw new Error('mystery-any-missing');
+              anyHandle = M.mapToAnyHandle(assignedBaseHandle, collectionValue);
+              anyHandleHit = !!anyHandle && anyHandle !== assignedBaseHandle;
+              addedHandle = anyHandle || assignedBaseHandle;
             }
 
             function resolveVariantId(handle) {
@@ -501,21 +492,13 @@
 
             return resolveVariantId(addedHandle)
               .then(function (variantId) {
-                if (!variantId && isAny) {
-                  debugLog('any-handle-missing-variant', {
-                    baseHandle: assignedBaseHandle,
-                    anyHandle: addedHandle,
-                    mappingHit: anyHandleHit
-                  });
-                  showError('Any-image version missing for selected item');
-                  throw new Error('mystery-any-missing-variant');
-                }
-                return variantId;
-              })
-              .then(function (variantId) {
                 if (!variantId) {
                   showError('This option is sold out right now. Please choose another and try again.');
                   throw new Error('mystery-no-variant');
+                }
+                if (String(addedHandle || '') === HANDLE) {
+                  showError('Unable to add your Mystery Figure right now. Please try again.');
+                  throw new Error('mystery-selector-added');
                 }
 
                 props._bl_mode = props._bl_mode || modeKey;

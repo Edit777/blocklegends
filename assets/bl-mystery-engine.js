@@ -450,16 +450,16 @@
       if (!p) continue;
 
       var handle = String(p.handle || '').trim();
-      var baseHandle = String(p.base_handle || '').trim();
-      var anyImageHandle = isAnyImageHandle(handle) || !!baseHandle;
-      if (handle && baseHandle) {
-        anyHandleByBase[baseHandle] = handle;
+      var anyImageHandle = isAnyImageHandle(handle);
+      var baseHandle = '';
+      if (anyImageHandle) {
+        baseHandle = handle.replace(/-1$/, '');
+        if (baseHandle) anyHandleByBase[baseHandle] = handle;
       }
 
       var excludeFlag =
         p.exclude_from_mystery === true ||
-        String(p.exclude_from_mystery).toLowerCase() === 'true' ||
-        (p.metafields && p.metafields.custom && (p.metafields.custom.exclude_from_mystery === true || String(p.metafields.custom.exclude_from_mystery || '').toLowerCase() === 'true'));
+        String(p.exclude_from_mystery).toLowerCase() === 'true';
 
       var tagExclude = false;
       try {
@@ -812,8 +812,9 @@
     var poolKey = String(poolHandle || '').trim();
     var anyMap = poolKey ? state.anyHandleByBaseByPool[poolKey] : null;
     var anyHandle = (anyMap && anyMap[h]) ? anyMap[h] : (state.anyHandleByBase[h] || '');
-    debugLog('any-handle-map', { baseHandle: h, anyHandle: anyHandle, hit: !!anyHandle, pool: poolKey });
-    return anyHandle;
+    var resolvedHandle = anyHandle || (state.handleToVariantId[h] ? h : '');
+    debugLog('any-handle-map', { baseHandle: h, anyHandle: anyHandle, hit: !!anyHandle, pool: poolKey, fallback: resolvedHandle === h });
+    return resolvedHandle;
   };
 
   M.resolveVariantIdByHandle = function (handle) {
@@ -823,33 +824,8 @@
     if (state.handleToAvailability[h] === false) return Promise.resolve(null);
     if (state.handleToVariantId[h]) return Promise.resolve(state.handleToVariantId[h]);
 
-    return fetch('/products/' + encodeURIComponent(h) + '.js', { credentials: 'same-origin' })
-      .then(function (r) {
-        if (!r.ok) {
-          state.handleToAvailability[h] = false;
-          U.warn('[BL Mystery] Handle unavailable', h, 'HTTP', r.status, '- make sure the product is published to the Online Store channel.');
-          debugLog('variant-handle-miss', { handle: h, status: r.status });
-          return null;
-        }
-        return r.json();
-      })
-      .then(function (json) {
-        if (!json || !Array.isArray(json.variants)) {
-          state.handleToAvailability[h] = false;
-          debugLog('variant-handle-empty', { handle: h });
-          return null;
-        }
-        var match = json.variants.find(function (v) { return v && v.available !== false; });
-        if (!match || !match.id) {
-          state.handleToAvailability[h] = false;
-          debugLog('variant-handle-no-id', { handle: h });
-          return null;
-        }
-        state.handleToVariantId[h] = String(match.id);
-        state.handleToAvailability[h] = match.available !== false;
-        return state.handleToVariantId[h];
-      })
-      .catch(function () { return null; });
+    debugLog('variant-handle-miss', { handle: h });
+    return Promise.resolve(null);
   };
 
   M.getBaseCandidate = function (lockedCollectionKey, requestedRarity, excludeHandlesOrVariantIds) {
