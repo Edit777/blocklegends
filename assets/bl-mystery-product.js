@@ -473,10 +473,21 @@
 
             var isAny = String(requestedRarityValue || '').toLowerCase() === ANY_KEY;
             var addedHandle = assignedBaseHandle;
+            var anyHandle = '';
+            var anyHandleHit = false;
             if (isAny && typeof M.mapToAnyHandle === 'function') {
-              addedHandle = M.mapToAnyHandle(assignedBaseHandle) || assignedBaseHandle;
+              anyHandle = M.mapToAnyHandle(assignedBaseHandle);
+              anyHandleHit = !!anyHandle;
+              if (!anyHandle) {
+                debugLog('any-handle-miss', { baseHandle: assignedBaseHandle });
+                showError('Any-image version missing for selected item');
+                throw new Error('mystery-any-missing');
+              }
+              addedHandle = anyHandle;
             } else if (isAny) {
-              addedHandle = assignedBaseHandle + '-1';
+              debugLog('any-handle-miss', { baseHandle: assignedBaseHandle });
+              showError('Any-image version missing for selected item');
+              throw new Error('mystery-any-missing');
             }
 
             function resolveVariantId(handle) {
@@ -490,10 +501,14 @@
 
             return resolveVariantId(addedHandle)
               .then(function (variantId) {
-                if (!variantId && isAny && addedHandle !== assignedBaseHandle) {
-                  usedFallback = true;
-                  addedHandle = assignedBaseHandle;
-                  return resolveVariantId(addedHandle);
+                if (!variantId && isAny) {
+                  debugLog('any-handle-missing-variant', {
+                    baseHandle: assignedBaseHandle,
+                    anyHandle: addedHandle,
+                    mappingHit: anyHandleHit
+                  });
+                  showError('Any-image version missing for selected item');
+                  throw new Error('mystery-any-missing-variant');
                 }
                 return variantId;
               })
@@ -520,6 +535,8 @@
                   collection: collectionValue,
                   assignedBaseHandle: assignedBaseHandle,
                   addedHandle: addedHandle,
+                  anyHandle: anyHandle || null,
+                  anyHandleHit: anyHandleHit,
                   assignedVariantId: variantId,
                   fallbackUsed: usedFallback
                 });
