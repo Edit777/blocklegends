@@ -439,6 +439,23 @@ function ensureCssOnce() {
     return env || { moneyFormat: null, currency: null };
   }
 
+  function getDiscountConfig(card) {
+    if (!card) return { enabled: false, percentageLeft: 1, fixedDiscount: 0 };
+    var enabled = String(card.getAttribute('data-update-prices') || '').trim() === 'true';
+    var percentageLeft = parseFloat(card.getAttribute('data-percentage-left') || '1');
+    if (!isFinite(percentageLeft) || percentageLeft <= 0) percentageLeft = 1;
+    var fixedDiscount = parseInt(card.getAttribute('data-fixed-discount') || '0', 10);
+    if (!isFinite(fixedDiscount) || fixedDiscount < 0) fixedDiscount = 0;
+    return { enabled: enabled, percentageLeft: percentageLeft, fixedDiscount: fixedDiscount };
+  }
+
+  function applyDiscount(price, cfg) {
+    var base = Number(price || 0);
+    if (!cfg || !cfg.enabled) return base;
+    var discounted = Math.round((base * cfg.percentageLeft) - cfg.fixedDiscount);
+    return discounted < 0 ? 0 : discounted;
+  }
+
   function ensureHidden(form, key, value) {
     if (!form) return null;
     var name = 'properties[' + key + ']';
@@ -702,14 +719,19 @@ function ensureCssOnce() {
 
     var priceEl = card.querySelector('.upsell__price .regular-price');
     var compareEl = card.querySelector('.upsell__price .compare-price');
+    var discountCfg = getDiscountConfig(card);
+    var basePrice = Number(v.price || 0);
+    var baseCompare = (v.compare_at_price && v.compare_at_price > v.price) ? Number(v.compare_at_price) : basePrice;
+    var displayPrice = applyDiscount(basePrice, discountCfg);
+    var displayCompare = baseCompare;
 
     if (priceEl && U && typeof U.money === 'function') {
-      var formatted = U.money(v.price, { moneyFormat: moneyFormat, currency: moneyCurrency });
+      var formatted = U.money(displayPrice, { moneyFormat: moneyFormat, currency: moneyCurrency });
       if (priceEl.textContent !== formatted) priceEl.textContent = formatted;
     }
     if (compareEl && U && typeof U.money === 'function') {
-      if (v.compare_at_price && v.compare_at_price > v.price) {
-        var compareText = U.money(v.compare_at_price, { moneyFormat: moneyFormat, currency: moneyCurrency });
+      if (displayCompare > displayPrice) {
+        var compareText = U.money(displayCompare, { moneyFormat: moneyFormat, currency: moneyCurrency });
         if (compareEl.textContent !== compareText) compareEl.textContent = compareText;
         if (compareEl.classList.contains('hidden')) compareEl.classList.remove('hidden');
       } else {

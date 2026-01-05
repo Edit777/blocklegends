@@ -34,6 +34,19 @@
     el.style.display = target;
   }
 
+  function upsertHidden(form, key, value) {
+    if (!form || !key) return;
+    var name = 'properties[' + key + ']';
+    var input = form.querySelector('input[type="hidden"][name="' + name.replace(/"/g, '\\"') + '"]');
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      form.appendChild(input);
+    }
+    input.value = String(value == null ? '' : value);
+  }
+
   function formatCollectionLabel(key) {
     var text = String(key || '').trim();
     if (!text) return '';
@@ -217,6 +230,17 @@
     safeText(hintEl, text);
   }
 
+  function syncHiddenProps(form, state) {
+    if (!form || !state) return;
+    var preferredMode = M.normalizeMode(state.mode) === M.CFG.modePreferredLabel;
+    var collectionVal = preferredMode ? (state.collection || '') : '';
+    var modeKey = preferredMode ? 'preferred' : 'random';
+    upsertHidden(form, M.CFG.propPreferredCollection, collectionVal);
+    upsertHidden(form, '_bl_mode', modeKey);
+    upsertHidden(form, '_bl_locked_collection', collectionVal);
+    upsertHidden(form, '_bl_requested_rarity', state.rarity || ANY_KEY);
+  }
+
   function capitalize(str) {
     var s = String(str || '');
     return s.charAt(0).toUpperCase() + s.slice(1);
@@ -367,6 +391,7 @@
       updateModeButtons();
       markRarityActive(rarityEntries, state.rarity);
       updateHelper();
+      syncHiddenProps(form, state);
       syncVariant();
     }
 
