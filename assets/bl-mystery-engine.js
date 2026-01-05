@@ -35,6 +35,7 @@
   M.CFG = M.CFG || {
     mysteryFigureHandle: 'mystery-figure',
     mysteryAddonHandle: 'mystery-add-on',
+    poolProductTitle: 'Mystery Figure',
 
     poolView: 'mystery',
     defaultPoolCollectionHandle: 'all',
@@ -258,6 +259,58 @@
     return '';
   }
 
+  function setVariantIdForSubmit(form, variantId) {
+    if (!form || !variantId) return false;
+    var variantStr = String(variantId).trim();
+    if (!/^\d+$/.test(variantStr)) return false;
+
+    var changed = false;
+    var select = form.querySelector('select[name="id"]');
+    if (select && select.value !== variantStr) {
+      select.value = variantStr;
+      changed = true;
+    }
+
+    var hidden = form.querySelector('input[name="id"]');
+    if (hidden && hidden.value !== variantStr) {
+      hidden.value = variantStr;
+      changed = true;
+    }
+
+    var radio = form.querySelector('input[type="radio"][name="id"][value="' + variantStr + '"]');
+    if (radio && !radio.checked) {
+      radio.checked = true;
+      changed = true;
+    }
+
+    return changed;
+  }
+
+  function stashOriginalVariantId(form) {
+    if (!form) return '';
+    if (form.dataset.blMysteryOriginalVariantId) return form.dataset.blMysteryOriginalVariantId;
+    var current = getNumericVariantIdFromForm(form) || '';
+    try { form.dataset.blMysteryOriginalVariantId = String(current || ''); } catch (e) {}
+    return current;
+  }
+
+  function restoreOriginalVariantId(form) {
+    if (!form || !form.dataset.blMysteryOriginalVariantId) return false;
+    var original = String(form.dataset.blMysteryOriginalVariantId || '').trim();
+    var changed = original ? setVariantIdForSubmit(form, original) : false;
+    try { delete form.dataset.blMysteryOriginalVariantId; } catch (e) { form.dataset.blMysteryOriginalVariantId = ''; }
+    return changed;
+  }
+
+  M.applyAssignedVariantForSubmit = function (form, assignedVariantId) {
+    stashOriginalVariantId(form);
+    return setVariantIdForSubmit(form, assignedVariantId);
+  };
+
+  M.restoreOriginalVariantId = function (form) {
+    return restoreOriginalVariantId(form);
+  };
+
   function getLockedCollectionFromForm(form) {
     try {
       var b = form.querySelector('[name="properties[' + M.CFG.propLockedCollectionLegacy + ']"]');
@@ -396,7 +449,7 @@
      POOL LOADING
   ------------------------------ */
   function emptyPoolIndex() {
-    return { common: [], rare: [], epic: [], legendary: [] };
+    return { common: [], rare: [], epic: [], legendary: [], anyMap: {} };
   }
 
   function buildPoolIndex(poolJson) {
@@ -429,6 +482,18 @@
         continue;
       }
 
+      var title = String(p.title || '').trim();
+      var titleMatch = title.toLowerCase() === String(M.CFG.poolProductTitle || '').toLowerCase();
+      if (!titleMatch) {
+        U.warn('[BL Mystery] REJECT non-pool title:', p.handle, title);
+        continue;
+      }
+
+      if (p.handle === M.CFG.mysteryFigureHandle || p.handle === M.CFG.mysteryAddonHandle) {
+        U.warn('[BL Mystery] REJECT selector handle:', p.handle);
+        continue;
+      }
+
       var soldOut = false;
       if (p && (p.available === false || String(p.available || '').toLowerCase() === 'false')) soldOut = true;
       if (p && (p.variant_available === false || String(p.variant_available || '').toLowerCase() === 'false')) soldOut = true;
@@ -442,17 +507,19 @@
       }
 
       var rawR = String(p.rarity || '').trim().toLowerCase();
-      if (!rawR) {
+      var isAnyImage = /-1$/.test(String(p.handle || '').trim());
+
+      if (!rawR && !isAnyImage) {
         U.warn('[BL Mystery] REJECT missing rarity:', p.handle);
         continue;
       }
 
-      if (M.CFG.hardExcludedRarities.indexOf(rawR) !== -1) {
+      if (!isAnyImage && M.CFG.hardExcludedRarities.indexOf(rawR) !== -1) {
         U.warn('[BL Mystery] REJECT hard excluded rarity:', rawR, p.handle);
         continue;
       }
 
-      if (M.CFG.allowedRarities.indexOf(rawR) === -1) {
+      if (!isAnyImage && M.CFG.allowedRarities.indexOf(rawR) === -1) {
         U.warn('[BL Mystery] REJECT not allowed rarity:', rawR, p.handle);
         continue;
       }
@@ -463,12 +530,28 @@
         continue;
       }
 
+      if (isAnyImage) {
+        var baseHandle = String(p.handle || '').replace(/-1$/, '');
+        if (!baseHandle) {
+          U.warn('[BL Mystery] REJECT invalid any-image handle:', p.handle);
+          continue;
+        }
+        byR.anyMap[baseHandle] = {
+          handle: p.handle,
+          title: p.title,
+          variant_id: vid,
+          rarity: rawR ? normalizeRarity(rawR) : ''
+        };
+        continue;
+      }
+
       var rarity = normalizeRarity(rawR);
       byR[rarity].push({
         handle: p.handle,
         title: p.title,
         variant_id: vid,
-        rarity: rarity
+        rarity: rarity,
+        collection_key: p.collection_key || ''
       });
     }
 
@@ -707,6 +790,24 @@
     return chosen;
   }
 
+  function resolveAddedProduct(poolHandle, chosenBase, isAny) {
+    if (!chosenBase) return null;
+
+    var base = chosenBase;
+    var added = chosenBase;
+
+    if (isAny) {
+      var h = String(poolHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
+      var idx = state.pools[h];
+      var baseHandle = String(base.handle || '').trim();
+      if (idx && idx.anyMap && baseHandle && idx.anyMap[baseHandle]) {
+        added = idx.anyMap[baseHandle];
+      }
+    }
+
+    return { base: base, added: added };
+  }
+
 
   /* -----------------------------
      VARIANT MAP
@@ -909,6 +1010,10 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           M.CFG.propVisibleRequestedTier,
           M.CFG.propVisiblePoolUsed,
           M.CFG.propVisibleMode,
+          '_bl_assigned_base_handle',
+          '_bl_added_handle',
+          '_bl_assigned_rarity',
+          '_bl_assigned_title',
           '_bl_assignment_uid',
           '_bl_assigned_variant_id',
           '_bl_assigned_variant_gid',
@@ -937,6 +1042,15 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       if (!force && assignedInput && assignedInput.value && form.dataset.blAssignedSig === sig && canonicalInput && canonicalInput.value) {
         var existingProps = collectProperties(form);
         var reuseUid = ensureAssignmentUid(form, sig);
+        var existingBaseHandle = existingProps._bl_assigned_base_handle || existingProps[M.CFG.propAssignedHandle] || '';
+        var existingAddedHandle = existingProps._bl_added_handle || existingProps[M.CFG.propAssignedHandle] || '';
+        var existingAssignedTitle = existingProps._bl_assigned_title || existingProps[M.CFG.propAssignedTitle] || '';
+        var existingAssignedRarity = existingProps._bl_assigned_rarity || existingProps[M.CFG.propAssignedRarity] || '';
+
+        upsertHidden(form, '_bl_assigned_base_handle', existingBaseHandle);
+        upsertHidden(form, '_bl_added_handle', existingAddedHandle || existingBaseHandle);
+        upsertHidden(form, '_bl_assigned_rarity', existingAssignedRarity);
+        upsertHidden(form, '_bl_assigned_title', existingAssignedTitle);
         applyDebugProperties(form, {
           assignmentUid: reuseUid,
           assignedVariantId: existingProps._bl_assigned_variant_id || assignedInput.value,
@@ -1011,6 +1125,29 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           return false;
         }
 
+        var resolved = resolveAddedProduct(poolHandleUsed, chosen, isAny);
+        if (!resolved || !resolved.added || !resolved.added.variant_id) {
+          U.err('[BL Mystery] No eligible product for add-on mapping', {
+            handle: handle,
+            mode: mode,
+            rarity: rarity,
+            pool: poolHandleUsed,
+            requestedCollection: requestedCollection,
+            variantId: currentVariantId,
+            isAny: isAny,
+            chosen: chosen
+          });
+          return false;
+        }
+
+        var baseAssigned = resolved.base;
+        var addedAssigned = resolved.added;
+        var baseHandleAssigned = String(baseAssigned.handle || '').trim();
+        var addedHandleAssigned = String(addedAssigned.handle || baseHandleAssigned).trim();
+        var assignedTitle = baseAssigned.title || addedAssigned.title || '';
+        var assignedVariantId = addedAssigned.variant_id;
+        var assignedRarity = baseAssigned.rarity || rarity;
+
         // Persist what user selected (tier) vs what they got (actual)
         upsertHidden(form, M.CFG.propSelectedMode, mode);
         upsertHidden(form, M.CFG.propRequestedTier, isAny ? M.CFG.anyRarityKey : rarity);
@@ -1020,31 +1157,35 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         upsertHidden(form, '_bl_requested_rarity', isAny ? M.CFG.anyRarityKey : rarity);
 
         // Assigned payload (internal)
-        upsertHidden(form, M.CFG.propAssignedHandle, chosen.handle);
-        upsertHidden(form, M.CFG.propAssignedTitle, chosen.title);
-        upsertHidden(form, M.CFG.propAssignedVariantId, chosen.variant_id);
-        upsertHidden(form, M.CFG.propAssignedRarity, chosen.rarity);
+        upsertHidden(form, M.CFG.propAssignedHandle, addedHandleAssigned);
+        upsertHidden(form, M.CFG.propAssignedTitle, assignedTitle);
+        upsertHidden(form, M.CFG.propAssignedVariantId, assignedVariantId);
+        upsertHidden(form, M.CFG.propAssignedRarity, assignedRarity);
+        upsertHidden(form, '_bl_assigned_base_handle', baseHandleAssigned);
+        upsertHidden(form, '_bl_added_handle', addedHandleAssigned);
+        upsertHidden(form, '_bl_assigned_rarity', assignedRarity);
+        upsertHidden(form, '_bl_assigned_title', assignedTitle);
 
         // Assigned payload (visible in cart)
-        upsertHidden(form, M.CFG.propVisibleAssignedTitle, chosen.title);
-        upsertHidden(form, M.CFG.propVisibleAssignedRarity, chosen.rarity);
+        upsertHidden(form, M.CFG.propVisibleAssignedTitle, assignedTitle);
+        upsertHidden(form, M.CFG.propVisibleAssignedRarity, assignedRarity);
         upsertHidden(form, M.CFG.propVisibleRequestedTier, isAny ? 'Lucky Box' : rarity);
         upsertHidden(form, M.CFG.propVisiblePoolUsed, poolHandleUsed);
         upsertHidden(form, M.CFG.propVisibleMode, mode);
 
         var assignmentUid = ensureAssignmentUid(form, sig, { alwaysNew: assignNow });
-        var assignedGid = buildVariantGid(chosen.variant_id);
-        var assignedSku = getAssignedSku(chosen.variant_id, chosen);
+        var assignedGid = buildVariantGid(assignedVariantId);
+        var assignedSku = getAssignedSku(assignedVariantId, addedAssigned);
 
         // Canonical BL properties
         upsertHidden(form, '_bl_assignment_uid', assignmentUid);
-        upsertHidden(form, '_bl_assigned_variant_id', chosen.variant_id);
+        upsertHidden(form, '_bl_assigned_variant_id', assignedVariantId);
         upsertHidden(form, '_bl_assigned_variant_gid', assignedGid);
         upsertHidden(form, '_bl_assigned_sku', assignedSku || '');
 
         applyDebugProperties(form, {
           assignmentUid: assignmentUid,
-          assignedVariantId: chosen.variant_id,
+          assignedVariantId: assignedVariantId,
           assignedVariantGid: assignedGid,
           assignedSku: assignedSku || '',
           mode: mode,
@@ -1055,7 +1196,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         // Cache signature (includes variant id now)
         try { form.dataset.blAssignedSig = sig; } catch (e3) {}
 
-        U.log('[BL Mystery] Assigned', chosen, {
+        U.log('[BL Mystery] Assigned', addedAssigned, {
           handle: handle,
           mode: mode,
           requestedCollection: requestedCollection,
@@ -1075,7 +1216,8 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           variantId: currentVariantId,
           signature: sig,
           assignment_uid: assignmentUid,
-          assigned: chosen,
+          assigned: addedAssigned,
+          assigned_base: baseAssigned,
           assigned_variant_gid: assignedGid,
           assigned_sku: assignedSku || '',
           properties: collectProperties(form)
@@ -1250,6 +1392,11 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
             properties: propsSnapshot
           });
 
+          var assignedVariantId = propsSnapshot._bl_assigned_variant_id || propsSnapshot[M.CFG.propAssignedVariantId] || '';
+          if (assignedVariantId) {
+            M.applyAssignedVariantForSubmit(form, assignedVariantId);
+          }
+
           // resubmit once, bypassing our own listener
           form.dataset.blMysteryBypass = '1';
 
@@ -1260,6 +1407,9 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
             } catch (err2) {
               try { form.submit(); } catch (e2) {}
             }
+            setTimeout(function () {
+              if (assignedVariantId) M.restoreOriginalVariantId(form);
+            }, 0);
           }, 0);
         });
     }, true);
