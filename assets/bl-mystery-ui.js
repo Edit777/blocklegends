@@ -199,6 +199,12 @@
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
   }
 
+  function formatCollectionLabel(key) {
+    var text = String(key || '').trim();
+    if (!text) return '';
+    return text.replace(/[-_]+/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+
   function formatHelper(rarity, collectionTitle, modeIsPreferred) {
     var label = collectionTitle || (modeIsPreferred ? 'this collection' : 'a random collection');
     if (!rarity || rarity === ANY) return 'Get a random figure from ' + label + '.';
@@ -238,12 +244,30 @@
   }
 
   function computeCounts(collectionHandle) {
-    var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(collectionHandle) : null;
+    var poolHandle = M.CFG.defaultPoolCollectionHandle;
+    var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(poolHandle, collectionHandle) : null;
     if (counts) return Promise.resolve(counts);
 
-    return M.fetchPoolAllPages(collectionHandle).then(function () {
-      var fallback = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(collectionHandle) : null;
+    return M.fetchPoolAllPages(poolHandle).then(function () {
+      var fallback = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(poolHandle, collectionHandle) : null;
       return fallback || null;
+    });
+  }
+
+  function populateCollectionSelect(select, collections) {
+    if (!select) return;
+    select.innerHTML = '';
+    var defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'Select a collection';
+    select.appendChild(defaultOpt);
+
+    (collections || []).forEach(function (c) {
+      if (!c || !c.handle) return;
+      var opt = document.createElement('option');
+      opt.value = c.handle;
+      opt.textContent = c.title || c.handle;
+      select.appendChild(opt);
     });
   }
 
@@ -297,19 +321,7 @@
     });
 
     var select = card.querySelector('[data-bl-collection-select]');
-    if (select) {
-      var defaultOpt = document.createElement('option');
-      defaultOpt.value = '';
-      defaultOpt.textContent = 'Select a collection';
-      select.appendChild(defaultOpt);
-      (collections || []).forEach(function (c) {
-        if (!c || !c.handle) return;
-        var opt = document.createElement('option');
-        opt.value = c.handle;
-        opt.textContent = c.title || c.handle;
-        select.appendChild(opt);
-      });
-    }
+    if (select) populateCollectionSelect(select, collections);
 
     return {
       root: card,
@@ -330,7 +342,7 @@
 
     ensureCssOnce();
 
-    var collections = getCollections(root);
+    var collections = [];
     var ui = buildUI(root, form, collections);
     if (!ui) return;
 
@@ -415,6 +427,10 @@
     function updateHelper() {
       var title = findCollectionTitle(state.collection);
       var modePreferred = state.mode === MODE_LABELS.preferred;
+      if (modePreferred && (!collections || !collections.length)) {
+        setHelper('Preferred collections are unavailable. Please choose Random Collection.', true);
+        return;
+      }
       if (modePreferred && !state.collection) {
         setHelper('Select a collection to continue.', true);
         return;
@@ -490,5 +506,24 @@
     form.addEventListener('change', debouncedChange, true);
 
     applyEligibility().then(recompute);
+
+    if (typeof M.fetchPoolAllPages === 'function') {
+      M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle).then(function () {
+        if (typeof M.getPoolCollectionKeys !== 'function') return;
+        var keys = M.getPoolCollectionKeys(M.CFG.defaultPoolCollectionHandle) || [];
+        collections = keys.map(function (key) {
+          return { handle: key, title: formatCollectionLabel(key) || key };
+        });
+        populateCollectionSelect(ui.collectionSelect, collections);
+        if (window.BL && typeof window.BL.isDebug === 'function' && window.BL.isDebug()) {
+          try { console.log('[BL Mystery][debug] preferred-dropdown-populated', { count: collections.length }); } catch (e) {}
+        }
+        if (collections.length && !collections.some(function (c) { return c.handle === state.collection; })) {
+          state.collection = collections[0].handle;
+          if (ui.collectionSelect) ui.collectionSelect.value = state.collection;
+        }
+        updateHelper();
+      }).catch(function () {});
+    }
   };
 })();

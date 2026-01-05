@@ -234,6 +234,7 @@
       var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
       var lockedCollection = props._bl_locked_collection || getLockedCollectionHandleFromDom();
       if (lockedCollection) props._bl_locked_collection = lockedCollection;
+      logAddonDebug('addon-enrich-locked-collection', { locked_collection: lockedCollection });
 
       var excludeVariantIds = [];
       if (addonParentUid && parentAssignments[addonParentUid]) excludeVariantIds.push(parentAssignments[addonParentUid]);
@@ -588,11 +589,26 @@ function ensureCssOnce() {
     return idx === -1 ? 999 : idx;
   }
 
+  function normalizeAddonRarity(raw) {
+    var anyKey = 'any';
+    try { anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase(); } catch (e) { anyKey = 'any'; }
+
+    var allowed = (M && M.CFG && Array.isArray(M.CFG.allowedRarities)) ? M.CFG.allowedRarities : ['common', 'rare', 'epic', 'legendary'];
+    var lower = String(raw || '').trim().toLowerCase();
+    var normalized = '';
+
+    if (lower === anyKey) normalized = anyKey;
+    else if (allowed.indexOf(lower) !== -1) normalized = lower;
+
+    logAddonDebug('requested-rarity-normalized', { raw: raw, normalized: normalized });
+    return normalized;
+  }
+
   function getVariantRarity(variantId) {
     try {
       if (M && typeof M.getVariantSelection === 'function') {
         var sel = M.getVariantSelection(variantId);
-        if (sel && sel.rarity) return String(sel.rarity);
+        if (sel && sel.rarity) return normalizeAddonRarity(sel.rarity);
       }
     } catch (e) {}
     return '';
@@ -722,17 +738,20 @@ function ensureCssOnce() {
     if (!selectEl || !M || typeof M.fetchPoolAllPages !== 'function') return Promise.resolve(false);
 
     var locked = String(card.getAttribute('data-locked-collection') || '').trim();
-    if (!locked) return Promise.resolve(false);
+    if (!locked) {
+      logAddonDebug('addon-collection-unlocked', { locked_collection: locked });
+      return Promise.resolve(false);
+    }
 
-    return M.fetchPoolAllPages(locked).then(function () {
+    return M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle).then(function () {
       var switched = false;
       if (typeof M.getPoolCounts !== 'function') return switched;
 
-      var counts = M.getPoolCounts(locked);
+      var counts = M.getPoolCounts(M.CFG.defaultPoolCollectionHandle, locked);
       if (!counts) return switched;
 
-      var min = Number((M.CFG && M.CFG.preferredMinPerRarity) || 0);
-      var anyKey = String((M.CFG && M.CFG.anyRarityKey) || 'any');
+      var min = 1;
+      var anyKey = String((M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase();
 
       Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
         var vid = String(opt.value || '').trim();
@@ -867,6 +886,7 @@ function ensureCssOnce() {
       if (parentUidInput && !parentUidInput.value) parentUidInput.value = generateUid('bl-parent');
 
       form.addEventListener('submit', function () {
+        logAddonDebug('addon-submit', { locked_collection: locked });
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
         if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);

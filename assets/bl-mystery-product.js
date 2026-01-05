@@ -9,6 +9,10 @@
   var ANY_KEY = (M.CFG.anyRarityKey || 'any').toLowerCase();
   var MIN_PER_RARITY = Number(M.CFG.preferredMinPerRarity || 0);
 
+  function isDebug() {
+    try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
+  }
+
   function onReady(cb) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', cb);
@@ -31,13 +35,10 @@
     el.style.display = target;
   }
 
-  function parseCollections(root) {
-    try {
-      var raw = root.getAttribute('data-collections') || '[]';
-      var parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    } catch (e) {}
-    return [];
+  function formatCollectionLabel(key) {
+    var text = String(key || '').trim();
+    if (!text) return '';
+    return text.replace(/[-_]+/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
 
   function getVariantId(form) {
@@ -224,8 +225,9 @@
 
   function applyEligibility(root, form, entries, collectionHandle, selection, noticeEl) {
     if (!form || !entries.length) return Promise.resolve({ switched: false, rarity: selection.rarity });
-    return M.fetchPoolAllPages(collectionHandle).then(function () {
-      var counts = typeof M.getPoolCounts === 'function' ? M.getPoolCounts(collectionHandle) : null;
+    var poolHandle = M.CFG.defaultPoolCollectionHandle;
+    return M.fetchPoolAllPages(poolHandle).then(function () {
+      var counts = typeof M.getPoolCounts === 'function' ? M.getPoolCounts(poolHandle, collectionHandle) : null;
       if (!counts) return { switched: false, rarity: selection.rarity };
 
       entries.forEach(function (entry) {
@@ -259,7 +261,6 @@
     if (!root || root.dataset.blMysteryBound === '1') return;
     if (String(root.getAttribute('data-product-handle') || '') !== HANDLE) return;
 
-    var collections = parseCollections(root);
     var form = root.closest('section') ? root.closest('section').querySelector('form[data-type="add-to-cart-form"]') : null;
     if (!form) form = document.querySelector('form[data-type="add-to-cart-form"]');
     if (!form) return;
@@ -277,6 +278,7 @@
     root.dataset.blMysteryBound = '1';
 
     var availability = findVariantAvailability(root);
+    var collectionMap = {};
     var state = {
       mode: M.CFG.modeRandomLabel,
       rarity: ANY_KEY,
@@ -288,8 +290,30 @@
     state.rarity = initialSelection.rarity || state.rarity;
 
     function getCollectionTitle(handle) {
-      var match = collections.find(function (c) { return c.handle === handle; });
-      return match ? match.title : '';
+      return collectionMap[handle] || formatCollectionLabel(handle);
+    }
+
+    function ensureCollectionError() {
+      var err = root.querySelector('[data-bl-pref-error]');
+      if (err) return err;
+      err = document.createElement('div');
+      err.className = 'bl-mystery-notice';
+      err.setAttribute('data-bl-pref-error', '1');
+      err.style.display = 'none';
+      root.appendChild(err);
+      return err;
+    }
+
+    function setCollectionError(show, message) {
+      var err = ensureCollectionError();
+      if (!err) return;
+      if (!show) {
+        err.textContent = '';
+        err.style.display = 'none';
+        return;
+      }
+      err.textContent = message || 'No preferred collections are available right now.';
+      err.style.display = '';
     }
 
     function updateModeButtons() {
@@ -300,6 +324,9 @@
         btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
       });
       setDisplay(collectionRow, M.normalizeMode(state.mode) === M.CFG.modePreferredLabel);
+      var inPreferred = M.normalizeMode(state.mode) === M.CFG.modePreferredLabel;
+      var hasCollections = dropdown && dropdown.options && dropdown.options.length > 0;
+      setCollectionError(inPreferred && !hasCollections, 'Preferred collections are unavailable. Please choose Random Collection.');
     }
 
     function updateHelper() {
@@ -390,6 +417,30 @@
       (typeof M.fetchVariantMap === 'function') ? M.fetchVariantMap() : Promise.resolve(),
       (typeof M.fetchPoolAllPages === 'function') ? M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle) : Promise.resolve()
     ]).finally(function () {
+      var collectionKeys = (typeof M.getPoolCollectionKeys === 'function')
+        ? M.getPoolCollectionKeys(M.CFG.defaultPoolCollectionHandle)
+        : [];
+
+      if (dropdown) {
+        dropdown.innerHTML = '';
+        collectionMap = {};
+        collectionKeys.forEach(function (key) {
+          var label = formatCollectionLabel(key);
+          collectionMap[key] = label || key;
+          var opt = document.createElement('option');
+          opt.value = key;
+          opt.textContent = collectionMap[key];
+          dropdown.appendChild(opt);
+        });
+        if (isDebug()) {
+          try { console.log('[BL Mystery][debug] preferred-dropdown-populated', { count: collectionKeys.length }); } catch (e) {}
+        }
+        if (collectionKeys.length && !collectionMap[state.collection]) {
+          state.collection = collectionKeys[0];
+          dropdown.value = state.collection;
+        }
+      }
+
       markRarityActive(rarityEntries, state.rarity);
       handleEligibility().then(function (res) {
         if (res && res.rarity) state.rarity = res.rarity;

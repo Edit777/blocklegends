@@ -8,16 +8,17 @@
   "next_page": {% if paginate.next %}{{ paginate.current_page | plus: 1 }}{% else %}null{% endif %},
   "products": [
     {%- for p in collection.products -%}
+      {%- assign bl_first_variant = p.first_available_variant | default: p.variants.first -%}
       {
         "handle": {{ p.handle | json }},
         "title": {{ p.title | json }},
         "available": {{ p.available | json }},
-        "variant_available": {{ p.selected_or_first_available_variant.available | json }},
+        "variant_available": {{ bl_first_variant.available | json }},
         "rarity": {{ p.metafields.custom.rarity.value | default: p.metafields.custom.rarity | downcase | json }},
         "collection_key": {{ p.metafields.custom.collection_key.value | default: p.metafields.custom.collection_key | json }},
         "exclude_from_mystery": {{ p.metafields.custom.exclude_from_mystery.value | default: false | json }},
         "tags": {{ p.tags | json }},
-        "variant_id": {{ p.selected_or_first_available_variant.id | json }}
+        "variant_id": {{ bl_first_variant.id | json }}
       }{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
   ]
