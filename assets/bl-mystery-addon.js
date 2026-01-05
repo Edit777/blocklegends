@@ -150,6 +150,12 @@
     });
   }
 
+  function rewriteItemIdForIndex(fd, idx, value) {
+    if (!fd || typeof fd.set !== 'function') return;
+    var key = 'items[' + idx + '][id]';
+    try { fd.set(key, String(value || '')); } catch (e) {}
+  }
+
   A.enrichCartAddFormData = async function (formData) {
     if (!formData || !(formData instanceof FormData)) return;
     if (!M || typeof M.computeAndApplyAssignment !== 'function') return;
@@ -266,6 +272,9 @@
       if (props._bl_locked_collection && !mergedProps._bl_locked_collection) mergedProps._bl_locked_collection = props._bl_locked_collection;
 
       stripDebugProps(mergedProps);
+
+      var assignedVariantId = mergedProps._bl_assigned_variant_id || mergedProps[assignmentPropKey] || '';
+      if (assignedVariantId) rewriteItemIdForIndex(formData, idx, assignedVariantId);
 
       rewritePropertiesForIndex(formData, idx, mergedProps);
       parentUidByIndex[idx] = addonParentUid;
@@ -541,7 +550,16 @@ function ensureCssOnce() {
           return false;
         }
 
-        return originalSubmit(evt);
+        var assignedVariantId = propsSnapshot._bl_assigned_variant_id || propsSnapshot[(M && M.CFG && M.CFG.propAssignedVariantId) || '_assigned_variant_id'] || '';
+        if (assignedVariantId && M && typeof M.applyAssignedVariantForSubmit === 'function') {
+          M.applyAssignedVariantForSubmit(form, assignedVariantId);
+        }
+
+        var result = originalSubmit(evt);
+        if (assignedVariantId && M && typeof M.restoreOriginalVariantId === 'function') {
+          setTimeout(function () { M.restoreOriginalVariantId(form); }, 0);
+        }
+        return result;
       });
     };
   }
@@ -845,11 +863,15 @@ function ensureCssOnce() {
       ensureHidden(form, '_bl_is_addon', '1');
       if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
       if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+      var parentUidInput = ensureHidden(form, '_bl_parent_uid', '');
+      if (parentUidInput && !parentUidInput.value) parentUidInput.value = generateUid('bl-parent');
 
       form.addEventListener('submit', function () {
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
         if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+        var submitParentUid = ensureHidden(form, '_bl_parent_uid', '');
+        if (submitParentUid && !submitParentUid.value) submitParentUid.value = generateUid('bl-parent');
 
         // assignment happens in engine submit safety; keep flags in sync
       });
