@@ -7,7 +7,6 @@
 
   var HANDLE = M.CFG.mysteryFigureHandle || 'mystery-figure';
   var ANY_KEY = (M.CFG.anyRarityKey || 'any').toLowerCase();
-  var MIN_PER_RARITY = Number(M.CFG.preferredMinPerRarity || 0);
 
   function isDebug() {
     try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
@@ -227,12 +226,14 @@
     if (!form || !entries.length) return Promise.resolve({ switched: false, rarity: selection.rarity });
     var poolHandle = M.CFG.defaultPoolCollectionHandle;
     return M.fetchPoolAllPages(poolHandle).then(function () {
-      var counts = typeof M.getPoolCounts === 'function' ? M.getPoolCounts(poolHandle, collectionHandle) : null;
-      if (!counts) return { switched: false, rarity: selection.rarity };
+      var availability = typeof M.getRarityAvailability === 'function'
+        ? M.getRarityAvailability(poolHandle, collectionHandle)
+        : null;
+      if (!availability) return { switched: false, rarity: selection.rarity };
 
       entries.forEach(function (entry) {
         var rarityKey = (entry.rarity || '').toLowerCase();
-        var eligible = rarityKey === ANY_KEY ? true : Number(counts[rarityKey] || 0) >= MIN_PER_RARITY;
+        var eligible = rarityKey === availability.anyKey ? true : !!availability.eligible[rarityKey];
         setRarityDisabled(entry, !eligible);
       });
 

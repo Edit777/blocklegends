@@ -207,6 +207,23 @@
     };
   };
 
+  M.getRarityAvailability = function (collectionHandle, collectionKey) {
+    var h = String(collectionHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
+    var counts = M.getPoolCounts(h, collectionKey);
+    if (!counts) return null;
+
+    var min = Number(M.CFG.preferredMinPerRarity || 0);
+    var anyKey = String(M.CFG.anyRarityKey || 'any').toLowerCase();
+    var eligible = {};
+
+    (M.CFG.allowedRarities || []).forEach(function (r) {
+      eligible[r] = Number(counts[r] || 0) >= min;
+    });
+    eligible[anyKey] = true;
+
+    return { counts: counts, eligible: eligible, min: min, anyKey: anyKey };
+  };
+
   M.getPoolCollectionKeys = function (collectionHandle) {
     var h = String(collectionHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
     var idx = state.pools[h];
@@ -214,12 +231,12 @@
     return Object.keys(idx.byCollection).filter(function (key) { return String(key || '').trim(); }).sort();
   };
 
-  M.isRarityEligibleForCollection = function (collectionHandle, rarity) {
+  M.isRarityEligibleForCollection = function (collectionHandle, rarity, collectionKey) {
     var r = normalizeRarity(rarity);
     if (r === M.CFG.anyRarityKey) return true;
-    var c = M.getPoolCounts(collectionHandle);
-    if (!c) return false;
-    return Number(c[r] || 0) >= Number(M.CFG.preferredMinPerRarity || 0);
+    var availability = M.getRarityAvailability(collectionHandle, collectionKey);
+    if (!availability) return false;
+    return !!availability.eligible[r];
   };
 
   /* -----------------------------
@@ -1035,8 +1052,9 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       }
 
       if (handle === M.CFG.mysteryAddonHandle && !lockedCollection) {
-        U.warn('[BL Mystery] Add-on missing locked collection; using full pool');
+        U.warn('[BL Mystery] Add-on missing locked collection; cannot assign');
         debugLog('addon-missing-locked-collection', { handle: handle });
+        return false;
       }
 
       var poolHandleUsed = M.CFG.defaultPoolCollectionHandle;
@@ -1253,7 +1271,8 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         upsertHidden(form, M.CFG.propVisibleAssignedTitle, assignedTitle);
         upsertHidden(form, M.CFG.propVisibleAssignedRarity, assignedRarity);
         upsertHidden(form, M.CFG.propVisibleRequestedTier, isAny ? 'Lucky Box' : rarity);
-        upsertHidden(form, M.CFG.propVisiblePoolUsed, poolHandleUsed);
+        var poolUsedLabel = collectionKeyUsed || poolHandleUsed;
+        upsertHidden(form, M.CFG.propVisiblePoolUsed, poolUsedLabel);
         upsertHidden(form, M.CFG.propVisibleMode, mode);
 
         var assignmentUid = ensureAssignmentUid(form, sig, { alwaysNew: assignNow });

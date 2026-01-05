@@ -745,23 +745,23 @@ function ensureCssOnce() {
 
     return M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle).then(function () {
       var switched = false;
-      if (typeof M.getPoolCounts !== 'function') return switched;
+      if (typeof M.getRarityAvailability !== 'function') return switched;
 
-      var counts = M.getPoolCounts(M.CFG.defaultPoolCollectionHandle, locked);
-      if (!counts) return switched;
+      var availability = M.getRarityAvailability(M.CFG.defaultPoolCollectionHandle, locked);
+      if (!availability) return switched;
 
-      var min = 1;
-      var anyKey = String((M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase();
+      var eligible = availability.eligible || {};
+      var anyKey = availability.anyKey || String((M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase();
 
       Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
         var vid = String(opt.value || '').trim();
         var rarity = getVariantRarity(vid);
-        var eligible = true;
+        var eligibleFlag = true;
 
         if (rarity && rarity !== anyKey) {
-          eligible = Number(counts[rarity] || 0) >= min;
+          eligibleFlag = !!eligible[rarity];
         }
-        opt.disabled = !eligible;
+        opt.disabled = !eligibleFlag;
       });
 
       // fallback if current disabled
@@ -885,7 +885,12 @@ function ensureCssOnce() {
       var parentUidInput = ensureHidden(form, '_bl_parent_uid', '');
       if (parentUidInput && !parentUidInput.value) parentUidInput.value = generateUid('bl-parent');
 
-      form.addEventListener('submit', function () {
+      form.addEventListener('submit', function (evt) {
+        if (!locked) {
+          showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
+          if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+          return;
+        }
         logAddonDebug('addon-submit', { locked_collection: locked });
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
@@ -909,7 +914,13 @@ function ensureCssOnce() {
 
     // ensure variant map is ready, then eligibility, then apply
     (M && typeof M.fetchVariantMap === 'function' ? M.fetchVariantMap() : Promise.resolve())
-      .then(function () { return disableIneligibleOptions(card, variants, selectEl); })
+      .then(function () {
+        if (!locked) {
+          showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
+          return false;
+        }
+        return disableIneligibleOptions(card, variants, selectEl);
+      })
       .then(function (switched) {
         applyVariant(card, variants, selectEl ? selectEl.value : initialId);
         updateHint(card, selectEl);
@@ -924,6 +935,10 @@ function ensureCssOnce() {
 
     if (selectEl) {
       selectEl.addEventListener('change', function () {
+        if (!locked) {
+          showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
+          return;
+        }
         disableIneligibleOptions(card, variants, selectEl).then(function (switched) {
           applyVariant(card, variants, selectEl.value);
           updateHint(card, selectEl);
