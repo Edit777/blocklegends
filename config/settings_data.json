@@ -304,8 +304,8 @@
               "goal_2_icon": "sell",
               "goal_2_icon_filled": true,
               "enable_goal_3": true,
-              "goal_3_label": "Mystery Figure",
-              "goal_3_text": "a FREE GIFT",
+              "goal_3_label": "20% OFF",
+              "goal_3_text": "a 20% discount",
               "goal_3_amount": 150,
               "goal_3_icon": "redeem",
               "goal_3_icon_filled": true,
@@ -332,7 +332,7 @@
             "type": "cart_items",
             "settings": {
               "image_size": "17",
-              "image_link": false,
+              "image_link": true,
               "title_size": "1.3",
               "title_link": false,
               "displayed_variants": "compact",
@@ -349,7 +349,7 @@
               "quantity_corner_radius": 6,
               "quantity_border_width": 1,
               "quantity_border_color": "#787878",
-              "quantity_container_color_scheme": "background-2",
+              "quantity_container_color_scheme": "background-1",
               "quantity_input_padding": 0.7,
               "quantity_separators_opacity": 20,
               "quantity_padding": 0.4,
@@ -417,7 +417,7 @@
           "68fdc0a0-cd7c-40b9-97b3-a76eb7917a47"
         ],
         "settings": {
-          "test_mode": false,
+          "test_mode": true,
           "heading_text": "Cart • [count] items",
           "heading_alignment": "flex-start",
           "desktop_width": "normal",
