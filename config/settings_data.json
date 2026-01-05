@@ -284,7 +284,6 @@
           },
           "926ea95f-fd8a-43e7-b215-de4f6cbc19f9": {
             "type": "checkpoints_bar",
-            "disabled": true,
             "settings": {
               "goal_type": "subtotal",
               "progress_message": "You're [amount] away from [next_goal]!",
@@ -293,23 +292,23 @@
               "labels_desktop_text_size": 12,
               "accent_color": "accent-1",
               "enable_goal_1": true,
-              "goal_1_label": "Free Shipping",
-              "goal_1_text": "FREE shipping",
-              "goal_1_amount": 40,
-              "goal_1_icon": "local_shipping",
+              "goal_1_label": "5% OFF",
+              "goal_1_text": "a 5% discount",
+              "goal_1_amount": 60,
+              "goal_1_icon": "sell",
               "goal_1_icon_filled": false,
               "enable_goal_2": true,
-              "goal_2_label": "20% OFF",
-              "goal_2_text": "a 20% discount",
-              "goal_2_amount": 60,
+              "goal_2_label": "15% OFF",
+              "goal_2_text": "a 15% discount",
+              "goal_2_amount": 100,
               "goal_2_icon": "sell",
-              "goal_2_icon_filled": false,
+              "goal_2_icon_filled": true,
               "enable_goal_3": true,
-              "goal_3_label": "Free Gift",
+              "goal_3_label": "Mystery Figure",
               "goal_3_text": "a FREE GIFT",
-              "goal_3_amount": 80,
+              "goal_3_amount": 150,
               "goal_3_icon": "redeem",
-              "goal_3_icon_filled": false,
+              "goal_3_icon_filled": true,
               "margin_top": 15,
               "margin_bottom": 15
             }
@@ -332,9 +331,9 @@
           "097b7b4f-c0b8-4073-a06b-e6d49a5aad20": {
             "type": "cart_items",
             "settings": {
-              "image_size": "20",
+              "image_size": "17",
               "image_link": false,
-              "title_size": "1.5",
+              "title_size": "1.3",
               "title_link": false,
               "displayed_variants": "compact",
               "prices_position": "right",
@@ -345,7 +344,7 @@
               "enable_savings": true,
               "savings_text": "<strong>(You save [amount])</strong>",
               "savings_color": "text",
-              "quantity_font_size": 14,
+              "quantity_font_size": 15,
               "quantity_container_padding": 0,
               "quantity_corner_radius": 6,
               "quantity_border_width": 1,
@@ -355,23 +354,11 @@
               "quantity_separators_opacity": 20,
               "quantity_padding": 0.4,
               "quantity_btns_color_scheme": "background-2",
-              "quantity_round_btns": true,
+              "quantity_round_btns": false,
               "quantity_outline_btns": false,
               "quantity_btns_icon_size": 70,
               "margin_top": 21,
               "margin_bottom": 21
-            }
-          },
-          "631b0e34-4299-400e-9f4d-c107c08cce01": {
-            "type": "discount_field",
-            "disabled": true,
-            "settings": {
-              "bottom_separator": true,
-              "placeholder": "Enter discount code",
-              "btn_label": "ADD",
-              "error_msg": "Please enter a discount code!",
-              "margin_top": 15,
-              "margin_bottom": 15
             }
           },
           "4f3e2a5f-006d-40ed-8370-49b15e0e427d": {
@@ -414,7 +401,7 @@
           "68fdc0a0-cd7c-40b9-97b3-a76eb7917a47": {
             "type": "payment_badges",
             "settings": {
-              "enabled_payment_types": "",
+              "enabled_payment_types": "american_express, apple_pay, google_pay, master, paypal, visa",
               "margin_top": 12,
               "margin_bottom": 12
             }
@@ -425,13 +412,12 @@
           "926ea95f-fd8a-43e7-b215-de4f6cbc19f9",
           "058d6d0a-ba0d-48cb-9432-de85da1e5aef",
           "097b7b4f-c0b8-4073-a06b-e6d49a5aad20",
-          "631b0e34-4299-400e-9f4d-c107c08cce01",
           "4f3e2a5f-006d-40ed-8370-49b15e0e427d",
           "0935e47c-9604-4faa-b47a-d61ca49c0c16",
           "68fdc0a0-cd7c-40b9-97b3-a76eb7917a47"
         ],
         "settings": {
-          "test_mode": false,
+          "test_mode": true,
           "heading_text": "Cart • [count] items",
           "heading_alignment": "flex-start",
           "desktop_width": "normal",
