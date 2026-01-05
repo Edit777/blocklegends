@@ -44,7 +44,7 @@
     hardExcludedRarities: ['special', 'mythical'],
 
     // Minimum per rarity to consider a rarity-tier "eligible" for a collection UI
-    preferredMinPerRarity: 3,
+    preferredMinPerRarity: 1,
 
     modeRandomLabel: 'Random Collection',
     modePreferredLabel: 'Preferred Collection',
