@@ -274,7 +274,7 @@
           "6269cf6e-8e24-4068-8e2a-35bb4addad4e": {
             "type": "countdown_timer",
             "settings": {
-              "timer_text": "<strong>Cart reserved for [timer]</strong>",
+              "timer_text": "<strong>Unlock all 3 cart rewards</strong>",
               "timer_duration": 300,
               "font_size": "1.4",
               "color_scheme": "inverse",
