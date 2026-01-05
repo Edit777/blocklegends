@@ -12,6 +12,12 @@
     try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
   }
 
+  function debugLog() {
+    if (!isDebug()) return;
+    var args = Array.prototype.slice.call(arguments);
+    try { console.log.apply(console, ['[BL Mystery Product][debug]'].concat(args)); } catch (e) {}
+  }
+
   function onReady(cb) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', cb);
@@ -89,6 +95,7 @@
     }
     entry.input.setAttribute('aria-disabled', disabled ? 'true' : 'false');
     if (label) label.classList.toggle('is-disabled', !!disabled);
+    entry.input.style.display = disabled ? 'none' : '';
   }
 
   function clearRarityDisabled(entries) {
@@ -96,8 +103,6 @@
   }
 
   function pickFallbackRarity(entries) {
-    var anyEntry = entries.find(function (e) { return (e.rarity || '').toLowerCase() === ANY_KEY && !e.input.disabled; });
-    if (anyEntry) return anyEntry.rarity;
     var first = entries.find(function (e) { return !e.input.disabled; });
     return first ? first.rarity : null;
   }
@@ -249,16 +254,44 @@
   function applyEligibility(root, form, entries, collectionHandle, selection, noticeEl) {
     if (!form || !entries.length) return Promise.resolve({ switched: false, rarity: selection.rarity });
     var poolHandle = M.CFG.defaultPoolCollectionHandle;
+
+    if (!collectionHandle) {
+      safeText(noticeEl, 'Please select a collection to see available rarities.');
+      setDisplay(noticeEl, true);
+      debugLog('missing-collection', { collectionKey: collectionHandle });
+      return Promise.resolve({ switched: false, rarity: selection.rarity });
+    }
+
     return M.fetchPoolAllPages(poolHandle).then(function () {
-      var availability = typeof M.getRarityAvailability === 'function'
-        ? M.getRarityAvailability(poolHandle, collectionHandle)
+      var counts = (typeof M.getAvailabilityByCollection === 'function')
+        ? M.getAvailabilityByCollection(collectionHandle)
         : null;
-      if (!availability) return { switched: false, rarity: selection.rarity };
+      var eligibleMap = (typeof M.getEligibleRarities === 'function')
+        ? M.getEligibleRarities(collectionHandle, 3)
+        : null;
+
+      if (!counts || !eligibleMap) {
+        debugLog('missing-availability', { collectionKey: collectionHandle, counts: counts, eligible: eligibleMap });
+        return { switched: false, rarity: selection.rarity };
+      }
 
       entries.forEach(function (entry) {
         var rarityKey = (entry.rarity || '').toLowerCase();
-        var eligible = rarityKey === availability.anyKey ? true : !!availability.eligible[rarityKey];
+        var eligible = rarityKey === ANY_KEY ? true : !!eligibleMap[rarityKey];
         setRarityDisabled(entry, !eligible);
+      });
+
+      debugLog('eligibility-updated', {
+        collectionKey: collectionHandle,
+        availability: counts,
+        eligible: eligibleMap,
+        entries: entries.map(function (entry) {
+          return {
+            rarity: entry.rarity,
+            disabled: entry.input.disabled,
+            node: entry.input
+          };
+        })
       });
 
       var currentRarity = getCurrentRarity(entries) || selection.rarity;
@@ -299,6 +332,14 @@
     var rarityEntries = buildRarityEntries(rarityContainer);
 
     if (!dropdown || !collectionRow || !rarityEntries.length || !modeButtons.length) return;
+
+    if (!noticeEl) {
+      noticeEl = document.createElement('div');
+      noticeEl.className = 'bl-mystery-notice';
+      noticeEl.setAttribute('data-bl-mystery-notice', '');
+      noticeEl.style.display = 'none';
+      root.appendChild(noticeEl);
+    }
 
     root.dataset.blMysteryBound = '1';
 
@@ -365,7 +406,11 @@
       var targetId = findVariantIdFor(state.mode, state.rarity, availability);
       if (targetId) setVariantId(form, targetId);
       if (typeof M.computeAndApplyAssignment === 'function') {
-        M.computeAndApplyAssignment(form, HANDLE).catch(function () {});
+        M.computeAndApplyAssignment(form, HANDLE)
+          .then(function () {
+            return handleEligibility();
+          })
+          .catch(function () {});
       }
     }
 
@@ -478,5 +523,11 @@
   onReady(function () {
     var roots = Array.prototype.slice.call(document.querySelectorAll('[data-bl-mystery-ui]'));
     roots.forEach(function (root) { attach(root); });
+
+    document.addEventListener('shopify:section:load', function (evt) {
+      var sectionRoot = evt && evt.target ? evt.target : document;
+      Array.prototype.slice.call((sectionRoot || document).querySelectorAll('[data-bl-mystery-ui]'))
+        .forEach(function (root) { attach(root); });
+    });
   });
 })();
