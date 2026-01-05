@@ -207,6 +207,44 @@
     };
   };
 
+  M.getAvailabilityByCollection = function (collectionKey) {
+    var key = String(collectionKey || '').trim();
+    if (!key) return null;
+    var h = String(M.CFG.defaultPoolCollectionHandle || '').trim() || 'all';
+    var idx = state.pools[h];
+    if (!idx) return null;
+    var bucket = getPoolBucket(idx, key);
+    if (!bucket) return null;
+    var common = (bucket.common || []).length;
+    var rare = (bucket.rare || []).length;
+    var epic = (bucket.epic || []).length;
+    var legendary = (bucket.legendary || []).length;
+    var total = common + rare + epic + legendary;
+    return {
+      common: common,
+      rare: rare,
+      epic: epic,
+      legendary: legendary,
+      any: total,
+      total: total
+    };
+  };
+
+  M.getEligibleRarities = function (collectionKey, minCount) {
+    var counts = M.getAvailabilityByCollection(collectionKey);
+    if (!counts) return null;
+    var min = Number(minCount);
+    if (!isFinite(min) || min < 0) min = 0;
+    var eligible = {};
+    (M.CFG.allowedRarities || []).forEach(function (rarity) {
+      eligible[rarity] = Number(counts[rarity] || 0) >= min;
+    });
+    var anyKey = String(M.CFG.anyRarityKey || 'any').toLowerCase();
+    eligible[anyKey] = true;
+    if (anyKey !== 'any') eligible.any = true;
+    return eligible;
+  };
+
   M.getRarityAvailability = function (collectionHandle, collectionKey) {
     var h = String(collectionHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
     var counts = M.getPoolCounts(h, collectionKey);
