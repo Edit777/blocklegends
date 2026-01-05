@@ -336,6 +336,7 @@
   UI.init = function (root) {
     root = root || document;
     if (!detectIsMysteryPage(root)) return;
+    if (root.querySelector && root.querySelector('[data-bl-mystery-ui]')) return;
 
     var form = U.qs(root, 'form[action^="/cart/add"], form[data-type="add-to-cart-form"]');
     if (!form) return;
