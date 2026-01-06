@@ -1006,7 +1006,7 @@
         "cards_color_scheme": "bg-overlay",
         "type": "loop",
         "autoplay": true,
-        "autoplay_speed": 4,
+        "autoplay_speed": 3.5,
         "arrows_color_scheme": "inverse",
         "transparent_arrows": true,
         "dots_color_scheme": "inverse",
