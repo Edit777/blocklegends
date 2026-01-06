@@ -119,8 +119,17 @@
     {%- endif -%}
 
     <div class="product-grid-container" id="ProductGridContainer">
-      {%- paginate collection.products by section.settings.products_per_page -%}
-        {%- if collection.products.size == 0 -%}
+      {%- liquid
+        assign hidden_tag = 'collection-hidden'
+        assign visible_products = '' | split: ','
+        for product in collection.products
+          unless product.tags contains hidden_tag
+            assign visible_products = visible_products | push: product
+          endunless
+        endfor
+      -%}
+      {%- paginate visible_products by section.settings.products_per_page -%}
+        {%- if visible_products.size == 0 -%}
           <div class="collection collection--empty page-width" id="product-grid" data-id="{{ section.id }}">
             <div class="loading-overlay gradient"></div>
             <div class="title-wrapper center">
@@ -146,29 +155,27 @@
                 grid--{{ section.settings.columns_desktop }}-col-desktop
               "
             >
-              {%- for product in collection.products -%}
+              {%- for product in visible_products -%}
                 {% liquid
                   assign lazy_load = false
                   if forloop.index > 2
                     assign lazy_load = true
                   endif
                 %}
-                {% unless product.tags contains 'collection-hidden' %}
-                  <li class="grid__item animate-item animate-item--child" style='--index: {{ forloop.index0 }};'>
-                    {% render 'card-product',
-                      card_product: product,
-                      media_aspect_ratio: section.settings.image_ratio,
-                      show_secondary_image: section.settings.show_secondary_image,
-                      badges: section.settings.badges,
-                      show_vendor: section.settings.show_vendor,
-                      show_rating: section.settings.show_rating,
-                      lazy_load: lazy_load,
-                      show_quick_add: section.settings.enable_quick_add,
-                      swatches_option_name: section.settings.swatches_option_name,
-                      section_id: section.id
-                    %}
-                  </li>
-                {% endunless %}
+                <li class="grid__item animate-item animate-item--child" style='--index: {{ forloop.index0 }};'>
+                  {% render 'card-product',
+                    card_product: product,
+                    media_aspect_ratio: section.settings.image_ratio,
+                    show_secondary_image: section.settings.show_secondary_image,
+                    badges: section.settings.badges,
+                    show_vendor: section.settings.show_vendor,
+                    show_rating: section.settings.show_rating,
+                    lazy_load: lazy_load,
+                    show_quick_add: section.settings.enable_quick_add,
+                    swatches_option_name: section.settings.swatches_option_name,
+                    section_id: section.id
+                  %}
+                </li>
               {%- endfor -%}
             </ul>
 
