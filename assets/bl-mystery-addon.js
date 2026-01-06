@@ -783,12 +783,18 @@ function ensureCssOnce() {
       return Promise.resolve(false);
     }
 
-    return M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle).then(function () {
-      var switched = false;
-      if (typeof M.getEligibleRarities !== 'function' || typeof M.getAvailabilityByCollection !== 'function') return switched;
+    if (typeof M.setKnownCollectionHandles === 'function') {
+      M.setKnownCollectionHandles([locked]);
+    }
 
-      var counts = M.getAvailabilityByCollection(locked);
-      var eligible = M.getEligibleRarities(locked, 3);
+    logAddonDebug('selected-collection-handle', { handle: locked });
+
+    return M.fetchPoolAllPages(locked).then(function () {
+      var switched = false;
+      if (typeof M.getEligibleRarities !== 'function' || typeof M.getPoolCounts !== 'function') return switched;
+
+      var counts = M.getPoolCounts(locked);
+      var eligible = M.getEligibleRarities(locked, M.CFG.preferredMinPerRarity);
       if (!counts || !eligible) return switched;
 
       var anyKey = String((M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase();

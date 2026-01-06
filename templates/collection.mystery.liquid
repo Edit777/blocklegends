@@ -3,6 +3,8 @@
 {%- paginate collection.products by 250 -%}
 {
   "collection": {{ collection.handle | json }},
+  "collection_handle": {{ collection.handle | json }},
+  "collection_title": {{ collection.title | json }},
   "page": {{ paginate.current_page | json }},
   "pages": {{ paginate.pages | json }},
   "next_page": {% if paginate.next %}{{ paginate.current_page | plus: 1 }}{% else %}null{% endif %},

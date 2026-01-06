@@ -244,12 +244,11 @@
   }
 
   function computeCounts(collectionHandle) {
-    var poolHandle = M.CFG.defaultPoolCollectionHandle;
-    var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(poolHandle, collectionHandle) : null;
+    var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(collectionHandle) : null;
     if (counts) return Promise.resolve(counts);
 
-    return M.fetchPoolAllPages(poolHandle).then(function () {
-      var fallback = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(poolHandle, collectionHandle) : null;
+    return M.fetchPoolAllPages(collectionHandle).then(function () {
+      var fallback = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(collectionHandle) : null;
       return fallback || null;
     });
   }
@@ -343,7 +342,7 @@
 
     ensureCssOnce();
 
-    var collections = [];
+    var collections = getCollections(root);
     var ui = buildUI(root, form, collections);
     if (!ui) return;
 
@@ -356,6 +355,10 @@
     state.mode = M.normalizeMode(storedMode || initialSel.mode || MODE_LABELS.random);
     state.rarity = M.normalizeRarity(storedRarity || initialSel.rarity || ANY);
     state.collection = storedCollection || getPreferredCollectionFromForm(form) || '';
+
+    if (typeof M.setKnownCollectionHandles === 'function') {
+      M.setKnownCollectionHandles((collections || []).map(function (c) { return c && c.handle; }).filter(Boolean));
+    }
 
     function persist() {
       setStored(STORAGE_KEYS.mode, state.mode === MODE_LABELS.preferred ? 'preferred' : 'random');
@@ -399,6 +402,10 @@
       if (!modePreferred || !state.collection) {
         rarityBtns.forEach(function (btn) { btn.disabled = false; btn.classList.remove('is-disabled'); btn.setAttribute('aria-disabled', 'false'); });
         return Promise.resolve();
+      }
+
+      if (window.BL && typeof window.BL.isDebug === 'function' && window.BL.isDebug()) {
+        try { console.log('[BL Mystery][debug] selected-collection-handle', { handle: state.collection }); } catch (e) {}
       }
 
       return computeCounts(state.collection).then(function (counts) {
@@ -508,23 +515,16 @@
 
     applyEligibility().then(recompute);
 
-    if (typeof M.fetchPoolAllPages === 'function') {
-      M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle).then(function () {
-        if (typeof M.getPoolCollectionKeys !== 'function') return;
-        var keys = M.getPoolCollectionKeys(M.CFG.defaultPoolCollectionHandle) || [];
-        collections = keys.map(function (key) {
-          return { handle: key, title: formatCollectionLabel(key) || key };
-        });
-        populateCollectionSelect(ui.collectionSelect, collections);
-        if (window.BL && typeof window.BL.isDebug === 'function' && window.BL.isDebug()) {
-          try { console.log('[BL Mystery][debug] preferred-dropdown-populated', { count: collections.length }); } catch (e) {}
-        }
-        if (collections.length && !collections.some(function (c) { return c.handle === state.collection; })) {
-          state.collection = collections[0].handle;
-          if (ui.collectionSelect) ui.collectionSelect.value = state.collection;
-        }
-        updateHelper();
-      }).catch(function () {});
+    if (collections && collections.length) {
+      populateCollectionSelect(ui.collectionSelect, collections);
+      if (window.BL && typeof window.BL.isDebug === 'function' && window.BL.isDebug()) {
+        try { console.log('[BL Mystery][debug] preferred-dropdown-populated', { count: collections.length }); } catch (e) {}
+      }
+      if (collections.length && !collections.some(function (c) { return c.handle === state.collection; })) {
+        state.collection = collections[0].handle;
+        if (ui.collectionSelect) ui.collectionSelect.value = state.collection;
+      }
+      updateHelper();
     }
   };
 })();
