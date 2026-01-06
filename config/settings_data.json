@@ -302,13 +302,13 @@
               "goal_2_text": "a 15% discount",
               "goal_2_amount": 100,
               "goal_2_icon": "sell",
-              "goal_2_icon_filled": true,
+              "goal_2_icon_filled": false,
               "enable_goal_3": true,
               "goal_3_label": "20% OFF",
               "goal_3_text": "a 20% discount",
               "goal_3_amount": 150,
-              "goal_3_icon": "redeem",
-              "goal_3_icon_filled": true,
+              "goal_3_icon": "sell",
+              "goal_3_icon_filled": false,
               "margin_top": 15,
               "margin_bottom": 15
             }
@@ -417,7 +417,7 @@
           "68fdc0a0-cd7c-40b9-97b3-a76eb7917a47"
         ],
         "settings": {
-          "test_mode": true,
+          "test_mode": false,
           "heading_text": "Cart • [count] items",
           "heading_alignment": "flex-start",
           "desktop_width": "normal",
