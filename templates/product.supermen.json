@@ -847,19 +847,20 @@
         "custom_section_gradient_background": ""
       }
     },
-    "testimonials_bHYEJJ": {
+    "testimonials_BGWWkB": {
       "type": "testimonials",
       "blocks": {
-        "column_btb4Qh": {
+        "column_ULX4cA": {
           "type": "column",
           "settings": {
+            "image": "shopify://shop_images/IMG_5537.jpg",
             "star_rating": 5,
             "title": "",
             "text": "<p>Bought this as a gift for my boyfriend who loves this universe. The packaging was sturdy and arrived in perfect condition. He really loved that there are no stickers involved just pure brick building!</p>",
             "author": "<strong>Elena K.</strong>"
           }
         },
-        "column_qwpEw4": {
+        "column_JYP6x7": {
           "type": "column",
           "settings": {
             "image": "shopify://shop_images/IMG_5386.jpg",
@@ -869,16 +870,17 @@
             "author": "<strong>Daniel</strong>"
           }
         },
-        "column_3wH4zY": {
+        "column_qELFyt": {
           "type": "column",
           "settings": {
+            "image": "shopify://shop_images/IMG_5534.jpg",
             "star_rating": 5,
             "title": "",
             "text": "<p>Looks even better in person. The build was quick, but the final figure feels solid and premium.</p>",
             "author": "<strong>Daniel</strong>"
           }
         },
-        "column_TLqL8g": {
+        "column_jGPWYf": {
           "type": "column",
           "settings": {
             "image": "shopify://shop_images/IMG_5385.jpg",
@@ -888,34 +890,37 @@
             "author": "<strong>Dmitry V.</strong>"
           }
         },
-        "column_LGaHeN": {
+        "column_CRLE8P": {
           "type": "column",
           "settings": {
+            "image": "shopify://shop_images/IMG_5536.jpg",
             "star_rating": 4,
             "title": "",
             "text": "<p>Fast delivery and solid design. Slightly tighter connections than expected.</p>",
             "author": "<strong>Emma R.</strong>"
           }
         },
-        "column_yMjrEV": {
+        "column_igWLdG": {
           "type": "column",
           "settings": {
+            "image": "shopify://shop_images/A95efc136046645f1abfbd74e6f90e228j_jpg_960x960q75_jpg.avif",
             "star_rating": 4,
             "title": "",
             "text": "<p>The design is a solid 10/10. My only small gripe is that a couple of the bricks were a tight fit, so I had to push hard. But once assembled, the figure is rock solid and doesn't fall apart.</p>",
             "author": "<strong>Alex J.</strong>"
           }
         },
-        "column_KrBVdk": {
+        "column_gJ4JcT": {
           "type": "column",
           "settings": {
+            "image": "shopify://shop_images/A3bac29312edf4496a1d507f93fc1bfa8o_jpg_220x220q75_jpg.avif",
             "star_rating": 5,
             "title": "",
             "text": "<p>Better than expected. Solid build, expressive design, everything fits flawlessly.</p>",
             "author": "<strong>Lucas</strong>"
           }
         },
-        "column_GyNjDY": {
+        "column_6V6MCy": {
           "type": "column",
           "settings": {
             "image": "shopify://shop_images/IMG_5387.jpg",
@@ -925,27 +930,30 @@
             "author": "<strong>Ethan</strong>"
           }
         },
-        "column_D3kKzF": {
+        "column_tBbgyX": {
           "type": "column",
           "settings": {
+            "image": "shopify://shop_images/Af06b080f97034b2a8b251866b26fdde7b_jpg_960x960q75_jpg.avif",
             "star_rating": 5,
             "title": "",
             "text": "<p>The build was enjoyable, though a couple of small pieces required a bit of extra attention. Once assembled, the figure looked solid and well-balanced, and the colors came out very clean. I like how compact it is — doesn’t take much space but still draws the eye.</p>",
             "author": "<strong>Ava</strong>"
           }
         },
-        "column_GGaeLX": {
+        "column_ycnw8Q": {
           "type": "column",
           "settings": {
+            "image": "shopify://shop_images/A7e846b01e2b14e899059ed4c27d168dcA_jpg_960x960q75_jpg.avif",
             "star_rating": 4,
             "title": "",
             "text": "<p>Smooth assembly and cute final look. Would love more character choices soon.</p>",
             "author": "<strong>Grace</strong>"
           }
         },
-        "column_FKPRQG": {
+        "column_8ekrQL": {
           "type": "column",
           "settings": {
+            "image": "shopify://shop_images/A3126a8f95e2648119ce764cc9e6b65175_jpg_960x960q75_jpg.avif",
             "star_rating": 5,
             "title": "",
             "text": "<p>The gloss on the pieces makes it look super polished. Standout item on my shelf.</p>",
@@ -954,17 +962,17 @@
         }
       },
       "block_order": [
-        "column_btb4Qh",
-        "column_qwpEw4",
-        "column_3wH4zY",
-        "column_TLqL8g",
-        "column_LGaHeN",
-        "column_yMjrEV",
-        "column_KrBVdk",
-        "column_GyNjDY",
-        "column_D3kKzF",
-        "column_GGaeLX",
-        "column_FKPRQG"
+        "column_ULX4cA",
+        "column_JYP6x7",
+        "column_qELFyt",
+        "column_jGPWYf",
+        "column_CRLE8P",
+        "column_igWLdG",
+        "column_gJ4JcT",
+        "column_6V6MCy",
+        "column_tBbgyX",
+        "column_ycnw8Q",
+        "column_8ekrQL"
       ],
       "name": "Testimonials",
       "settings": {
@@ -986,8 +994,8 @@
         "quotes_color_scheme": "accent-2",
         "cards_color_scheme": "bg-overlay",
         "type": "loop",
-        "autoplay": false,
-        "autoplay_speed": 5,
+        "autoplay": true,
+        "autoplay_speed": 3.5,
         "arrows_color_scheme": "inverse",
         "transparent_arrows": true,
         "dots_color_scheme": "inverse",
@@ -1045,7 +1053,7 @@
     "rich_text_Vxx6Jr",
     "slideshow_hero_wfMggU",
     "multirow_dzzQHA",
-    "testimonials_bHYEJJ",
+    "testimonials_BGWWkB",
     "related-products"
   ]
 }
