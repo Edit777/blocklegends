@@ -11,6 +11,16 @@
       {%- endif -%}
     {%- endfor -%}
   ]{% endcapture %}{{ bl_collections_json | strip_newlines | escape }}'
+  data-bl-collections='{% capture bl_collections_json %}[
+    {%- assign is_first = true -%}
+    {%- for link in linklists['all-collections'].links -%}
+      {%- if link.type == 'collection_link' -%}
+        {%- unless is_first -%},{%- endunless -%}
+        {"handle":"{{ link.object.handle | escape }}","title":"{{ link.object.title | escape_once }}"}
+        {%- assign is_first = false -%}
+      {%- endif -%}
+    {%- endfor -%}
+  ]{% endcapture %}{{ bl_collections_json | strip_newlines | escape }}'
 >
   <div class="bl-mystery-selector" data-bl-mystery-selector>
     <div class="bl-mystery-row" data-bl-mode-row>

@@ -44,7 +44,7 @@
     hardExcludedRarities: ['special', 'mythical'],
 
     // Minimum per rarity to consider a rarity-tier "eligible" for a collection UI
-    preferredMinPerRarity: 1,
+    preferredMinPerRarity: 3,
 
     modeRandomLabel: 'Random Collection',
     modePreferredLabel: 'Preferred Collection',
@@ -91,8 +91,36 @@
     poolPromises: {},     // { collectionHandle: Promise }
     variantIdToSelection: {},
     variantIdToSku: {},
-    variantMapPromise: null
+    variantMapPromise: null,
+    knownCollectionHandles: {}
   };
+
+  function normalizeHandleList(list) {
+    var handles = {};
+    (list || []).forEach(function (entry) {
+      var h = String(entry || '').trim();
+      if (!h) return;
+      handles[h] = true;
+    });
+    if (M && M.CFG && M.CFG.defaultPoolCollectionHandle) {
+      handles[String(M.CFG.defaultPoolCollectionHandle || '').trim()] = true;
+    }
+    return handles;
+  }
+
+  M.setKnownCollectionHandles = function (list) {
+    state.knownCollectionHandles = normalizeHandleList(list);
+    return Object.keys(state.knownCollectionHandles || {});
+  };
+
+  function isKnownCollectionHandle(handle) {
+    var h = String(handle || '').trim();
+    if (!h) return false;
+    var known = state.knownCollectionHandles || {};
+    var keys = Object.keys(known);
+    if (!keys.length) return true;
+    return !!known[h];
+  }
 
   /* -----------------------------
      NORMALIZERS
@@ -182,43 +210,28 @@
     return state.variantIdToSelection;
   };
 
-  function getPoolBucket(idx, collectionKey) {
-    if (!idx) return null;
-    var key = String(collectionKey || '').trim();
-    if (key && idx.byCollection && idx.byCollection[key]) return idx.byCollection[key];
-    if (key && idx.byCollection && !idx.byCollection[key]) {
-      U.warn('[BL Mystery] Collection key not found in pool index:', key);
-    }
-    return idx;
-  }
-
-  M.getPoolCounts = function (collectionHandle, collectionKey) {
+  M.getPoolCounts = function (collectionHandle) {
     var h = String(collectionHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
     var idx = state.pools[h];
     if (!idx) return null;
-    var bucket = getPoolBucket(idx, collectionKey);
-    if (!bucket) return null;
     return {
-      common: (bucket.common || []).length,
-      rare: (bucket.rare || []).length,
-      epic: (bucket.epic || []).length,
-      legendary: (bucket.legendary || []).length,
-      total: (bucket.common || []).length + (bucket.rare || []).length + (bucket.epic || []).length + (bucket.legendary || []).length
+      common: (idx.common || []).length,
+      rare: (idx.rare || []).length,
+      epic: (idx.epic || []).length,
+      legendary: (idx.legendary || []).length,
+      total: (idx.common || []).length + (idx.rare || []).length + (idx.epic || []).length + (idx.legendary || []).length
     };
   };
 
-  M.getAvailabilityByCollection = function (collectionKey) {
-    var key = String(collectionKey || '').trim();
-    if (!key) return null;
-    var h = String(M.CFG.defaultPoolCollectionHandle || '').trim() || 'all';
+  M.getAvailabilityByCollection = function (collectionHandle) {
+    var h = String(collectionHandle || '').trim();
+    if (!h) return null;
     var idx = state.pools[h];
     if (!idx) return null;
-    var bucket = getPoolBucket(idx, key);
-    if (!bucket) return null;
-    var common = (bucket.common || []).length;
-    var rare = (bucket.rare || []).length;
-    var epic = (bucket.epic || []).length;
-    var legendary = (bucket.legendary || []).length;
+    var common = (idx.common || []).length;
+    var rare = (idx.rare || []).length;
+    var epic = (idx.epic || []).length;
+    var legendary = (idx.legendary || []).length;
     var total = common + rare + epic + legendary;
     return {
       common: common,
@@ -230,8 +243,8 @@
     };
   };
 
-  M.getEligibleRarities = function (collectionKey, minCount) {
-    var counts = M.getAvailabilityByCollection(collectionKey);
+  M.getEligibleRarities = function (collectionHandle, minCount) {
+    var counts = M.getAvailabilityByCollection(collectionHandle);
     if (!counts) return null;
     var min = Number(minCount);
     if (!isFinite(min) || min < 0) min = 0;
@@ -245,9 +258,9 @@
     return eligible;
   };
 
-  M.getRarityAvailability = function (collectionHandle, collectionKey) {
+  M.getRarityAvailability = function (collectionHandle) {
     var h = String(collectionHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
-    var counts = M.getPoolCounts(h, collectionKey);
+    var counts = M.getPoolCounts(h);
     if (!counts) return null;
 
     var min = Number(M.CFG.preferredMinPerRarity || 0);
@@ -269,10 +282,10 @@
     return Object.keys(idx.byCollection).filter(function (key) { return String(key || '').trim(); }).sort();
   };
 
-  M.isRarityEligibleForCollection = function (collectionHandle, rarity, collectionKey) {
+  M.isRarityEligibleForCollection = function (collectionHandle, rarity) {
     var r = normalizeRarity(rarity);
     if (r === M.CFG.anyRarityKey) return true;
-    var availability = M.getRarityAvailability(collectionHandle, collectionKey);
+    var availability = M.getRarityAvailability(collectionHandle);
     if (!availability) return false;
     return !!availability.eligible[r];
   };
@@ -658,6 +671,8 @@
       '?view=' + encodeURIComponent(M.CFG.poolView) +
       '&page=' + encodeURIComponent(page);
 
+    debugLog('pool-fetch', { handle: collectionHandle, url: url });
+
     return fetch(url, { credentials: 'same-origin' })
       .then(function (r) {
         if (!r.ok) throw new Error('Pool HTTP ' + r.status);
@@ -668,6 +683,11 @@
   M.fetchPoolAllPages = function (collectionHandle) {
     var h = String(collectionHandle || '').trim();
     if (!h) h = M.CFG.defaultPoolCollectionHandle;
+
+    if (isDebug() && !isKnownCollectionHandle(h)) {
+      U.warn('[BL Mystery] Aborting pool fetch for unknown collection handle:', h);
+      return Promise.reject(new Error('Unknown collection handle: ' + h));
+    }
 
     if (state.poolPromises[h]) return state.poolPromises[h];
 
@@ -797,17 +817,15 @@
   function chooseAssignedProduct(poolHandle, rarity, opts) {
     opts = opts || {};
     var excludeMap = opts.excludeMap || null;
-    var collectionKey = opts.collectionKey || '';
 
     var h = String(poolHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
     var r = normalizeRarity(rarity);
     var idx = state.pools[h];
     if (!idx) return null;
 
-    var bucket = getPoolBucket(idx, collectionKey);
-    if (!bucket || !bucket[r] || !bucket[r].length) return null;
+    if (!idx[r] || !idx[r].length) return null;
 
-    var pool = bucket[r];
+    var pool = idx[r];
     if (excludeMap) {
       var filtered = filterByExclude(pool, excludeMap);
       if (filtered && filtered.length) return randPick(filtered);
@@ -861,14 +879,10 @@
   function chooseAssignedProductAny(poolHandle, opts) {
     opts = opts || {};
     var excludeMap = opts.excludeMap || null;
-    var collectionKey = opts.collectionKey || '';
 
     var h = String(poolHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
     var idx = state.pools[h];
     if (!idx) return null;
-
-    var bucket = getPoolBucket(idx, collectionKey);
-    if (!bucket) return null;
 
     var filteredIdx = null;
     var filteredTotal = 0;
@@ -877,31 +891,31 @@
       filteredIdx = emptyPoolIndex();
       for (var i = 0; i < M.CFG.allowedRarities.length; i++) {
         var rar = M.CFG.allowedRarities[i];
-        var filteredPool = filterByExclude(bucket[rar], excludeMap);
+        var filteredPool = filterByExclude(idx[rar], excludeMap);
         filteredIdx[rar] = filteredPool;
         filteredTotal += filteredPool.length;
       }
     }
 
-    var targetIdx = (filteredIdx && filteredTotal > 0) ? filteredIdx : bucket;
+    var targetIdx = (filteredIdx && filteredTotal > 0) ? filteredIdx : idx;
 
     var r = pickWeightedRarity(targetIdx);
-    if (!r && targetIdx !== bucket) {
-      targetIdx = bucket;
+    if (!r && targetIdx !== idx) {
+      targetIdx = idx;
       r = pickWeightedRarity(targetIdx);
     }
     if (!r) return null;
 
     var pool = targetIdx[r] || [];
-    if (!pool.length && targetIdx !== bucket) pool = bucket[r] || [];
+    if (!pool.length && targetIdx !== idx) pool = idx[r] || [];
     if (!pool.length) return null;
 
     var chosen = randPick(pool);
     if (U && U.log) U.log('[BL Mystery] Lucky Box pick', { pool: h, rarity: r, poolCounts: {
-      common: (bucket.common || []).length,
-      rare: (bucket.rare || []).length,
-      epic: (bucket.epic || []).length,
-      legendary: (bucket.legendary || []).length
+      common: (idx.common || []).length,
+      rare: (idx.rare || []).length,
+      epic: (idx.epic || []).length,
+      legendary: (idx.legendary || []).length
     }});
 
     return chosen;
@@ -919,6 +933,11 @@
       var baseHandle = String(base.handle || '').trim();
       if (idx && idx.anyMap && baseHandle && idx.anyMap[baseHandle]) {
         added = idx.anyMap[baseHandle];
+      } else if (baseHandle) {
+        U.warn('[BL Mystery] Any rarity fallback to base (missing any-image)', {
+          pool: h,
+          baseHandle: baseHandle
+        });
       }
     }
 
@@ -1095,11 +1114,27 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         return false;
       }
 
-      var poolHandleUsed = M.CFG.defaultPoolCollectionHandle;
-      var collectionKeyUsed = (mode === M.CFG.modePreferredLabel) ? requestedCollection : '';
+      var selectedCollectionHandle = (mode === M.CFG.modePreferredLabel)
+        ? (requestedCollection || '')
+        : M.CFG.defaultPoolCollectionHandle;
       if (handle === M.CFG.mysteryAddonHandle) {
-        collectionKeyUsed = lockedCollection || '';
+        selectedCollectionHandle = lockedCollection || '';
       }
+
+      if (mode === M.CFG.modePreferredLabel && !selectedCollectionHandle) {
+        U.warn('[BL Mystery] Preferred collection handle missing; cannot assign');
+        debugLog('preferred-collection-missing', { handle: handle, mode: mode, rarity: rarity });
+        return false;
+      }
+
+      debugLog('selected-collection-handle', {
+        handle: selectedCollectionHandle,
+        mode: mode,
+        requestedCollection: requestedCollection,
+        lockedCollection: lockedCollection
+      });
+
+      var poolHandleUsed = selectedCollectionHandle || M.CFG.defaultPoolCollectionHandle;
 
       // IMPORTANT: include CURRENT variant id in signature (fixes "I changed variant but it didn't reroll")
       var currentVariantId = '';
@@ -1159,7 +1194,6 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           rarity: rarity,
           requestedCollection: requestedCollection,
           poolUsed: poolHandleUsed,
-          collectionKey: collectionKeyUsed,
           variantId: currentVariantId,
           signature: sig
         });
@@ -1211,23 +1245,22 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       // If forcing, we still overwrite everything (reroll)
       return M.fetchPoolAllPages(poolHandleUsed).then(function () {
         var chosen = isAny
-          ? chooseAssignedProductAny(poolHandleUsed, { excludeMap: excludeMap, collectionKey: collectionKeyUsed })
-          : chooseAssignedProduct(poolHandleUsed, rarity, { excludeMap: excludeMap, collectionKey: collectionKeyUsed });
+          ? chooseAssignedProductAny(poolHandleUsed, { excludeMap: excludeMap })
+          : chooseAssignedProduct(poolHandleUsed, rarity, { excludeMap: excludeMap });
 
         // deterministic fallback: if requested rarity is empty, fallback to weighted any but keep requested tier for visibility
         if (!chosen) {
           debugLog('no-eligible-choice', {
             pool: poolHandleUsed,
-            collectionKey: collectionKeyUsed,
             rarity: rarity,
             requestedCollection: requestedCollection,
             mode: mode
           });
 
-          var fallbackIndex = getPoolBucket(state.pools[poolHandleUsed], collectionKeyUsed);
+          var fallbackIndex = state.pools[poolHandleUsed];
           var fallbackRarity = pickWeightedRarity(fallbackIndex);
           if (fallbackRarity) {
-            chosen = chooseAssignedProduct(poolHandleUsed, fallbackRarity, { collectionKey: collectionKeyUsed });
+            chosen = chooseAssignedProduct(poolHandleUsed, fallbackRarity);
             if (chosen) {
               rarity = fallbackRarity; // use fallback for actual assignment but preserve requested tier later
               debugLog('fallback-choice', { pool: poolHandleUsed, fallbackRarity: fallbackRarity, chosen: chosen });
@@ -1250,7 +1283,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
             mode: mode,
             rarity: rarity,
             pool: poolHandleUsed,
-            collectionKey: collectionKeyUsed,
+            collectionHandle: poolHandleUsed,
             requestedCollection: requestedCollection,
             variantId: currentVariantId,
             isAny: isAny
@@ -1309,8 +1342,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         upsertHidden(form, M.CFG.propVisibleAssignedTitle, assignedTitle);
         upsertHidden(form, M.CFG.propVisibleAssignedRarity, assignedRarity);
         upsertHidden(form, M.CFG.propVisibleRequestedTier, isAny ? 'Lucky Box' : rarity);
-        var poolUsedLabel = collectionKeyUsed || poolHandleUsed;
-        upsertHidden(form, M.CFG.propVisiblePoolUsed, poolUsedLabel);
+        upsertHidden(form, M.CFG.propVisiblePoolUsed, poolHandleUsed);
         upsertHidden(form, M.CFG.propVisibleMode, mode);
 
         var assignmentUid = ensureAssignmentUid(form, sig, { alwaysNew: assignNow });
@@ -1353,7 +1385,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           rarity: rarity,
           requestedCollection: requestedCollection,
           poolUsed: poolHandleUsed,
-          collectionKey: collectionKeyUsed,
+          collectionHandle: poolHandleUsed,
           variantId: currentVariantId,
           signature: sig,
           assignment_uid: assignmentUid,
@@ -1656,9 +1688,8 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
   }
 
   function applyPreferredEligibility(root, collectionHandle){
-    var poolHandle = M.CFG.defaultPoolCollectionHandle;
-    return M.fetchPoolAllPages(poolHandle).then(function(){
-      var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(poolHandle, collectionHandle) : null;
+    return M.fetchPoolAllPages(collectionHandle).then(function(){
+      var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(collectionHandle) : null;
       if (!counts) return;
 
       disableRaritiesByCounts(root, counts);

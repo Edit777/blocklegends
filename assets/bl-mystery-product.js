@@ -59,6 +59,25 @@
     return text.replace(/[-_]+/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
 
+  function parseCollectionsFromRoot(root, dropdown) {
+    var list = [];
+    try {
+      var raw = root.getAttribute('data-bl-collections') || root.getAttribute('data-collections');
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) list = parsed;
+      }
+    } catch (e) {}
+
+    if (!list.length && dropdown && dropdown.options) {
+      list = Array.prototype.slice.call(dropdown.options).map(function (opt) {
+        return { handle: opt.value, title: opt.textContent };
+      }).filter(function (item) { return item && item.handle; });
+    }
+
+    return list;
+  }
+
   function getVariantId(form) {
     try {
       var input = form.querySelector('input[name="id"]');
@@ -253,25 +272,26 @@
 
   function applyEligibility(root, form, entries, collectionHandle, selection, noticeEl) {
     if (!form || !entries.length) return Promise.resolve({ switched: false, rarity: selection.rarity });
-    var poolHandle = M.CFG.defaultPoolCollectionHandle;
 
     if (!collectionHandle) {
       safeText(noticeEl, 'Please select a collection to see available rarities.');
       setDisplay(noticeEl, true);
-      debugLog('missing-collection', { collectionKey: collectionHandle });
+      debugLog('missing-collection', { collectionHandle: collectionHandle });
       return Promise.resolve({ switched: false, rarity: selection.rarity });
     }
 
-    return M.fetchPoolAllPages(poolHandle).then(function () {
-      var counts = (typeof M.getAvailabilityByCollection === 'function')
-        ? M.getAvailabilityByCollection(collectionHandle)
+    debugLog('selected-collection-handle', { handle: collectionHandle });
+
+    return M.fetchPoolAllPages(collectionHandle).then(function () {
+      var counts = (typeof M.getPoolCounts === 'function')
+        ? M.getPoolCounts(collectionHandle)
         : null;
       var eligibleMap = (typeof M.getEligibleRarities === 'function')
-        ? M.getEligibleRarities(collectionHandle, 3)
+        ? M.getEligibleRarities(collectionHandle, M.CFG.preferredMinPerRarity)
         : null;
 
       if (!counts || !eligibleMap) {
-        debugLog('missing-availability', { collectionKey: collectionHandle, counts: counts, eligible: eligibleMap });
+        debugLog('missing-availability', { collectionHandle: collectionHandle, counts: counts, eligible: eligibleMap });
         return { switched: false, rarity: selection.rarity };
       }
 
@@ -485,29 +505,32 @@
     });
 
     Promise.all([
-      (typeof M.fetchVariantMap === 'function') ? M.fetchVariantMap() : Promise.resolve(),
-      (typeof M.fetchPoolAllPages === 'function') ? M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle) : Promise.resolve()
+      (typeof M.fetchVariantMap === 'function') ? M.fetchVariantMap() : Promise.resolve()
     ]).finally(function () {
-      var collectionKeys = (typeof M.getPoolCollectionKeys === 'function')
-        ? M.getPoolCollectionKeys(M.CFG.defaultPoolCollectionHandle)
-        : [];
+      var collections = parseCollectionsFromRoot(root, dropdown);
+      var handles = collections.map(function (c) { return c && c.handle; }).filter(Boolean);
+      if (typeof M.setKnownCollectionHandles === 'function') {
+        M.setKnownCollectionHandles(handles);
+      }
 
-      if (dropdown) {
+      if (dropdown && collections.length) {
         dropdown.innerHTML = '';
         collectionMap = {};
-        collectionKeys.forEach(function (key) {
-          var label = formatCollectionLabel(key);
-          collectionMap[key] = label || key;
+        collections.forEach(function (entry) {
+          var handle = String(entry.handle || '').trim();
+          if (!handle) return;
+          var label = entry.title || formatCollectionLabel(handle) || handle;
+          collectionMap[handle] = label;
           var opt = document.createElement('option');
-          opt.value = key;
-          opt.textContent = collectionMap[key];
+          opt.value = handle;
+          opt.textContent = label;
           dropdown.appendChild(opt);
         });
         if (isDebug()) {
-          try { console.log('[BL Mystery][debug] preferred-dropdown-populated', { count: collectionKeys.length }); } catch (e) {}
+          try { console.log('[BL Mystery][debug] preferred-dropdown-populated', { count: collections.length }); } catch (e) {}
         }
-        if (collectionKeys.length && !collectionMap[state.collection]) {
-          state.collection = collectionKeys[0];
+        if (collections.length && !collectionMap[state.collection]) {
+          state.collection = collections[0].handle;
           dropdown.value = state.collection;
         }
       }
