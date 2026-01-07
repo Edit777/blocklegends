@@ -519,9 +519,9 @@
         "card_gap": 22,
         "avatar_size": 42,
         "avatar_left": 16,
-        "glow_color": "#ff4d4f",
-        "glow_alpha": 4,
-        "edge_fade": 52,
+        "glow_color": "#000000",
+        "glow_alpha": 8,
+        "edge_fade": 36,
         "pad_y": 18
       }
     },
@@ -595,8 +595,8 @@
         "card_gap": 22,
         "avatar_size": 42,
         "avatar_left": 16,
-        "glow_color": "#ff4d4f",
-        "glow_alpha": 5,
+        "glow_color": "#000000",
+        "glow_alpha": 8,
         "edge_fade": 36,
         "pad_y": 18
       }
