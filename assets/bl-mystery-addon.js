@@ -74,47 +74,85 @@
       .sort(function (a, b) { return a.index - b.index; });
   }
 
-  function getPoolContextFromDom() {
-    try {
-      var poolEl = document.querySelector('#blPoolContext');
-      if (!poolEl) return { handle: '', title: '' };
-      return {
-        handle: String((poolEl.dataset && poolEl.dataset.blPoolCollection) || poolEl.getAttribute('data-bl-pool-collection') || '').trim(),
-        title: String((poolEl.dataset && poolEl.dataset.blPoolTitle) || poolEl.getAttribute('data-bl-pool-title') || '').trim()
-      };
-    } catch (e) {}
-    return { handle: '', title: '' };
-  }
-
   function readLockedCollectionFromElement(el) {
     if (!el) return { handle: '', title: '' };
     var handle = '';
     var title = '';
     try {
-      handle = String((el.dataset && el.dataset.blLockedCollection) || el.getAttribute('data-bl-locked-collection') || '').trim();
-      title = String((el.dataset && el.dataset.blLockedCollectionTitle) || el.getAttribute('data-bl-locked-collection-title') || '').trim();
+      handle = String(el.getAttribute('data-locked-collection') || (el.dataset && el.dataset.lockedCollection) || '').trim();
+      title = String(el.getAttribute('data-locked-collection-name') || (el.dataset && el.dataset.lockedCollectionName) || '').trim();
     } catch (e) {}
 
     if (!handle) {
-      try { handle = String(el.getAttribute('data-locked-collection') || '').trim(); } catch (e2) {}
+      try { handle = String((el.dataset && el.dataset.blLockedCollection) || el.getAttribute('data-bl-locked-collection') || '').trim(); } catch (e2) {}
     }
 
     if (!title) {
-      try { title = String(el.getAttribute('data-locked-collection-name') || '').trim(); } catch (e3) {}
+      try { title = String((el.dataset && el.dataset.blLockedCollectionTitle) || el.getAttribute('data-bl-locked-collection-title') || '').trim(); } catch (e3) {}
     }
 
     return { handle: handle, title: title };
   }
 
-  function getLockedCollectionMetaFromDom() {
+  function resolveLockedCollection(formOrEl) {
+    var handle = '';
+    var title = '';
+    var form = null;
     try {
-      var selector = '.upsell[data-upsell-addon="true"]';
-      var el = (U && typeof U.qs === 'function') ? U.qs(document, selector) : document.querySelector(selector);
-      var meta = readLockedCollectionFromElement(el);
-      if (meta.handle) return meta;
+      if (formOrEl && formOrEl.tagName && formOrEl.tagName.toLowerCase() === 'form') {
+        form = formOrEl;
+      } else if (formOrEl && formOrEl.closest) {
+        form = formOrEl.closest('form');
+      }
     } catch (e) {}
 
-    return getPoolContextFromDom();
+    var wrapper = null;
+    try {
+      if (form && form.closest) wrapper = form.closest('[data-upsell-addon="true"]');
+      if (!wrapper && formOrEl && formOrEl.closest) wrapper = formOrEl.closest('[data-upsell-addon="true"]');
+      if (!wrapper) wrapper = document.querySelector('[data-upsell-addon="true"]');
+    } catch (e2) {}
+
+    if (wrapper) {
+      var meta = readLockedCollectionFromElement(wrapper);
+      handle = meta.handle || '';
+      title = meta.title || '';
+    }
+
+    if (!handle && form) {
+      try {
+        var propKey = (M && M.CFG && M.CFG.propLockedCollectionLegacy) ? M.CFG.propLockedCollectionLegacy : '_bl_locked_collection';
+        var input = form.querySelector('input[name="properties[' + propKey.replace(/"/g, '\\"') + ']"]');
+        if (input && input.value) handle = String(input.value || '').trim();
+      } catch (e3) {}
+    }
+
+    if (!title && form) {
+      try {
+        var titleInput = form.querySelector('input[name="properties[_bl_locked_collection_title]"]');
+        if (titleInput && titleInput.value) title = String(titleInput.value || '').trim();
+      } catch (e4) {}
+    }
+
+    if (!handle || !title) {
+      try {
+        var poolEl = document.querySelector('#blPoolContext');
+        if (poolEl) {
+          if (!handle) handle = String((poolEl.dataset && poolEl.dataset.blPoolCollection) || poolEl.getAttribute('data-bl-pool-collection') || '').trim();
+          if (!title) title = String((poolEl.dataset && poolEl.dataset.blPoolTitle) || poolEl.getAttribute('data-bl-pool-title') || '').trim();
+        }
+      } catch (e5) {}
+    }
+
+    try {
+      if (window.BL && window.BL.debug === true) {
+        var poolView = (M && M.CFG && M.CFG.poolView) ? M.CFG.poolView : 'mystery';
+        var poolUrl = handle ? ('/collections/' + encodeURIComponent(handle) + '?view=' + encodeURIComponent(poolView)) : '';
+        console.debug('[BL Mystery Addon] locked collection resolved', { handle: handle, title: title, url: poolUrl });
+      }
+    } catch (e6) {}
+
+    return { handle: handle, title: title };
   }
 
   var addonVariantIdsPromise = null;
@@ -265,9 +303,10 @@
       }
 
       var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
-      var lockedMeta = getLockedCollectionMetaFromDom();
-      var lockedCollection = props._bl_locked_collection || lockedMeta.handle;
-      if (lockedCollection) props._bl_locked_collection = lockedCollection;
+      var lockedMeta = resolveLockedCollection(null);
+      var lockedKey = (M && M.CFG && M.CFG.propLockedCollectionLegacy) ? M.CFG.propLockedCollectionLegacy : '_bl_locked_collection';
+      var lockedCollection = props[lockedKey] || lockedMeta.handle;
+      if (lockedCollection) props[lockedKey] = lockedCollection;
       if (lockedMeta.title && !props._bl_locked_collection_title) props._bl_locked_collection_title = lockedMeta.title;
       logAddonDebug('addon-enrich-locked-collection', { locked_collection: lockedCollection });
 
@@ -554,31 +593,7 @@ function ensureCssOnce() {
   }
 
   function getLockedCollectionMeta(card, form) {
-    var locked = '';
-    var title = '';
-    try {
-      if (form) {
-        var propKey = (M && M.CFG && M.CFG.propLockedCollectionLegacy) ? M.CFG.propLockedCollectionLegacy : '_bl_locked_collection';
-        var input = form.querySelector('input[name="properties[' + propKey.replace(/"/g, '\\"') + ']"]');
-        locked = input ? String(input.value || '').trim() : '';
-        var titleInput = form.querySelector('input[name="properties[_bl_locked_collection_title]"]');
-        title = titleInput ? String(titleInput.value || '').trim() : '';
-      }
-    } catch (e) {}
-
-    if (!locked || !title) {
-      var meta = readLockedCollectionFromElement(card);
-      if (!locked && meta.handle) locked = meta.handle;
-      if (!title && meta.title) title = meta.title;
-    }
-
-    if (!locked || !title) {
-      var poolMeta = getPoolContextFromDom();
-      if (!locked && poolMeta.handle) locked = poolMeta.handle;
-      if (!title && poolMeta.title) title = poolMeta.title;
-    }
-
-    return { handle: locked, title: title };
+    return resolveLockedCollection(form || card);
   }
 
   function getLockedCollectionKey(card, form) {
