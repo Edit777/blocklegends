@@ -104,7 +104,23 @@
           {%- for block in section.blocks -%}
             {%- case block.type -%}
               {%- when 'product_collection' -%}
-                {%- include 'bl-pool-collection', product: product, collection: collection -%}
+                {%- liquid
+                  assign excluded_handles = 'catalog,all,frontpage' | split: ','
+                  assign pool_collection = nil
+
+                  if collection and (excluded_handles contains collection.handle) == false
+                    assign pool_collection = collection
+                  endif
+
+                  if pool_collection == nil and product != blank
+                    for product_collection in product.collections
+                      unless excluded_handles contains product_collection.handle
+                        assign pool_collection = product_collection
+                        break
+                      endunless
+                    endfor
+                  endif
+                -%}
                 {%- if pool_collection -%}
                   <p class="product-collection">
                     <span class="product-collection__label">
