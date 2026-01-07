@@ -14,8 +14,10 @@
   assign excluded_handles = 'catalog,all,frontpage' | split: ','
   assign pool_collection = nil
 
-  if collection and (excluded_handles contains collection.handle) == false
-    assign pool_collection = collection
+  if collection
+    unless excluded_handles contains collection.handle
+      assign pool_collection = collection
+    endunless
   endif
 
   if pool_collection == nil and product != blank
