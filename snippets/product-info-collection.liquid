@@ -30,14 +30,21 @@
   endif
 -%}
 
+{%- assign bl_pool_collection_handle = '' -%}
+{%- assign bl_pool_collection_title = '' -%}
 {%- if pool_collection -%}
-  <div
-    id="blPoolContext"
-    data-bl-pool-collection="{{ pool_collection.handle }}"
-    data-bl-pool-title="{{ pool_collection.title | escape }}"
-    hidden
-  ></div>
+  {%- assign bl_pool_collection_handle = pool_collection.handle -%}
+  {%- assign bl_pool_collection_title = pool_collection.title | escape -%}
+{%- endif -%}
 
+<div
+  id="blPoolContext"
+  data-bl-pool-collection="{{ bl_pool_collection_handle }}"
+  data-bl-pool-title="{{ bl_pool_collection_title }}"
+  hidden
+></div>
+
+{%- if pool_collection -%}
   <p
     class="product-collection"
     style="
