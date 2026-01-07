@@ -119,71 +119,75 @@
     {%- endif -%}
 
     <div class="product-grid-container" id="ProductGridContainer">
-      {%- liquid
-        assign hidden_tag = 'collection-hidden'
-        assign visible_products = '' | split: ','
-        for product in collection.products
-          unless product.tags contains hidden_tag
-            assign visible_products = visible_products | push: product
-          endunless
-        endfor
-      -%}
-      {%- paginate visible_products by section.settings.products_per_page -%}
-        {%- if visible_products.size == 0 -%}
-          <div class="collection collection--empty page-width" id="product-grid" data-id="{{ section.id }}">
-            <div class="loading-overlay gradient"></div>
-            <div class="title-wrapper center">
-              <h2 class="title title--primary">
-                {{ 'sections.collection_template.empty' | t -}}
-                <br>
-                {{
-                  'sections.collection_template.use_fewer_filters_html'
-                  | t: link: collection.url, class: 'underlined-link link'
-                }}
-              </h2>
-            </div>
-          </div>
-        {%- else -%}
-          <div class="collection{% if section.settings.filter_type != 'vertical' %} page-width{% endif %}">
-            <div class="loading-overlay gradient"></div>
-
-            <ul
-              id="product-grid"
-              data-id="{{ section.id }}"
-              class="
-                grid product-grid grid--{{ section.settings.columns_mobile }}-col-tablet-down{% if section.settings.stretch_cards %} grid--stretch{% endif %}
-                grid--{{ section.settings.columns_desktop }}-col-desktop
-              "
-            >
-              {%- for product in visible_products -%}
-                {% liquid
-                  assign lazy_load = false
-                  if forloop.index > 2
-                    assign lazy_load = true
-                  endif
-                %}
-                <li class="grid__item animate-item animate-item--child" style='--index: {{ forloop.index0 }};'>
-                  {% render 'card-product',
-                    card_product: product,
-                    media_aspect_ratio: section.settings.image_ratio,
-                    show_secondary_image: section.settings.show_secondary_image,
-                    badges: section.settings.badges,
-                    show_vendor: section.settings.show_vendor,
-                    show_rating: section.settings.show_rating,
-                    lazy_load: lazy_load,
-                    show_quick_add: section.settings.enable_quick_add,
-                    swatches_option_name: section.settings.swatches_option_name,
-                    section_id: section.id
-                  %}
-                </li>
-              {%- endfor -%}
-            </ul>
-
-            {%- if paginate.pages > 1 -%}
-              {% render 'pagination', paginate: paginate, anchor: '' %}
+      {%- comment -%}
+        True fixes for avoiding empty pages entirely:
+        A) Unpublish hidden pool products from the Online Store channel (preferred).
+        B) Client-side grid rendering/pagination via Storefront API.
+      {%- endcomment -%}
+      {%- paginate collection.products by section.settings.products_per_page -%}
+        {%- assign visible_count = 0 -%}
+        {%- capture product_items -%}
+          {%- for product in collection.products -%}
+            {%- if product.tags contains 'collection-hidden' or product.tags contains 'search-hidden' -%}
+              {%- continue -%}
             {%- endif -%}
-          </div>
-        {%- endif -%}
+            {%- assign visible_count = visible_count | plus: 1 -%}
+            {% liquid
+              assign lazy_load = false
+              if forloop.index > 2
+                assign lazy_load = true
+              endif
+            %}
+            <li class="grid__item animate-item animate-item--child" style='--index: {{ forloop.index0 }};'>
+              {% render 'card-product',
+                card_product: product,
+                media_aspect_ratio: section.settings.image_ratio,
+                show_secondary_image: section.settings.show_secondary_image,
+                badges: section.settings.badges,
+                show_vendor: section.settings.show_vendor,
+                show_rating: section.settings.show_rating,
+                lazy_load: lazy_load,
+                show_quick_add: section.settings.enable_quick_add,
+                swatches_option_name: section.settings.swatches_option_name,
+                section_id: section.id
+              %}
+            </li>
+          {%- endfor -%}
+        {%- endcapture -%}
+        <div class="collection{% if section.settings.filter_type != 'vertical' %} page-width{% endif %}">
+          <div class="loading-overlay gradient"></div>
+
+          <ul
+            id="product-grid"
+            data-id="{{ section.id }}"
+            class="
+              grid product-grid grid--{{ section.settings.columns_mobile }}-col-tablet-down{% if section.settings.stretch_cards %} grid--stretch{% endif %}
+              grid--{{ section.settings.columns_desktop }}-col-desktop
+            "
+          >
+            {{ product_items }}
+          </ul>
+
+          {%- if visible_count == 0 -%}
+            <div class="collection collection--empty">
+              <div class="title-wrapper center">
+                <h2 class="title title--primary">
+                  {{ 'sections.collection_template.empty' | t -}}
+                  <br>
+                  {{
+                    'sections.collection_template.use_fewer_filters_html'
+                    | t: link: collection.url, class: 'underlined-link link'
+                  }}
+                </h2>
+              </div>
+              <p class="caption-with-letter-spacing center">No products to display.</p>
+            </div>
+          {%- endif -%}
+
+          {%- if paginate.pages > 1 -%}
+            {% render 'pagination', paginate: paginate, anchor: '' %}
+          {%- endif -%}
+        </div>
       {%- endpaginate -%}
     </div>
   </div>
