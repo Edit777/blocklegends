@@ -23,10 +23,32 @@
     try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
   }
 
+  function shouldDebug() {
+    try { return (window.BL && window.BL.debug === true) || isDebug(); } catch (e) { return false; }
+  }
+
   function debugLog() {
     if (!isDebug()) return;
     var args = Array.prototype.slice.call(arguments);
     try { console.log.apply(console, ['[BL Mystery][debug]'].concat(args)); } catch (e) {}
+  }
+
+  function isInvalidLockedHandle(handle) {
+    var h = String(handle || '').trim();
+    if (!h) return true;
+    if (/\s/.test(h)) return true;
+    return h.slice(-2) === '-1';
+  }
+
+  function debugLockedCollection(meta) {
+    if (!shouldDebug()) return;
+    try {
+      console.debug('[BL Mystery] locked collection resolved', {
+        handle: meta && meta.handle ? meta.handle : '',
+        source: meta && meta.source ? meta.source : '',
+        rejected: !!(meta && meta.rejected)
+      });
+    } catch (e) {}
   }
 
   /* -----------------------------
@@ -405,12 +427,27 @@
       if (b && b.value) locked = String(b.value).trim();
     } catch (e) {}
 
+    if (locked) {
+      if (isInvalidLockedHandle(locked)) {
+        debugLockedCollection({ handle: locked, source: 'form', rejected: true });
+        locked = '';
+      } else {
+        debugLockedCollection({ handle: locked, source: 'form', rejected: false });
+      }
+    }
+
     if (!locked) {
       try {
         var host = form ? form.closest('.upsell[data-upsell-addon="true"]') : null;
         if (host) {
           locked = String(host.getAttribute('data-locked-collection') || (host.dataset && host.dataset.lockedCollection) || '').trim();
           if (!locked) locked = String((host.dataset && host.dataset.blLockedCollection) || host.getAttribute('data-bl-locked-collection') || '').trim();
+          if (locked && isInvalidLockedHandle(locked)) {
+            debugLockedCollection({ handle: locked, source: 'wrapper', rejected: true });
+            locked = '';
+          } else if (locked) {
+            debugLockedCollection({ handle: locked, source: 'wrapper', rejected: false });
+          }
         }
       } catch (e2) {}
     }
@@ -420,6 +457,12 @@
         var poolEl = document.querySelector('#blPoolContext');
         if (poolEl) {
           locked = String((poolEl.dataset && poolEl.dataset.blPoolCollection) || poolEl.getAttribute('data-bl-pool-collection') || '').trim();
+          if (locked && isInvalidLockedHandle(locked)) {
+            debugLockedCollection({ handle: locked, source: 'pool-context', rejected: true });
+            locked = '';
+          } else if (locked) {
+            debugLockedCollection({ handle: locked, source: 'pool-context', rejected: false });
+          }
         }
       } catch (e3) {}
     }
@@ -429,6 +472,7 @@
         if (window.BL && window.BL.debug === true) {
           console.warn('[BL Mystery][debug] Missing locked collection handle');
         }
+        debugLockedCollection({ handle: '', source: 'none', rejected: true });
       } catch (e4) {}
     }
 
@@ -700,6 +744,9 @@
       '?view=' + encodeURIComponent(M.CFG.poolView) +
       '&page=' + encodeURIComponent(page);
 
+    if (shouldDebug()) {
+      try { console.debug('[BL Mystery] pool url', { url: url }); } catch (e) {}
+    }
     debugLog('pool-fetch', { handle: collectionHandle, url: url });
 
     return fetch(url, { credentials: 'same-origin' })

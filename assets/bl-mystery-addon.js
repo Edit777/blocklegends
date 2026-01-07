@@ -32,6 +32,10 @@
     try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
   }
 
+  function shouldDebug() {
+    try { return (window.BL && window.BL.debug === true) || isDebug(); } catch (e) { return false; }
+  }
+
   function debugLog() {
     if (!isDebug()) return;
     var args = Array.prototype.slice.call(arguments);
@@ -94,6 +98,30 @@
     return { handle: handle, title: title };
   }
 
+  function isInvalidLockedHandle(handle) {
+    var h = String(handle || '').trim();
+    if (!h) return true;
+    if (/\s/.test(h)) return true;
+    return h.slice(-2) === '-1';
+  }
+
+  function debugLockedCollection(meta) {
+    if (!shouldDebug()) return;
+    var poolView = (M && M.CFG && M.CFG.poolView) ? M.CFG.poolView : 'mystery';
+    var poolUrl = meta && meta.handle && !meta.rejected
+      ? ('/collections/' + encodeURIComponent(meta.handle) + '?view=' + encodeURIComponent(poolView))
+      : '';
+    try {
+      console.debug('[BL Mystery Addon] locked collection resolved', {
+        handle: meta && meta.handle ? meta.handle : '',
+        title: meta && meta.title ? meta.title : '',
+        source: meta && meta.source ? meta.source : '',
+        rejected: !!(meta && meta.rejected)
+      });
+      console.debug('[BL Mystery Addon] pool url', { url: poolUrl });
+    } catch (e) {}
+  }
+
   function resolveLockedCollection(formOrEl) {
     var handle = '';
     var title = '';
@@ -113,44 +141,73 @@
       if (!wrapper) wrapper = document.querySelector('[data-upsell-addon="true"]');
     } catch (e2) {}
 
-    if (wrapper) {
-      var meta = readLockedCollectionFromElement(wrapper);
-      handle = meta.handle || '';
-      title = meta.title || '';
-    }
-
-    if (!handle && form) {
+    var propKey = (M && M.CFG && M.CFG.propLockedCollectionLegacy) ? M.CFG.propLockedCollectionLegacy : '_bl_locked_collection';
+    var inputHandle = '';
+    var inputTitle = '';
+    if (form) {
       try {
-        var propKey = (M && M.CFG && M.CFG.propLockedCollectionLegacy) ? M.CFG.propLockedCollectionLegacy : '_bl_locked_collection';
         var input = form.querySelector('input[name="properties[' + propKey.replace(/"/g, '\\"') + ']"]');
-        if (input && input.value) handle = String(input.value || '').trim();
+        if (input && input.value) inputHandle = String(input.value || '').trim();
       } catch (e3) {}
+
+      try {
+        var titleInput = form.querySelector('input[name="properties[_bl_locked_collection_name]"]');
+        if (titleInput && titleInput.value) inputTitle = String(titleInput.value || '').trim();
+      } catch (e4) {}
+
+      if (!inputTitle) {
+        try {
+          var legacyTitleInput = form.querySelector('input[name="properties[_bl_locked_collection_title]"]');
+          if (legacyTitleInput && legacyTitleInput.value) inputTitle = String(legacyTitleInput.value || '').trim();
+        } catch (e5) {}
+      }
     }
 
-    if (!title && form) {
-      try {
-        var titleInput = form.querySelector('input[name="properties[_bl_locked_collection_title]"]');
-        if (titleInput && titleInput.value) title = String(titleInput.value || '').trim();
-      } catch (e4) {}
+    if (inputHandle) {
+      if (isInvalidLockedHandle(inputHandle)) {
+        debugLockedCollection({ handle: inputHandle, title: inputTitle, source: 'form', rejected: true });
+      } else {
+        handle = inputHandle;
+        title = inputTitle;
+        debugLockedCollection({ handle: handle, title: title, source: 'form', rejected: false });
+      }
+    }
+
+    if (!handle && wrapper) {
+      var meta = readLockedCollectionFromElement(wrapper);
+      if (meta.handle && isInvalidLockedHandle(meta.handle)) {
+        debugLockedCollection({ handle: meta.handle, title: meta.title, source: 'wrapper', rejected: true });
+      } else if (meta.handle) {
+        handle = meta.handle || '';
+        title = meta.title || '';
+        debugLockedCollection({ handle: handle, title: title, source: 'wrapper', rejected: false });
+      }
     }
 
     if (!handle || !title) {
       try {
         var poolEl = document.querySelector('#blPoolContext');
         if (poolEl) {
-          if (!handle) handle = String((poolEl.dataset && poolEl.dataset.blPoolCollection) || poolEl.getAttribute('data-bl-pool-collection') || '').trim();
-          if (!title) title = String((poolEl.dataset && poolEl.dataset.blPoolTitle) || poolEl.getAttribute('data-bl-pool-title') || '').trim();
+          var poolHandle = String((poolEl.dataset && poolEl.dataset.blPoolCollection) || poolEl.getAttribute('data-bl-pool-collection') || '').trim();
+          var poolTitle = String((poolEl.dataset && poolEl.dataset.blPoolTitle) || poolEl.getAttribute('data-bl-pool-title') || '').trim();
+          if (!handle) {
+            if (poolHandle && isInvalidLockedHandle(poolHandle)) {
+              debugLockedCollection({ handle: poolHandle, title: poolTitle, source: 'pool-context', rejected: true });
+            } else {
+              handle = poolHandle;
+              if (!title) title = poolTitle;
+              if (handle) debugLockedCollection({ handle: handle, title: title, source: 'pool-context', rejected: false });
+            }
+          } else if (!title && poolTitle) {
+            title = poolTitle;
+          }
         }
-      } catch (e5) {}
+      } catch (e6) {}
     }
 
-    try {
-      if (window.BL && window.BL.debug === true) {
-        var poolView = (M && M.CFG && M.CFG.poolView) ? M.CFG.poolView : 'mystery';
-        var poolUrl = handle ? ('/collections/' + encodeURIComponent(handle) + '?view=' + encodeURIComponent(poolView)) : '';
-        console.debug('[BL Mystery Addon] locked collection resolved', { handle: handle, title: title, url: poolUrl });
-      }
-    } catch (e6) {}
+    if (!handle && shouldDebug()) {
+      debugLockedCollection({ handle: '', title: title, source: 'none', rejected: true });
+    }
 
     return { handle: handle, title: title };
   }
@@ -305,9 +362,14 @@
       var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
       var lockedMeta = resolveLockedCollection(null);
       var lockedKey = (M && M.CFG && M.CFG.propLockedCollectionLegacy) ? M.CFG.propLockedCollectionLegacy : '_bl_locked_collection';
-      var lockedCollection = props[lockedKey] || lockedMeta.handle;
+      var lockedCollection = props[lockedKey] || '';
+      if (lockedCollection && isInvalidLockedHandle(lockedCollection)) {
+        logAddonDebug('addon-locked-collection-invalid', { locked_collection: lockedCollection });
+        lockedCollection = '';
+      }
+      if (!lockedCollection) lockedCollection = lockedMeta.handle;
       if (lockedCollection) props[lockedKey] = lockedCollection;
-      if (lockedMeta.title && !props._bl_locked_collection_title) props._bl_locked_collection_title = lockedMeta.title;
+      if (lockedMeta.title && !props._bl_locked_collection_name) props._bl_locked_collection_name = lockedMeta.title;
       logAddonDebug('addon-enrich-locked-collection', { locked_collection: lockedCollection });
 
       var excludeVariantIds = [];
@@ -1013,6 +1075,7 @@ function ensureCssOnce() {
       ensureHidden(form, '_bl_is_addon', '1');
       if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
       if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+      if (lockedTitle) ensureHidden(form, '_bl_locked_collection_name', lockedTitle);
       if (lockedTitle) ensureHidden(form, '_bl_locked_collection_title', lockedTitle);
       var parentUidInput = ensureHidden(form, '_bl_parent_uid', '');
       if (parentUidInput && !parentUidInput.value) parentUidInput.value = generateUid('bl-parent');
@@ -1027,6 +1090,7 @@ function ensureCssOnce() {
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
         if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+        if (lockedTitle) ensureHidden(form, '_bl_locked_collection_name', lockedTitle);
         if (lockedTitle) ensureHidden(form, '_bl_locked_collection_title', lockedTitle);
         var submitParentUid = ensureHidden(form, '_bl_parent_uid', '');
         if (submitParentUid && !submitParentUid.value) submitParentUid.value = generateUid('bl-parent');

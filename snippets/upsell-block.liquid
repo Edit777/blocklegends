@@ -489,6 +489,9 @@
 
   assign bl_locked_collection_title_escaped = bl_locked_collection_title | escape
   assign bl_locked_collection_attr = 'data-upsell-addon="true" data-locked-collection="' | append: bl_primary_collection | append: '" data-locked-collection-name="' | append: bl_locked_collection_title_escaped | append: '" data-bl-locked-collection="' | append: bl_primary_collection | append: '" data-bl-locked-collection-title="' | append: bl_locked_collection_title_escaped | append: '"'
+  assign bl_locked_collection_input = '<input type="hidden" name="properties[_bl_locked_collection]" value="' | append: bl_primary_collection | append: '">'
+  assign bl_locked_collection_name_input = '<input type="hidden" name="properties[_bl_locked_collection_name]" value="' | append: bl_locked_collection_title_escaped | append: '">'
+  assign bl_locked_collection_inputs = bl_locked_collection_input | append: '\n          ' | append: bl_locked_collection_name_input
 -%}
 
 {%- capture bl_addon_markup -%}
@@ -504,6 +507,7 @@
   %}
 {%- endcapture -%}
 
+{%- assign bl_addon_markup = bl_addon_markup | replace_first: bl_locked_collection_input, bl_locked_collection_inputs -%}
 {{ bl_addon_markup | replace_first: 'data-upsell-addon="true"', bl_locked_collection_attr }}
 
   {%- endif -%}
