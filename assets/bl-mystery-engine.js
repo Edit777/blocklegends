@@ -28,7 +28,7 @@
   }
 
   function debugLog() {
-    if (!isDebug()) return;
+    if (!shouldDebug()) return;
     var args = Array.prototype.slice.call(arguments);
     try { console.log.apply(console, ['[BL Mystery][debug]'].concat(args)); } catch (e) {}
   }
@@ -37,7 +37,7 @@
     var h = String(handle || '').trim();
     if (!h) return true;
     if (/\s/.test(h)) return true;
-    return h.slice(-2) === '-1';
+    return !/^[a-z0-9-]+$/.test(h);
   }
 
   function debugLockedCollection(meta) {
@@ -275,8 +275,8 @@
       eligible[rarity] = Number(counts[rarity] || 0) >= min;
     });
     var anyKey = String(M.CFG.anyRarityKey || 'any').toLowerCase();
-    eligible[anyKey] = true;
-    if (anyKey !== 'any') eligible.any = true;
+    eligible[anyKey] = Number(counts.total || 0) > 0;
+    if (anyKey !== 'any') eligible.any = eligible[anyKey];
     return eligible;
   };
 
@@ -292,7 +292,7 @@
     (M.CFG.allowedRarities || []).forEach(function (r) {
       eligible[r] = Number(counts[r] || 0) >= min;
     });
-    eligible[anyKey] = true;
+    eligible[anyKey] = Number(counts.total || 0) > 0;
 
     return { counts: counts, eligible: eligible, min: min, anyKey: anyKey };
   };
@@ -809,6 +809,17 @@
               legendary: idx.legendary.length
             }
           });
+          if (shouldDebug()) {
+            try {
+              console.debug('[BL Mystery] pool counts', {
+                handle: h,
+                common: idx.common.length,
+                rare: idx.rare.length,
+                epic: idx.epic.length,
+                legendary: idx.legendary.length
+              });
+            } catch (eDebug) {}
+          }
 
           if (isDebug() && idx.byCollection) {
             var perCollection = {};

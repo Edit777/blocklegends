@@ -30,12 +30,32 @@
   endif
 -%}
 
-{%- assign bl_pool_collection_handle = '' -%}
-{%- assign bl_pool_collection_title = '' -%}
-{%- if pool_collection -%}
-  {%- assign bl_pool_collection_handle = pool_collection.handle -%}
-  {%- assign bl_pool_collection_title = pool_collection.title | escape -%}
-{%- endif -%}
+{%- liquid
+  assign bl_collection_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip | downcase
+  assign bl_pool_collection_handle = ''
+  assign bl_pool_collection_title = ''
+
+  if bl_collection_key != blank
+    assign bl_pool_collection_handle = bl_collection_key | append: '-legends-1'
+  elsif pool_collection
+    assign bl_pool_collection_handle = pool_collection.handle
+  endif
+
+  if excluded_handles contains bl_pool_collection_handle
+    assign bl_pool_collection_handle = ''
+  endif
+
+  assign bl_pool_collection_obj = nil
+  if bl_pool_collection_handle != blank
+    assign bl_pool_collection_obj = collections[bl_pool_collection_handle]
+  endif
+
+  if bl_pool_collection_obj != blank
+    assign bl_pool_collection_title = bl_pool_collection_obj.title | escape
+  elsif pool_collection
+    assign bl_pool_collection_title = pool_collection.title | escape
+  endif
+-%}
 
 <div
   id="blPoolContext"
@@ -44,7 +64,8 @@
   hidden
 ></div>
 
-{%- if pool_collection -%}
+{%- assign bl_display_collection = bl_pool_collection_obj | default: pool_collection -%}
+{%- if bl_display_collection -%}
   <p
     class="product-collection"
     style="
@@ -60,12 +81,12 @@
     {%- endif -%}
 
     {%- if s.show_link -%}
-      <a class="product-collection__link" href="{{ pool_collection.url }}">
-        {{ pool_collection.title }}
+      <a class="product-collection__link" href="{{ bl_display_collection.url }}">
+        {{ bl_display_collection.title }}
       </a>
     {%- else -%}
       <span class="product-collection__link">
-        {{ pool_collection.title }}
+        {{ bl_display_collection.title }}
       </span>
     {%- endif -%}
   </p>

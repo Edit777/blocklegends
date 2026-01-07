@@ -37,7 +37,7 @@
   }
 
   function debugLog() {
-    if (!isDebug()) return;
+    if (!shouldDebug()) return;
     var args = Array.prototype.slice.call(arguments);
     try { console.log.apply(console, ['[BL Mystery Addon]'].concat(args)); } catch (e) {}
   }
@@ -102,7 +102,7 @@
     var h = String(handle || '').trim();
     if (!h) return true;
     if (/\s/.test(h)) return true;
-    return h.slice(-2) === '-1';
+    return !/^[a-z0-9-]+$/.test(h);
   }
 
   function debugLockedCollection(meta) {
@@ -650,7 +650,7 @@ function ensureCssOnce() {
   }
 
   function logAddonDebug(label, meta) {
-    if (!isDebug()) return;
+    if (!shouldDebug()) return;
     debugLog(label, meta);
   }
 
@@ -931,7 +931,9 @@ function ensureCssOnce() {
         var rarity = getVariantRarity(vid);
         var eligibleFlag = true;
 
-        if (rarity && rarity !== anyKey) {
+        if (rarity === anyKey) {
+          eligibleFlag = !!eligible[anyKey];
+        } else if (rarity) {
           eligibleFlag = !!eligible[rarity];
         }
         opt.disabled = !eligibleFlag;

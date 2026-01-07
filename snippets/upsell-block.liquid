@@ -21,6 +21,7 @@
 {%- liquid
   assign use_auto_collection = block.settings.enable_dynamic_recommendations
   assign current_product = product
+  assign bl_collection_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip | downcase
 
   # ----------------------------
   # ADD-ON CONFIG
@@ -30,8 +31,14 @@
 
   # Primary collection for current product (lock add-on to this)
   assign bl_primary_collection = ''
-  if pool_collection != nil
+  if bl_collection_key != blank
+    assign bl_primary_collection = bl_collection_key | append: '-legends-1'
+  elsif pool_collection != nil
     assign bl_primary_collection = pool_collection.handle
+  endif
+
+  if excluded_handles contains bl_primary_collection
+    assign bl_primary_collection = ''
   endif
 
   assign bl_addon_enabled = false
