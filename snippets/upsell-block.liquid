@@ -478,16 +478,33 @@
   endif
 -%}
 
-{% render 'bl-upsells-addon',
-  type: type,
-  block: block,
-  section: section,
-  current_product: current_product,
-  addon_product: addon_product,
-  addon_display: addon_display,
-  bl_primary_collection: bl_primary_collection,
-  bl_is_slider: bl_is_slider
-%}
+{%- liquid
+  assign bl_locked_collection_title = ''
+  assign bl_locked_collection_obj = collections[bl_primary_collection]
+  if bl_locked_collection_obj != blank
+    assign bl_locked_collection_title = bl_locked_collection_obj.title
+  elsif bl_primary_collection != blank
+    assign bl_locked_collection_title = bl_primary_collection | replace: '-', ' ' | replace: '_', ' ' | capitalize
+  endif
+
+  assign bl_locked_collection_title_escaped = bl_locked_collection_title | escape
+  assign bl_locked_collection_attr = 'data-upsell-addon="true" data-bl-locked-collection="' | append: bl_primary_collection | append: '" data-bl-locked-collection-title="' | append: bl_locked_collection_title_escaped | append: '"'
+-%}
+
+{%- capture bl_addon_markup -%}
+  {% render 'bl-upsells-addon',
+    type: type,
+    block: block,
+    section: section,
+    current_product: current_product,
+    addon_product: addon_product,
+    addon_display: addon_display,
+    bl_primary_collection: bl_primary_collection,
+    bl_is_slider: bl_is_slider
+  %}
+{%- endcapture -%}
+
+{{ bl_addon_markup | replace_first: 'data-upsell-addon="true"', bl_locked_collection_attr }}
 
   {%- endif -%}
 
