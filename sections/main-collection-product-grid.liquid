@@ -26,233 +26,161 @@
   }
 {%- endstyle -%}
 
-{%- paginate collection.products by 1000 -%}
-  {%- assign per_page = section.settings.products_per_page | plus: 0 -%}
-  {%- assign qs = request.query_string | default: '' -%}
-  {%- assign current_page = 1 -%}
-  {%- if qs contains 'page=' -%}
-    {%- assign after = qs | split: 'page=' | last -%}
-    {%- assign page_str = after | split: '&' | first -%}
-    {%- assign current_page = page_str | plus: 0 -%}
-    {%- if current_page < 1 -%}
-      {%- assign current_page = 1 -%}
-    {%- endif -%}
-  {%- endif -%}
-  {%- assign total_visible = 0 -%}
-  {%- for product in collection.products -%}
-    {%- if product.tags contains 'collection-hidden' or product.tags contains 'search-hidden' -%}
-      {%- continue -%}
-    {%- endif -%}
-    {%- assign total_visible = total_visible | plus: 1 -%}
-  {%- endfor -%}
-  {%- assign total_pages = total_visible | plus: per_page | minus: 1 | divided_by: per_page -%}
-  {%- if total_pages < 1 -%}
-    {%- assign total_pages = 1 -%}
-  {%- endif -%}
-  {%- if current_page > total_pages -%}
-    {%- assign current_page = total_pages -%}
-  {%- endif -%}
-  {%- assign start_index = current_page | minus: 1 | times: per_page -%}
-  {%- assign end_index = start_index | plus: per_page | minus: 1 -%}
-
-  <div class="section-{{ section.id }}-padding animate-section animate--hidden">
-    {% comment %} Sort is the first tabbable element when filter type is vertical {% endcomment %}
-    {%- if section.settings.enable_sorting and section.settings.filter_type == 'vertical' -%}
-      <facet-filters-form class="facets facets-vertical-sort page-width small-hide no-js-hidden">
-        <form class="facets-vertical-form" id="FacetSortForm">
-          <div class="facet-filters sorting caption">
-            <div class="facet-filters__field">
-              <h2 class="facet-filters__label caption-large text-body">
-                <label for="SortBy">{{ 'products.facets.sort_by_label' | t }}</label>
-              </h2>
-              <div class="select">
-                {%- assign sort_by = collection.sort_by | default: collection.default_sort_by -%}
-                <select
-                  name="sort_by"
-                  class="facet-filters__sort select__select caption-large"
-                  id="SortBy"
-                  aria-describedby="a11y-refresh-page-message"
-                >
-                  {%- for option in collection.sort_options -%}
-                    <option
-                      value="{{ option.value | escape }}"
-                      {% if option.value == sort_by %}
-                        selected="selected"
-                      {% endif %}
-                    >
-                      {{ option.name | escape }}
-                    </option>
-                  {%- endfor -%}
-                </select>
-                {% render 'icon-caret' %}
-              </div>
-            </div>
-            <noscript>
-              <button type="submit" class="facets__button-no-js button button--secondary">
-                {{ 'products.facets.sort_button' | t }}
-              </button>
-            </noscript>
-          </div>
-
-          <div class="product-count-vertical light" role="status">
-            <h2 class="product-count__text text-body">
-              <span id="ProductCountDesktop">
-                {%- if collection.results_count -%}
-                  {{
-                    'templates.search.results_with_count'
-                    | t: terms: collection.terms, count: total_visible
-                  }}
-                {%- elsif collection.products_count == collection.all_products_count -%}
-                  {{ 'products.facets.product_count_simple' | t: count: total_visible }}
-                {%- else -%}
-                  {{
-                    'products.facets.product_count'
-                    | t: product_count: total_visible, count: total_visible
-                  }}
-                {%- endif -%}
-              </span>
+<div class="section-{{ section.id }}-padding animate-section animate--hidden">
+  {% comment %} Sort is the first tabbable element when filter type is vertical {% endcomment %}
+  {%- if section.settings.enable_sorting and section.settings.filter_type == 'vertical' -%}
+    <facet-filters-form class="facets facets-vertical-sort page-width small-hide no-js-hidden">
+      <form class="facets-vertical-form" id="FacetSortForm">
+        <div class="facet-filters sorting caption">
+          <div class="facet-filters__field">
+            <h2 class="facet-filters__label caption-large text-body">
+              <label for="SortBy">{{ 'products.facets.sort_by_label' | t }}</label>
             </h2>
-            <div class="loading-overlay__spinner">
-              <svg
-                aria-hidden="true"
-                focusable="false"
-                class="spinner"
-                viewBox="0 0 66 66"
-                xmlns="http://www.w3.org/2000/svg"
+            <div class="select">
+              {%- assign sort_by = collection.sort_by | default: collection.default_sort_by -%}
+              <select
+                name="sort_by"
+                class="facet-filters__sort select__select caption-large"
+                id="SortBy"
+                aria-describedby="a11y-refresh-page-message"
               >
-                <circle class="path" fill="none" stroke-width="6" cx="33" cy="33" r="30"></circle>
-              </svg>
+                {%- for option in collection.sort_options -%}
+                  <option
+                    value="{{ option.value | escape }}"
+                    {% if option.value == sort_by %}
+                      selected="selected"
+                    {% endif %}
+                  >
+                    {{ option.name | escape }}
+                  </option>
+                {%- endfor -%}
+              </select>
+              {% render 'icon-caret' %}
             </div>
           </div>
-        </form>
-      </facet-filters-form>
+          <noscript>
+            <button type="submit" class="facets__button-no-js button button--secondary">
+              {{ 'products.facets.sort_button' | t }}
+            </button>
+          </noscript>
+        </div>
+
+        <div class="product-count-vertical light" role="status">
+          <h2 class="product-count__text text-body">
+            <span id="ProductCountDesktop">
+              {%- if collection.results_count -%}
+                {{
+                  'templates.search.results_with_count'
+                  | t: terms: collection.terms, count: collection.results_count
+                }}
+              {%- elsif collection.products_count == collection.all_products_count -%}
+                {{ 'products.facets.product_count_simple' | t: count: collection.products_count }}
+              {%- else -%}
+                {{
+                  'products.facets.product_count'
+                  | t: product_count: collection.products_count, count: collection.all_products_count
+                }}
+              {%- endif -%}
+            </span>
+          </h2>
+          <div class="loading-overlay__spinner">
+            <svg
+              aria-hidden="true"
+              focusable="false"
+              class="spinner"
+              viewBox="0 0 66 66"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle class="path" fill="none" stroke-width="6" cx="33" cy="33" r="30"></circle>
+            </svg>
+          </div>
+        </div>
+      </form>
+    </facet-filters-form>
+  {%- endif -%}
+
+  <div class="{% if section.settings.filter_type == 'vertical' %} facets-vertical page-width{% endif %}">
+    {{ 'component-facets.css' | asset_url | stylesheet_tag }}
+    <script src="{{ 'facets.js' | asset_url }}" defer="defer"></script>
+    {%- if section.settings.enable_filtering or section.settings.enable_sorting -%}
+      <aside
+        aria-labelledby="verticalTitle"
+        class="facets-wrapper{% unless section.settings.enable_filtering %} facets-wrapper--no-filters{% endunless %}{% if section.settings.filter_type != 'vertical' %} page-width{% endif %}"
+        id="main-collection-filters"
+        data-id="{{ section.id }}"
+      >
+        {% render 'facets',
+          results: collection,
+          enable_filtering: section.settings.enable_filtering,
+          enable_sorting: section.settings.enable_sorting,
+          filter_type: section.settings.filter_type
+        %}
+      </aside>
     {%- endif -%}
 
-    <div class="{% if section.settings.filter_type == 'vertical' %} facets-vertical page-width{% endif %}">
-      {{ 'component-facets.css' | asset_url | stylesheet_tag }}
-      <script src="{{ 'facets.js' | asset_url }}" defer="defer"></script>
-      {%- if section.settings.enable_filtering or section.settings.enable_sorting -%}
-        <aside
-          aria-labelledby="verticalTitle"
-          class="facets-wrapper{% unless section.settings.enable_filtering %} facets-wrapper--no-filters{% endunless %}{% if section.settings.filter_type != 'vertical' %} page-width{% endif %}"
-          id="main-collection-filters"
-          data-id="{{ section.id }}"
-        >
-          {% render 'facets',
-            results: collection,
-            enable_filtering: section.settings.enable_filtering,
-            enable_sorting: section.settings.enable_sorting,
-            filter_type: section.settings.filter_type
-          %}
-        </aside>
-      {%- endif -%}
-
-      <div class="product-grid-container" id="ProductGridContainer">
-        {%- comment -%}
-          True fixes for avoiding empty pages entirely:
-          A) Unpublish hidden pool products from the Online Store channel (preferred).
-          B) Client-side grid rendering/pagination via Storefront API.
-        {%- endcomment -%}
-        {%- assign visible_index = 0 -%}
-        {%- assign rendered_count = 0 -%}
-        {%- capture product_items -%}
-          {%- for product in collection.products -%}
-            {%- if product.tags contains 'collection-hidden' or product.tags contains 'search-hidden' -%}
-              {%- continue -%}
-            {%- endif -%}
-            {%- if visible_index >= start_index and visible_index <= end_index -%}
-              {%- assign rendered_count = rendered_count | plus: 1 -%}
-              {% liquid
-                assign lazy_load = false
-                if rendered_count > 2
-                  assign lazy_load = true
-                endif
-              %}
-              <li class="grid__item animate-item animate-item--child" style='--index: {{ visible_index }};'>
-                {% render 'card-product',
-                  card_product: product,
-                  media_aspect_ratio: section.settings.image_ratio,
-                  show_secondary_image: section.settings.show_secondary_image,
-                  badges: section.settings.badges,
-                  show_vendor: section.settings.show_vendor,
-                  show_rating: section.settings.show_rating,
-                  lazy_load: lazy_load,
-                  show_quick_add: section.settings.enable_quick_add,
-                  swatches_option_name: section.settings.swatches_option_name,
-                  section_id: section.id
-                %}
-              </li>
-            {%- endif -%}
-            {%- assign visible_index = visible_index | plus: 1 -%}
-            {%- if visible_index > end_index -%}
-              {%- break -%}
-            {%- endif -%}
-          {%- endfor -%}
-        {%- endcapture -%}
-        <div class="collection{% if section.settings.filter_type != 'vertical' %} page-width{% endif %}">
-          <div class="loading-overlay gradient"></div>
-
-          <ul
-            id="product-grid"
-            data-id="{{ section.id }}"
-            class="
-              grid product-grid grid--{{ section.settings.columns_mobile }}-col-tablet-down{% if section.settings.stretch_cards %} grid--stretch{% endif %}
-              grid--{{ section.settings.columns_desktop }}-col-desktop
-            "
-          >
-            {{ product_items }}
-          </ul>
-
-          {%- if rendered_count == 0 -%}
-            <p class="caption-with-letter-spacing center">No products to display.</p>
-          {%- endif -%}
-
-          {%- assign kept = '' | split: ',' -%}
-          {%- assign parts = qs | split: '&' -%}
-          {%- for p in parts -%}
-            {%- unless p == blank or p contains 'page=' -%}
-              {%- assign kept = kept | push: p -%}
-            {%- endunless -%}
-          {%- endfor -%}
-          {%- assign qs_clean = kept | join: '&' -%}
-          {%- capture page_href_prefix -%}{{ collection.url }}?{%- if qs_clean != blank -%}{{ qs_clean }}&{%- endif -%}page={%- endcapture -%}
-
-          {%- if total_pages > 1 -%}
-            <div class="pagination-wrapper">
-              <nav class="pagination" role="navigation" aria-label="Pagination">
-                <ul class="pagination__list list-unstyled" role="list">
-                  {%- if current_page > 1 -%}
-                    <li>
-                      <a class="pagination__item link" href="{{ page_href_prefix }}{{ current_page | minus: 1 }}">‹</a>
-                    </li>
-                  {%- endif -%}
-
-                  {%- for n in (1..total_pages) -%}
-                    {%- if n == current_page -%}
-                      <li>
-                        <span class="pagination__item pagination__item--current" aria-current="page">{{ n }}</span>
-                      </li>
-                    {%- else -%}
-                      <li>
-                        <a class="pagination__item link" href="{{ page_href_prefix }}{{ n }}">{{ n }}</a>
-                      </li>
-                    {%- endif -%}
-                  {%- endfor -%}
-
-                  {%- if current_page < total_pages -%}
-                    <li>
-                      <a class="pagination__item link" href="{{ page_href_prefix }}{{ current_page | plus: 1 }}">›</a>
-                    </li>
-                  {%- endif -%}
-                </ul>
-              </nav>
+    <div class="product-grid-container" id="ProductGridContainer">
+      {%- paginate collection.products by section.settings.products_per_page -%}
+        {%- if collection.products.size == 0 -%}
+          <div class="collection collection--empty page-width" id="product-grid" data-id="{{ section.id }}">
+            <div class="loading-overlay gradient"></div>
+            <div class="title-wrapper center">
+              <h2 class="title title--primary">
+                {{ 'sections.collection_template.empty' | t -}}
+                <br>
+                {{
+                  'sections.collection_template.use_fewer_filters_html'
+                  | t: link: collection.url, class: 'underlined-link link'
+                }}
+              </h2>
             </div>
-          {%- endif -%}
-        </div>
-      </div>
+          </div>
+        {%- else -%}
+          <div class="collection{% if section.settings.filter_type != 'vertical' %} page-width{% endif %}">
+            <div class="loading-overlay gradient"></div>
+
+            <ul
+              id="product-grid"
+              data-id="{{ section.id }}"
+              class="
+                grid product-grid grid--{{ section.settings.columns_mobile }}-col-tablet-down{% if section.settings.stretch_cards %} grid--stretch{% endif %}
+                grid--{{ section.settings.columns_desktop }}-col-desktop
+              "
+            >
+              {%- for product in collection.products -%}
+                {% liquid
+                  assign lazy_load = false
+                  if forloop.index > 2
+                    assign lazy_load = true
+                  endif
+                %}
+                {% unless product.tags contains 'collection-hidden' %}
+                  <li class="grid__item animate-item animate-item--child" style='--index: {{ forloop.index0 }};'>
+                    {% render 'card-product',
+                      card_product: product,
+                      media_aspect_ratio: section.settings.image_ratio,
+                      show_secondary_image: section.settings.show_secondary_image,
+                      badges: section.settings.badges,
+                      show_vendor: section.settings.show_vendor,
+                      show_rating: section.settings.show_rating,
+                      lazy_load: lazy_load,
+                      show_quick_add: section.settings.enable_quick_add,
+                      swatches_option_name: section.settings.swatches_option_name,
+                      section_id: section.id
+                    %}
+                  </li>
+                {% endunless %}
+              {%- endfor -%}
+            </ul>
+
+            {%- if paginate.pages > 1 -%}
+              {% render 'pagination', paginate: paginate, anchor: '' %}
+            {%- endif -%}
+          </div>
+        {%- endif -%}
+      {%- endpaginate -%}
     </div>
   </div>
-{%- endpaginate -%}
+</div>
 
 {% schema %}
 {
