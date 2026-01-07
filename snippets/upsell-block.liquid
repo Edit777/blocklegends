@@ -1,6 +1,22 @@
 {%- liquid
   assign use_auto_collection = block.settings.enable_dynamic_recommendations
   assign current_product = product
+  assign excluded = 'catalog,all,frontpage' | split: ','
+  assign pool_collection = nil
+  if collection and (excluded contains collection.handle) == false
+    assign pool_collection = collection
+  endif
+  if pool_collection == nil
+    for c in current_product.collections
+      unless excluded contains c.handle
+        assign pool_collection = c
+        break
+      endunless
+    endfor
+  endif
+  if pool_collection == nil and collection
+    assign pool_collection = collection
+  endif
 
   # ----------------------------
   # ADD-ON CONFIG
@@ -10,12 +26,9 @@
 
   # Primary collection for current product (lock add-on to this)
   assign bl_primary_collection = ''
-  for c in current_product.collections
-    unless c.handle == 'all' or c.handle == 'frontpage'
-      assign bl_primary_collection = c.handle
-      break
-    endunless
-  endfor
+  if pool_collection != nil
+    assign bl_primary_collection = pool_collection.handle
+  endif
 
   assign bl_addon_enabled = false
   if addon_product != blank and bl_primary_collection != blank
@@ -36,8 +49,8 @@
       assign source_collection = collection
     endif
 
-    if source_collection == blank and current_product.collections.size > 0
-      assign source_collection = current_product.collections.first
+    if source_collection == blank and pool_collection
+      assign source_collection = pool_collection
     endif
 
     if source_collection != blank
