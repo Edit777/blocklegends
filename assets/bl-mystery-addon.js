@@ -74,14 +74,47 @@
       .sort(function (a, b) { return a.index - b.index; });
   }
 
-  function getLockedCollectionHandleFromDom() {
+  function getPoolContextFromDom() {
     try {
-      var selector = '.upsell[data-upsell-addon="true"][data-locked-collection]';
-      var el = (U && typeof U.qs === 'function') ? U.qs(document, selector) : document.querySelector(selector);
-      var handle = el ? (el.getAttribute('data-locked-collection') || '').trim() : '';
-      if (handle) return handle;
+      var poolEl = document.querySelector('#blPoolContext');
+      if (!poolEl) return { handle: '', title: '' };
+      return {
+        handle: String((poolEl.dataset && poolEl.dataset.blPoolCollection) || poolEl.getAttribute('data-bl-pool-collection') || '').trim(),
+        title: String((poolEl.dataset && poolEl.dataset.blPoolTitle) || poolEl.getAttribute('data-bl-pool-title') || '').trim()
+      };
     } catch (e) {}
-    return '';
+    return { handle: '', title: '' };
+  }
+
+  function readLockedCollectionFromElement(el) {
+    if (!el) return { handle: '', title: '' };
+    var handle = '';
+    var title = '';
+    try {
+      handle = String((el.dataset && el.dataset.blLockedCollection) || el.getAttribute('data-bl-locked-collection') || '').trim();
+      title = String((el.dataset && el.dataset.blLockedCollectionTitle) || el.getAttribute('data-bl-locked-collection-title') || '').trim();
+    } catch (e) {}
+
+    if (!handle) {
+      try { handle = String(el.getAttribute('data-locked-collection') || '').trim(); } catch (e2) {}
+    }
+
+    if (!title) {
+      try { title = String(el.getAttribute('data-locked-collection-name') || '').trim(); } catch (e3) {}
+    }
+
+    return { handle: handle, title: title };
+  }
+
+  function getLockedCollectionMetaFromDom() {
+    try {
+      var selector = '.upsell[data-upsell-addon="true"]';
+      var el = (U && typeof U.qs === 'function') ? U.qs(document, selector) : document.querySelector(selector);
+      var meta = readLockedCollectionFromElement(el);
+      if (meta.handle) return meta;
+    } catch (e) {}
+
+    return getPoolContextFromDom();
   }
 
   var addonVariantIdsPromise = null;
@@ -232,8 +265,10 @@
       }
 
       var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
-      var lockedCollection = props._bl_locked_collection || getLockedCollectionHandleFromDom();
+      var lockedMeta = getLockedCollectionMetaFromDom();
+      var lockedCollection = props._bl_locked_collection || lockedMeta.handle;
       if (lockedCollection) props._bl_locked_collection = lockedCollection;
+      if (lockedMeta.title && !props._bl_locked_collection_title) props._bl_locked_collection_title = lockedMeta.title;
       logAddonDebug('addon-enrich-locked-collection', { locked_collection: lockedCollection });
 
       var excludeVariantIds = [];
@@ -518,22 +553,37 @@ function ensureCssOnce() {
     debugLog(label, meta);
   }
 
-  function getLockedCollectionKey(card, form) {
+  function getLockedCollectionMeta(card, form) {
     var locked = '';
+    var title = '';
     try {
       if (form) {
         var propKey = (M && M.CFG && M.CFG.propLockedCollectionLegacy) ? M.CFG.propLockedCollectionLegacy : '_bl_locked_collection';
         var input = form.querySelector('input[name="properties[' + propKey.replace(/"/g, '\\"') + ']"]');
         locked = input ? String(input.value || '').trim() : '';
+        var titleInput = form.querySelector('input[name="properties[_bl_locked_collection_title]"]');
+        title = titleInput ? String(titleInput.value || '').trim() : '';
       }
     } catch (e) {}
 
-    if (!locked) {
-      try {
-        locked = String(card.getAttribute('data-locked-collection') || '').trim();
-      } catch (e2) {}
+    if (!locked || !title) {
+      var meta = readLockedCollectionFromElement(card);
+      if (!locked && meta.handle) locked = meta.handle;
+      if (!title && meta.title) title = meta.title;
     }
-    return locked;
+
+    if (!locked || !title) {
+      var poolMeta = getPoolContextFromDom();
+      if (!locked && poolMeta.handle) locked = poolMeta.handle;
+      if (!title && poolMeta.title) title = poolMeta.title;
+    }
+
+    return { handle: locked, title: title };
+  }
+
+  function getLockedCollectionKey(card, form) {
+    var meta = getLockedCollectionMeta(card, form);
+    return meta.handle || '';
   }
 
   function patchCartDrawerProductForm(pfEl, form) {
@@ -650,10 +700,10 @@ function ensureCssOnce() {
   }
 
   function formatCollectionName(card) {
-    var name = (card.getAttribute('data-locked-collection-name') || '').trim();
-    if (name) return name;
+    var meta = getLockedCollectionMeta(card);
+    if (meta.title) return meta.title;
 
-    var handle = (card.getAttribute('data-locked-collection') || '').trim();
+    var handle = meta.handle || '';
     if (!handle) return '';
     return handle
       .replace(/[-_]+/g, ' ')
@@ -939,13 +989,16 @@ function ensureCssOnce() {
 
     var productFormEl = card.querySelector('product-form');
 
-    var locked = getLockedCollectionKey(card, form);
+    var lockedMeta = getLockedCollectionMeta(card, form);
+    var locked = lockedMeta.handle;
+    var lockedTitle = lockedMeta.title;
     var parentHandle = String(card.getAttribute('data-parent-handle') || '').trim();
 
     if (form) {
       ensureHidden(form, '_bl_is_addon', '1');
       if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
       if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+      if (lockedTitle) ensureHidden(form, '_bl_locked_collection_title', lockedTitle);
       var parentUidInput = ensureHidden(form, '_bl_parent_uid', '');
       if (parentUidInput && !parentUidInput.value) parentUidInput.value = generateUid('bl-parent');
 
@@ -959,6 +1012,7 @@ function ensureCssOnce() {
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
         if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+        if (lockedTitle) ensureHidden(form, '_bl_locked_collection_title', lockedTitle);
         var submitParentUid = ensureHidden(form, '_bl_parent_uid', '');
         if (submitParentUid && !submitParentUid.value) submitParentUid.value = generateUid('bl-parent');
 
@@ -1001,7 +1055,9 @@ function ensureCssOnce() {
 
     if (selectEl) {
       selectEl.addEventListener('change', function () {
-        locked = getLockedCollectionKey(card, form);
+        lockedMeta = getLockedCollectionMeta(card, form);
+        locked = lockedMeta.handle;
+        lockedTitle = lockedMeta.title;
         if (!locked) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
           logAddonDebug('addon-collection-missing', { locked_collection: locked });
@@ -1025,7 +1081,8 @@ function ensureCssOnce() {
           removePills(card);
           ensureLayout(card);
           var updatedSelect = findSelectEl(card);
-          var updatedLocked = getLockedCollectionKey(card, form);
+          var updatedLockedMeta = getLockedCollectionMeta(card, form);
+          var updatedLocked = updatedLockedMeta.handle;
           if (updatedSelect && updatedLocked) {
             disableIneligibleOptions(card, variants, updatedSelect, updatedLocked).then(function (switched) {
               if (switched) {

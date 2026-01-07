@@ -31,6 +31,13 @@
 -%}
 
 {%- if pool_collection -%}
+  <div
+    id="blPoolContext"
+    data-bl-pool-collection="{{ pool_collection.handle }}"
+    data-bl-pool-title="{{ pool_collection.title | escape }}"
+    hidden
+  ></div>
+
   <p
     class="product-collection"
     style="

@@ -399,11 +399,32 @@
   };
 
   function getLockedCollectionFromForm(form) {
+    var locked = '';
     try {
       var b = form.querySelector('[name="properties[' + M.CFG.propLockedCollectionLegacy + ']"]');
-      if (b && b.value) return String(b.value).trim();
+      if (b && b.value) locked = String(b.value).trim();
     } catch (e) {}
-    return '';
+
+    if (!locked) {
+      try {
+        var host = form ? form.closest('.upsell[data-upsell-addon="true"]') : null;
+        if (host) {
+          locked = String((host.dataset && host.dataset.blLockedCollection) || host.getAttribute('data-bl-locked-collection') || '').trim();
+          if (!locked) locked = String(host.getAttribute('data-locked-collection') || '').trim();
+        }
+      } catch (e2) {}
+    }
+
+    if (!locked) {
+      try {
+        var poolEl = document.querySelector('#blPoolContext');
+        if (poolEl) {
+          locked = String((poolEl.dataset && poolEl.dataset.blPoolCollection) || poolEl.getAttribute('data-bl-pool-collection') || '').trim();
+        }
+      } catch (e3) {}
+    }
+
+    return locked;
   }
 
   function upsertHidden(form, key, value) {
@@ -1084,11 +1105,10 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
   } catch (e) {}
 
   // Ensure caches (pool only when we actually assign)
-  var pAll = assignNow ? M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle) : Promise.resolve(null);
   var pMap = M.fetchVariantMap();
 
   // Wrap everything so we ALWAYS release the computing lock
-  return Promise.all([pAll, pMap])
+  return pMap
     .then(function () {
       var sel = getSelectionFromForm(form, handle);
       var lockedCollection = getLockedCollectionFromForm(form);
@@ -1108,17 +1128,19 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         requestedCollection = lockedCollection;
       }
 
-      if (handle === M.CFG.mysteryAddonHandle && !lockedCollection) {
-        U.warn('[BL Mystery] Add-on missing locked collection; cannot assign');
-        debugLog('addon-missing-locked-collection', { handle: handle });
-        return false;
-      }
-
       var selectedCollectionHandle = (mode === M.CFG.modePreferredLabel)
         ? (requestedCollection || '')
         : M.CFG.defaultPoolCollectionHandle;
       if (handle === M.CFG.mysteryAddonHandle) {
         selectedCollectionHandle = lockedCollection || '';
+      }
+
+      if (handle === M.CFG.mysteryAddonHandle && !selectedCollectionHandle) {
+        if (isDebug()) {
+          console.warn('[BL Mystery][debug] Add-on missing locked collection; cannot assign');
+        }
+        debugLog('addon-missing-locked-collection', { handle: handle });
+        return false;
       }
 
       if (mode === M.CFG.modePreferredLabel && !selectedCollectionHandle) {
@@ -1135,6 +1157,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       });
 
       var poolHandleUsed = selectedCollectionHandle || M.CFG.defaultPoolCollectionHandle;
+      if (handle === M.CFG.mysteryAddonHandle) poolHandleUsed = selectedCollectionHandle || '';
 
       // IMPORTANT: include CURRENT variant id in signature (fixes "I changed variant but it didn't reroll")
       var currentVariantId = '';
@@ -1243,6 +1266,13 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       }
 
       // If forcing, we still overwrite everything (reroll)
+      if (!poolHandleUsed) {
+        if (isDebug()) {
+          console.warn('[BL Mystery][debug] Missing pool handle; skipping fetch.');
+        }
+        return false;
+      }
+
       return M.fetchPoolAllPages(poolHandleUsed).then(function () {
         var chosen = isAny
           ? chooseAssignedProductAny(poolHandleUsed, { excludeMap: excludeMap })
