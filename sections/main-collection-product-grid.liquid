@@ -27,10 +27,16 @@
 {%- endstyle -%}
 
 {%- paginate collection.products by 1000 -%}
-  {%- assign per_page = section.settings.products_per_page -%}
-  {%- assign current_page = request.params.page | default: 1 | plus: 0 -%}
-  {%- if current_page < 1 -%}
-    {%- assign current_page = 1 -%}
+  {%- assign per_page = section.settings.products_per_page | plus: 0 -%}
+  {%- assign qs = request.query_string | default: '' -%}
+  {%- assign current_page = 1 -%}
+  {%- if qs contains 'page=' -%}
+    {%- assign after = qs | split: 'page=' | last -%}
+    {%- assign page_str = after | split: '&' | first -%}
+    {%- assign current_page = page_str | plus: 0 -%}
+    {%- if current_page < 1 -%}
+      {%- assign current_page = 1 -%}
+    {%- endif -%}
   {%- endif -%}
   {%- assign total_visible = 0 -%}
   {%- for product in collection.products -%}
@@ -39,15 +45,11 @@
     {%- endif -%}
     {%- assign total_visible = total_visible | plus: 1 -%}
   {%- endfor -%}
-  {%- assign total_pages = 0 -%}
-  {%- if total_visible > 0 -%}
-    {%- assign total_pages = total_visible | divided_by: per_page -%}
-    {%- assign total_remainder = total_visible | modulo: per_page -%}
-    {%- if total_remainder > 0 -%}
-      {%- assign total_pages = total_pages | plus: 1 -%}
-    {%- endif -%}
+  {%- assign total_pages = total_visible | plus: per_page | minus: 1 | divided_by: per_page -%}
+  {%- if total_pages < 1 -%}
+    {%- assign total_pages = 1 -%}
   {%- endif -%}
-  {%- if total_pages > 0 and current_page > total_pages -%}
+  {%- if current_page > total_pages -%}
     {%- assign current_page = total_pages -%}
   {%- endif -%}
   {%- assign start_index = current_page | minus: 1 | times: per_page -%}
@@ -205,94 +207,41 @@
             <p class="caption-with-letter-spacing center">No products to display.</p>
           {%- endif -%}
 
+          {%- assign kept = '' | split: ',' -%}
+          {%- assign parts = qs | split: '&' -%}
+          {%- for p in parts -%}
+            {%- unless p == blank or p contains 'page=' -%}
+              {%- assign kept = kept | push: p -%}
+            {%- endunless -%}
+          {%- endfor -%}
+          {%- assign qs_clean = kept | join: '&' -%}
+          {%- capture page_href_prefix -%}{{ collection.url }}?{%- if qs_clean != blank -%}{{ qs_clean }}&{%- endif -%}page={%- endcapture -%}
+
           {%- if total_pages > 1 -%}
-            {%- assign qs_clean = request.query_string -%}
-            {%- if qs_clean != blank -%}
-              {%- assign qs_parts = qs_clean | split: '&' -%}
-              {%- assign cleaned_parts = '' -%}
-              {%- for part in qs_parts -%}
-                {%- if part == blank -%}
-                  {%- continue -%}
-                {%- endif -%}
-                {%- assign part_key = part | split: '=' | first -%}
-                {%- unless part_key == 'page' -%}
-                  {%- if cleaned_parts == '' -%}
-                    {%- assign cleaned_parts = part -%}
-                  {%- else -%}
-                    {%- assign cleaned_parts = cleaned_parts | append: '&' | append: part -%}
-                  {%- endif -%}
-                {%- endunless -%}
-              {%- endfor -%}
-              {%- assign qs_clean = cleaned_parts -%}
-            {%- endif -%}
             <div class="pagination-wrapper">
-              <nav class="pagination" role="navigation" aria-label="{{ 'general.pagination.label' | t }}">
+              <nav class="pagination" role="navigation" aria-label="Pagination">
                 <ul class="pagination__list list-unstyled" role="list">
                   {%- if current_page > 1 -%}
-                    {%- assign prev_page = current_page | minus: 1 -%}
                     <li>
-                      <a
-                        href="{{ collection.url }}{% if qs_clean == blank %}?page={{ prev_page }}{% else %}?{{ qs_clean }}&page={{ prev_page }}{% endif %}"
-                        class="pagination__item pagination__item--next pagination__item-arrow link motion-reduce"
-                        aria-label="{{ 'general.pagination.previous' | t }}"
-                      >
-                        {% render 'icon-caret' %}
-                      </a>
+                      <a class="pagination__item link" href="{{ page_href_prefix }}{{ current_page | minus: 1 }}">‹</a>
                     </li>
                   {%- endif -%}
 
-                  {%- assign last_page_rendered = 0 -%}
-                  {%- assign window_start = current_page | minus: 2 -%}
-                  {%- assign window_end = current_page | plus: 2 -%}
-                  {%- for page_number in (1..total_pages) -%}
-                    {%- assign show_page = false -%}
-                    {%- if page_number == 1 or page_number == total_pages -%}
-                      {%- assign show_page = true -%}
-                    {%- elsif page_number >= window_start and page_number <= window_end -%}
-                      {%- assign show_page = true -%}
-                    {%- endif -%}
-                    {%- if show_page -%}
-                      {%- assign next_expected = last_page_rendered | plus: 1 -%}
-                      {%- if last_page_rendered > 0 and page_number > next_expected -%}
-                        <li>
-                          <span class="pagination__item">…</span>
-                        </li>
-                      {%- endif -%}
+                  {%- for n in (1..total_pages) -%}
+                    {%- if n == current_page -%}
                       <li>
-                        {%- if page_number == current_page -%}
-                          <a
-                            role="link"
-                            aria-disabled="true"
-                            class="pagination__item pagination__item--current light"
-                            aria-current="page"
-                            aria-label="{{ 'general.pagination.page' | t: number: page_number }}"
-                          >
-                            {{ page_number }}
-                          </a>
-                        {%- else -%}
-                          <a
-                            href="{{ collection.url }}{% if qs_clean == blank %}?page={{ page_number }}{% else %}?{{ qs_clean }}&page={{ page_number }}{% endif %}"
-                            class="pagination__item link"
-                            aria-label="{{ 'general.pagination.page' | t: number: page_number }}"
-                          >
-                            {{ page_number }}
-                          </a>
-                        {%- endif -%}
+                        <span class="pagination__item pagination__item--current" aria-current="page">{{ n }}</span>
                       </li>
-                      {%- assign last_page_rendered = page_number -%}
+                    {%- else -%}
+                      <li>
+                        <a class="pagination__item link" href="{{ page_href_prefix }}{{ n }}">{{ n }}</a>
+                      </li>
                     {%- endif -%}
                   {%- endfor -%}
 
                   {%- if current_page < total_pages -%}
-                    {%- assign next_page = current_page | plus: 1 -%}
                     <li>
-                      <a
-                        href="{{ collection.url }}{% if qs_clean == blank %}?page={{ next_page }}{% else %}?{{ qs_clean }}&page={{ next_page }}{% endif %}"
-                        class="pagination__item pagination__item--prev pagination__item-arrow link motion-reduce"
-                        aria-label="{{ 'general.pagination.next' | t }}"
-                      >
-                        {%- render 'icon-caret' -%}
-                      </a>
+                      <a class="pagination__item link" href="{{ page_href_prefix }}{{ current_page | plus: 1 }}">›</a>
                     </li>
                   {%- endif -%}
                 </ul>
