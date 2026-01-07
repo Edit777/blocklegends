@@ -1,4 +1,20 @@
-{%- include 'bl-pool-collection', product: product, collection: collection -%}
+{%- liquid
+  assign excluded_handles = 'catalog,all,frontpage' | split: ','
+  assign pool_collection = nil
+
+  if collection and (excluded_handles contains collection.handle) == false
+    assign pool_collection = collection
+  endif
+
+  if pool_collection == nil and product != blank
+    for product_collection in product.collections
+      unless excluded_handles contains product_collection.handle
+        assign pool_collection = product_collection
+        break
+      endunless
+    endfor
+  endif
+-%}
 
 {%- liquid
   assign use_auto_collection = block.settings.enable_dynamic_recommendations
@@ -30,10 +46,6 @@
 
   if use_auto_collection
     assign source_collection = collections[block.settings.upsell_collection]
-
-    if source_collection == blank and collection
-      assign source_collection = collection
-    endif
 
     if source_collection == blank and pool_collection
       assign source_collection = pool_collection
