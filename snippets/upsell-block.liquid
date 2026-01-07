@@ -1,22 +1,8 @@
+{%- include 'bl-pool-collection', product: product, collection: collection -%}
+
 {%- liquid
   assign use_auto_collection = block.settings.enable_dynamic_recommendations
   assign current_product = product
-  assign excluded = 'catalog,all,frontpage' | split: ','
-  assign pool_collection = nil
-  if collection and (excluded contains collection.handle) == false
-    assign pool_collection = collection
-  endif
-  if pool_collection == nil
-    for c in current_product.collections
-      unless excluded contains c.handle
-        assign pool_collection = c
-        break
-      endunless
-    endfor
-  endif
-  if pool_collection == nil and collection
-    assign pool_collection = collection
-  endif
 
   # ----------------------------
   # ADD-ON CONFIG

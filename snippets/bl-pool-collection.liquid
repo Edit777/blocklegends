@@ -1,0 +1,24 @@
+{%- comment -%}
+  Determines the preferred pool collection for a product.
+  Expects: {% include 'bl-pool-collection', product: product, collection: collection %}
+{%- endcomment -%}
+
+{%- liquid
+  assign excluded_handles = 'catalog,all,frontpage' | split: ','
+  assign pool_collection = nil
+
+  if collection
+    unless excluded_handles contains collection.handle
+      assign pool_collection = collection
+    endunless
+  endif
+
+  if pool_collection == nil
+    for c in product.collections
+      unless excluded_handles contains c.handle
+        assign pool_collection = c
+        break
+      endunless
+    endfor
+  endif
+-%}
