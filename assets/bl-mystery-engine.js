@@ -409,8 +409,8 @@
       try {
         var host = form ? form.closest('.upsell[data-upsell-addon="true"]') : null;
         if (host) {
-          locked = String((host.dataset && host.dataset.blLockedCollection) || host.getAttribute('data-bl-locked-collection') || '').trim();
-          if (!locked) locked = String(host.getAttribute('data-locked-collection') || '').trim();
+          locked = String(host.getAttribute('data-locked-collection') || (host.dataset && host.dataset.lockedCollection) || '').trim();
+          if (!locked) locked = String((host.dataset && host.dataset.blLockedCollection) || host.getAttribute('data-bl-locked-collection') || '').trim();
         }
       } catch (e2) {}
     }
@@ -422,6 +422,14 @@
           locked = String((poolEl.dataset && poolEl.dataset.blPoolCollection) || poolEl.getAttribute('data-bl-pool-collection') || '').trim();
         }
       } catch (e3) {}
+    }
+
+    if (!locked) {
+      try {
+        if (window.BL && window.BL.debug === true) {
+          console.warn('[BL Mystery][debug] Missing locked collection handle');
+        }
+      } catch (e4) {}
     }
 
     return locked;
