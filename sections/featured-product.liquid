@@ -104,14 +104,31 @@
           {%- for block in section.blocks -%}
             {%- case block.type -%}
               {%- when 'product_collection' -%}
-                {%- assign primary_collection = collection | default: product.collections[0] -%}
-                {%- if primary_collection -%}
+                {%- liquid
+                  assign excluded = 'catalog,all,frontpage' | split: ','
+                  assign pool_collection = nil
+                  if collection and (excluded contains collection.handle) == false
+                    assign pool_collection = collection
+                  endif
+                  if pool_collection == nil
+                    for c in product.collections
+                      unless excluded contains c.handle
+                        assign pool_collection = c
+                        break
+                      endunless
+                    endfor
+                  endif
+                  if pool_collection == nil and collection
+                    assign pool_collection = collection
+                  endif
+                -%}
+                {%- if pool_collection -%}
                   <p class="product-collection">
                     <span class="product-collection__label">
                       {{ block.settings.label }}
                     </span>
-                    <a class="product-collection__link" href="{{ primary_collection.url }}">
-                      {{ primary_collection.title }}
+                    <a class="product-collection__link" href="{{ pool_collection.url }}">
+                      {{ pool_collection.title }}
                     </a>
                   </p>
                 {%- endif -%}
