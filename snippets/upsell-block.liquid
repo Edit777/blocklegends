@@ -21,7 +21,18 @@
 {%- liquid
   assign use_auto_collection = block.settings.enable_dynamic_recommendations
   assign current_product = product
-  assign bl_collection_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip | downcase
+  assign bl_pool_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip | downcase
+  assign bl_pool_handle = ''
+  assign bl_pool_title = ''
+
+  if pool_collection
+    assign bl_pool_handle = pool_collection.handle
+    assign bl_pool_title = pool_collection.title | escape
+  endif
+
+  if bl_pool_key == blank and bl_pool_handle != blank
+    assign bl_pool_key = bl_pool_handle
+  endif
 
   # ----------------------------
   # ADD-ON CONFIG
@@ -29,20 +40,8 @@
   assign addon_handle = 'mystery-add-on'
   assign addon_product = all_products[addon_handle]
 
-  # Primary collection for current product (lock add-on to this)
-  assign bl_primary_collection = ''
-  if bl_collection_key != blank
-    assign bl_primary_collection = bl_collection_key | append: '-legends-1'
-  elsif pool_collection != nil
-    assign bl_primary_collection = pool_collection.handle
-  endif
-
-  if excluded_handles contains bl_primary_collection
-    assign bl_primary_collection = ''
-  endif
-
   assign bl_addon_enabled = false
-  if addon_product != blank and bl_primary_collection != blank
+  if addon_product != blank and bl_pool_handle != blank
     assign bl_addon_enabled = true
   endif
 
@@ -485,22 +484,6 @@
   endif
 -%}
 
-{%- liquid
-  assign bl_locked_collection_title = ''
-  assign bl_locked_collection_obj = collections[bl_primary_collection]
-  if bl_locked_collection_obj != blank
-    assign bl_locked_collection_title = bl_locked_collection_obj.title
-  elsif bl_primary_collection != blank
-    assign bl_locked_collection_title = bl_primary_collection | replace: '-', ' ' | replace: '_', ' ' | capitalize
-  endif
-
-  assign bl_locked_collection_title_escaped = bl_locked_collection_title | escape
-  assign bl_locked_collection_attr = 'data-upsell-addon="true" data-locked-collection="' | append: bl_primary_collection | append: '" data-locked-collection-name="' | append: bl_locked_collection_title_escaped | append: '" data-bl-locked-collection="' | append: bl_primary_collection | append: '" data-bl-locked-collection-title="' | append: bl_locked_collection_title_escaped | append: '"'
-  assign bl_locked_collection_input = '<input type="hidden" name="properties[_bl_locked_collection]" value="' | append: bl_primary_collection | append: '">'
-  assign bl_locked_collection_name_input = '<input type="hidden" name="properties[_bl_locked_collection_name]" value="' | append: bl_locked_collection_title_escaped | append: '">'
-  assign bl_locked_collection_inputs = bl_locked_collection_input | append: '\n          ' | append: bl_locked_collection_name_input
--%}
-
 {%- capture bl_addon_markup -%}
   {% render 'bl-upsells-addon',
     type: type,
@@ -509,13 +492,14 @@
     current_product: current_product,
     addon_product: addon_product,
     addon_display: addon_display,
-    bl_primary_collection: bl_primary_collection,
+    bl_pool_key: bl_pool_key,
+    bl_pool_handle: bl_pool_handle,
+    bl_pool_title: bl_pool_title,
     bl_is_slider: bl_is_slider
   %}
 {%- endcapture -%}
 
-{%- assign bl_addon_markup = bl_addon_markup | replace_first: bl_locked_collection_input, bl_locked_collection_inputs -%}
-{{ bl_addon_markup | replace_first: 'data-upsell-addon="true"', bl_locked_collection_attr }}
+{{ bl_addon_markup }}
 
   {%- endif -%}
 

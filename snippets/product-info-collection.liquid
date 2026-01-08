@@ -31,40 +31,32 @@
 -%}
 
 {%- liquid
-  assign bl_collection_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip | downcase
-  assign bl_pool_collection_handle = ''
-  assign bl_pool_collection_title = ''
+  assign bl_pool_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip | downcase
+  assign bl_pool_handle = ''
+  assign bl_pool_title = ''
 
-  if bl_collection_key != blank
-    assign bl_pool_collection_handle = bl_collection_key | append: '-legends-1'
-  elsif pool_collection
-    assign bl_pool_collection_handle = pool_collection.handle
+  if pool_collection
+    assign bl_pool_handle = pool_collection.handle
+    assign bl_pool_title = pool_collection.title | escape
   endif
 
-  if excluded_handles contains bl_pool_collection_handle
-    assign bl_pool_collection_handle = ''
-  endif
-
-  assign bl_pool_collection_obj = nil
-  if bl_pool_collection_handle != blank
-    assign bl_pool_collection_obj = collections[bl_pool_collection_handle]
-  endif
-
-  if bl_pool_collection_obj != blank
-    assign bl_pool_collection_title = bl_pool_collection_obj.title | escape
-  elsif pool_collection
-    assign bl_pool_collection_title = pool_collection.title | escape
+  if bl_pool_key == blank and bl_pool_handle != blank
+    assign bl_pool_key = bl_pool_handle
   endif
 -%}
 
+{%- comment -%}
+  Canonical pool context for mystery add-on + rarity availability (consumed by JS).
+{%- endcomment -%}
 <div
   id="blPoolContext"
-  data-bl-pool-collection="{{ bl_pool_collection_handle }}"
-  data-bl-pool-title="{{ bl_pool_collection_title }}"
+  data-bl-pool-key="{{ bl_pool_key }}"
+  data-bl-pool-title="{{ bl_pool_title }}"
+  data-bl-pool-handle="{{ bl_pool_handle }}"
   hidden
 ></div>
 
-{%- assign bl_display_collection = bl_pool_collection_obj | default: pool_collection -%}
+{%- assign bl_display_collection = pool_collection -%}
 {%- if bl_display_collection -%}
   <p
     class="product-collection"
