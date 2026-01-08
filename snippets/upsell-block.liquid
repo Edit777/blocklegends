@@ -22,24 +22,26 @@
   assign use_auto_collection = block.settings.enable_dynamic_recommendations
   assign current_product = product
   assign bl_pool_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip
-  assign bl_pool_handle = ''
+  assign bl_pool_handle = product.metafields.custom.pool_collection_handle.value | default: product.metafields.custom.pool_collection_handle | strip
   assign bl_pool_title = ''
 
-  if pool_collection
+  if bl_pool_handle == blank and pool_collection
     assign bl_pool_handle = pool_collection.handle | strip
+  endif
+
+  if bl_pool_handle != blank
+    assign bl_pool_collection = collections[bl_pool_handle]
+    if bl_pool_collection
+      assign bl_pool_title = bl_pool_collection.title | strip | escape
+    endif
+  endif
+
+  if bl_pool_title == blank and pool_collection and pool_collection.handle == bl_pool_handle
     assign bl_pool_title = pool_collection.title | strip | escape
   endif
 
-  if bl_pool_key == blank and bl_pool_handle != blank
-    assign bl_pool_key = bl_pool_handle
-  endif
-
-  if bl_pool_handle == blank and bl_pool_key != blank
-    assign bl_pool_handle = bl_pool_key
-  endif
-
-  if bl_pool_title == blank and bl_pool_key != blank
-    assign bl_pool_title = bl_pool_key | replace: '-', ' ' | replace: '_', ' ' | capitalize | strip | escape
+  if bl_pool_title == blank and bl_pool_handle != blank
+    assign bl_pool_title = bl_pool_handle | replace: '-', ' ' | replace: '_', ' ' | capitalize | strip | escape
   endif
 
   # ----------------------------
@@ -49,7 +51,7 @@
   assign addon_product = all_products[addon_handle]
 
   assign bl_addon_enabled = false
-  if addon_product != blank and bl_pool_key != blank
+  if addon_product != blank and bl_pool_handle != blank
     assign bl_addon_enabled = true
   endif
 
