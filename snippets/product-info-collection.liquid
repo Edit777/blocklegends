@@ -36,12 +36,20 @@
   assign bl_pool_title = ''
 
   if pool_collection
-    assign bl_pool_handle = pool_collection.handle
-    assign bl_pool_title = pool_collection.title | escape
+    assign bl_pool_handle = pool_collection.handle | strip
+    assign bl_pool_title = pool_collection.title | strip | escape
   endif
 
   if bl_pool_key == blank and bl_pool_handle != blank
     assign bl_pool_key = bl_pool_handle
+  endif
+
+  if bl_pool_handle == blank and bl_pool_key != blank
+    assign bl_pool_handle = bl_pool_key
+  endif
+
+  if bl_pool_title == blank and bl_pool_key != blank
+    assign bl_pool_title = bl_pool_key | replace: '-', ' ' | replace: '_', ' ' | capitalize | strip | escape
   endif
 -%}
 

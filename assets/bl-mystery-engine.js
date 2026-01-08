@@ -92,6 +92,10 @@
 
     // Add-on locked collection (written by Liquid)
     propLockedCollectionLegacy: '_bl_locked_collection',
+    propLockedPoolKey: '_bl_locked_pool_key',
+    propLockedPoolHandle: '_bl_locked_pool_handle',
+    propLockedPoolTitle: '_bl_locked_pool_title',
+    propSelectedRarity: '_bl_selected_rarity',
 
     // Visible properties (for cart display; do NOT start with "_")
     propVisibleAssignedTitle: 'Assigned Figure',
@@ -423,8 +427,9 @@
   function getLockedCollectionFromForm(form) {
     var locked = '';
     try {
-      var b = form.querySelector('[name="properties[' + M.CFG.propLockedCollectionLegacy + ']"]');
-      if (b && b.value) locked = String(b.value).trim();
+      locked = getPropertyValue(form, M.CFG.propLockedPoolHandle)
+        || getPropertyValue(form, M.CFG.propLockedCollectionLegacy)
+        || getPropertyValue(form, M.CFG.propLockedPoolKey);
     } catch (e) {}
 
     if (locked) {
@@ -457,6 +462,9 @@
         var poolEl = document.querySelector('#blPoolContext');
         if (poolEl) {
           locked = String((poolEl.dataset && poolEl.dataset.blPoolHandle) || poolEl.getAttribute('data-bl-pool-handle') || '').trim();
+          if (!locked) {
+            locked = String((poolEl.dataset && poolEl.dataset.blPoolKey) || poolEl.getAttribute('data-bl-pool-key') || '').trim();
+          }
           if (locked && isInvalidLockedHandle(locked)) {
             debugLockedCollection({ handle: locked, source: 'pool-context', rejected: true });
             locked = '';
@@ -570,6 +578,15 @@
       });
     } catch (e) {}
     return props;
+  }
+
+  function getPropertyValue(form, key) {
+    if (!form || !key) return '';
+    try {
+      var input = form.querySelector('[name="properties[' + key.replace(/"/g, '\\"') + ']"]');
+      if (input && input.value) return String(input.value).trim();
+    } catch (e) {}
+    return '';
   }
 
   function mirrorPropertiesToItems(form, props) {
@@ -1079,6 +1096,15 @@
   };
 
   function getSelectionFromForm(form, productHandle) {
+    if (productHandle === M.CFG.mysteryAddonHandle) {
+      var selected = getPropertyValue(form, M.CFG.propSelectedRarity)
+        || getPropertyValue(form, '_bl_requested_rarity')
+        || getPropertyValue(form, M.CFG.propRequestedTier);
+      if (selected) {
+        return { rarity: normalizeRarity(selected), mode: M.CFG.modePreferredLabel };
+      }
+    }
+
     // A) Parse DOM title
     var title = getVariantTitleFromForm(form);
     var parsed = parseSelectionFromText(title);
