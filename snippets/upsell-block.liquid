@@ -99,6 +99,17 @@
   endif
 -%}
 
+{%- comment -%}
+  Canonical pool context for mystery add-on + rarity availability (consumed by JS).
+{%- endcomment -%}
+<div
+  id="blPoolContext"
+  data-bl-pool-key="{{ bl_pool_key }}"
+  data-bl-pool-title="{{ bl_pool_title }}"
+  data-bl-pool-handle="{{ bl_pool_handle }}"
+  hidden
+></div>
+
 <div
   class='{{ type }}-upsells-container{% if display_count > 1 and block.settings.stacking == "column" %} upsells-container--stacked-columns{% endif %}{% if display_count > 1 and block.settings.stacking == "slider" %} side-margins-negative{% endif %}'
   style="

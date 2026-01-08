@@ -104,7 +104,7 @@
     } catch (e) {}
   }
 
-  // Canonical pool context (defined in snippets/product-info-collection.liquid).
+  // Canonical pool context (defined in snippets/upsell-block.liquid).
   function getPoolContext() {
     var ctx = { key: '', title: '', handle: '' };
     try {
@@ -754,6 +754,12 @@ function ensureCssOnce() {
     return normalized;
   }
 
+  function normalizeRarityForIndex(rarity) {
+    var r = String(rarity || '').toLowerCase();
+    if (r === 'special' || r === 'mythical') return 'legendary';
+    return r;
+  }
+
   function getVariantRarity(variantId) {
     try {
       if (M && typeof M.getVariantSelection === 'function') {
@@ -899,9 +905,9 @@ function ensureCssOnce() {
     }
 
     return loadPoolIndex().then(function (index) {
-      if (!index || !index.pools) return false;
+      if (!index) return false;
 
-      var pool = index.pools[key];
+      var pool = index[key];
       if (!pool) return false;
 
       var anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase();
@@ -911,6 +917,9 @@ function ensureCssOnce() {
 
       Object.keys(perRarityDistinct || {}).forEach(function (rarityKey) {
         counts[String(rarityKey || '').toLowerCase()] = Number(perRarityDistinct[rarityKey] || 0);
+      });
+      ['common', 'rare', 'epic', 'legendary'].forEach(function (rarityKey) {
+        if (typeof counts[rarityKey] === 'undefined') counts[rarityKey] = 0;
       });
 
       if (shouldDebug()) {
@@ -929,7 +938,7 @@ function ensureCssOnce() {
 
       Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
         var vid = String(opt.value || '').trim();
-        var rarity = getVariantRarity(vid);
+        var rarity = normalizeRarityForIndex(getVariantRarity(vid));
         var eligibleFlag = true;
 
         if (rarity === anyKey) {
@@ -938,7 +947,7 @@ function ensureCssOnce() {
           eligibleFlag = (counts[rarity] || 0) >= MIN_DISTINCT_FOR_SPECIFIC;
         }
         opt.disabled = !eligibleFlag;
-        opt.hidden = !eligibleFlag;
+        opt.hidden = false;
         if (eligibleFlag) enabledOptions.push(opt);
       });
 

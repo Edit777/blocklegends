@@ -1,51 +1,52 @@
 {
-  "generated_at": "2026-01-08T05:01:56Z",
-  "source": "products_export_1 (17).csv",
-  "pools": {
-    "albuquerque": {
-      "totalDistinct": 5,
-      "perRarityDistinct": {
-        "common": 2,
-        "epic": 1,
-        "legendary": 1,
-        "rare": 1
-      }
+  "albuquerque": {
+    "generatedAt": "2026-01-08T05:32:45Z",
+    "perRarityDistinct": {
+      "common": 2,
+      "epic": 1,
+      "legendary": 1,
+      "rare": 1
     },
-    "clash": {
-      "totalDistinct": 4,
-      "perRarityDistinct": {
-        "common": 1,
-        "epic": 1,
-        "legendary": 1,
-        "rare": 1
-      }
+    "totalDistinct": 5
+  },
+  "clash": {
+    "generatedAt": "2026-01-08T05:32:45Z",
+    "perRarityDistinct": {
+      "common": 1,
+      "epic": 1,
+      "legendary": 1,
+      "rare": 1
     },
-    "hawkins": {
-      "totalDistinct": 11,
-      "perRarityDistinct": {
-        "common": 4,
-        "epic": 4,
-        "rare": 3
-      }
+    "totalDistinct": 4
+  },
+  "hawkins": {
+    "generatedAt": "2026-01-08T05:32:45Z",
+    "perRarityDistinct": {
+      "common": 4,
+      "epic": 4,
+      "legendary": 3,
+      "rare": 3
     },
-    "magic": {
-      "totalDistinct": 41,
-      "perRarityDistinct": {
-        "common": 14,
-        "epic": 9,
-        "legendary": 4,
-        "rare": 13,
-        "special": 1
-      }
+    "totalDistinct": 14
+  },
+  "magic": {
+    "generatedAt": "2026-01-08T05:32:45Z",
+    "perRarityDistinct": {
+      "common": 14,
+      "epic": 9,
+      "legendary": 5,
+      "rare": 13
     },
-    "superheroes": {
-      "totalDistinct": 78,
-      "perRarityDistinct": {
-        "common": 26,
-        "epic": 16,
-        "legendary": 12,
-        "rare": 24
-      }
-    }
+    "totalDistinct": 41
+  },
+  "superheroes": {
+    "generatedAt": "2026-01-08T05:32:45Z",
+    "perRarityDistinct": {
+      "common": 26,
+      "epic": 16,
+      "legendary": 13,
+      "rare": 24
+    },
+    "totalDistinct": 79
   }
 }

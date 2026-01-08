@@ -53,17 +53,6 @@
   endif
 -%}
 
-{%- comment -%}
-  Canonical pool context for mystery add-on + rarity availability (consumed by JS).
-{%- endcomment -%}
-<div
-  id="blPoolContext"
-  data-bl-pool-key="{{ bl_pool_key }}"
-  data-bl-pool-title="{{ bl_pool_title }}"
-  data-bl-pool-handle="{{ bl_pool_handle }}"
-  hidden
-></div>
-
 {%- assign bl_display_collection = pool_collection -%}
 {%- if bl_display_collection -%}
   <p

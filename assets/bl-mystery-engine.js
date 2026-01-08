@@ -424,20 +424,29 @@
     return restoreOriginalVariantId(form);
   };
 
-  function getLockedCollectionFromForm(form) {
+  function getLockedPoolMetaFromForm(form) {
+    var meta = { key: '', handle: '', title: '', source: '' };
     var locked = '';
     try {
-      locked = getPropertyValue(form, M.CFG.propLockedPoolHandle)
+      meta.key = getPropertyValue(form, M.CFG.propLockedPoolKey) || '';
+      meta.handle = getPropertyValue(form, M.CFG.propLockedPoolHandle)
         || getPropertyValue(form, M.CFG.propLockedCollectionLegacy)
-        || getPropertyValue(form, M.CFG.propLockedPoolKey);
+        || '';
+      meta.title = getPropertyValue(form, M.CFG.propLockedPoolTitle)
+        || getPropertyValue(form, '_bl_locked_collection_title')
+        || getPropertyValue(form, '_bl_locked_collection_name')
+        || '';
+      meta.source = 'form';
     } catch (e) {}
 
+    locked = meta.key || meta.handle;
     if (locked) {
       if (isInvalidLockedHandle(locked)) {
-        debugLockedCollection({ handle: locked, source: 'form', rejected: true });
-        locked = '';
+        debugLockedCollection({ handle: locked, source: meta.source || 'form', rejected: true });
+        meta.key = '';
+        meta.handle = '';
       } else {
-        debugLockedCollection({ handle: locked, source: 'form', rejected: false });
+        debugLockedCollection({ handle: locked, source: meta.source || 'form', rejected: false });
       }
     }
 
@@ -445,13 +454,18 @@
       try {
         var host = form ? form.closest('.upsell[data-upsell-addon="true"]') : null;
         if (host) {
-          locked = String(host.getAttribute('data-locked-collection') || (host.dataset && host.dataset.lockedCollection) || '').trim();
-          if (!locked) locked = String((host.dataset && host.dataset.blLockedCollection) || host.getAttribute('data-bl-locked-collection') || '').trim();
+          meta.handle = String(host.getAttribute('data-locked-collection') || (host.dataset && host.dataset.lockedCollection) || '').trim();
+          if (!meta.handle) {
+            meta.handle = String((host.dataset && host.dataset.blLockedCollection) || host.getAttribute('data-bl-locked-collection') || '').trim();
+          }
+          meta.source = 'wrapper';
+          locked = meta.key || meta.handle;
           if (locked && isInvalidLockedHandle(locked)) {
-            debugLockedCollection({ handle: locked, source: 'wrapper', rejected: true });
+            debugLockedCollection({ handle: locked, source: meta.source, rejected: true });
+            meta.handle = '';
             locked = '';
           } else if (locked) {
-            debugLockedCollection({ handle: locked, source: 'wrapper', rejected: false });
+            debugLockedCollection({ handle: locked, source: meta.source, rejected: false });
           }
         }
       } catch (e2) {}
@@ -461,15 +475,20 @@
       try {
         var poolEl = document.querySelector('#blPoolContext');
         if (poolEl) {
-          locked = String((poolEl.dataset && poolEl.dataset.blPoolHandle) || poolEl.getAttribute('data-bl-pool-handle') || '').trim();
-          if (!locked) {
-            locked = String((poolEl.dataset && poolEl.dataset.blPoolKey) || poolEl.getAttribute('data-bl-pool-key') || '').trim();
+          meta.handle = String((poolEl.dataset && poolEl.dataset.blPoolHandle) || poolEl.getAttribute('data-bl-pool-handle') || '').trim();
+          if (!meta.handle) {
+            meta.key = String((poolEl.dataset && poolEl.dataset.blPoolKey) || poolEl.getAttribute('data-bl-pool-key') || '').trim();
           }
+          meta.title = String((poolEl.dataset && poolEl.dataset.blPoolTitle) || poolEl.getAttribute('data-bl-pool-title') || meta.title || '').trim();
+          meta.source = 'pool-context';
+          locked = meta.key || meta.handle;
           if (locked && isInvalidLockedHandle(locked)) {
-            debugLockedCollection({ handle: locked, source: 'pool-context', rejected: true });
+            debugLockedCollection({ handle: locked, source: meta.source, rejected: true });
+            meta.key = '';
+            meta.handle = '';
             locked = '';
           } else if (locked) {
-            debugLockedCollection({ handle: locked, source: 'pool-context', rejected: false });
+            debugLockedCollection({ handle: locked, source: meta.source, rejected: false });
           }
         }
       } catch (e3) {}
@@ -484,7 +503,12 @@
       } catch (e4) {}
     }
 
-    return locked;
+    return meta;
+  }
+
+  function getLockedCollectionFromForm(form) {
+    var meta = getLockedPoolMetaFromForm(form);
+    return meta.key || meta.handle;
   }
 
   function upsertHidden(form, key, value) {
@@ -1203,7 +1227,8 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
   return pMap
     .then(function () {
       var sel = getSelectionFromForm(form, handle);
-      var lockedCollection = getLockedCollectionFromForm(form);
+      var lockedMeta = getLockedPoolMetaFromForm(form);
+      var lockedCollection = lockedMeta.key || lockedMeta.handle;
 
       // Add-on forced preferred mode
       if (handle === M.CFG.mysteryAddonHandle) sel.mode = M.CFG.modePreferredLabel;
@@ -1245,7 +1270,8 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         handle: selectedCollectionHandle,
         mode: mode,
         requestedCollection: requestedCollection,
-        lockedCollection: lockedCollection
+        lockedCollection: lockedCollection,
+        lockedTitle: lockedMeta.title || ''
       });
 
       var poolHandleUsed = selectedCollectionHandle || M.CFG.defaultPoolCollectionHandle;
@@ -1337,7 +1363,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           assignedSku: existingProps._bl_assigned_sku || '',
           mode: mode,
           rarity: isAny ? M.CFG.anyRarityKey : rarity,
-          collection: preferredCollectionSafe
+          collection: lockedMeta.title || preferredCollectionSafe
         });
         logDebugState('assignment-reuse', {
           handle: handle,
@@ -1484,7 +1510,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           assignedSku: assignedSku || '',
           mode: mode,
           rarity: isAny ? M.CFG.anyRarityKey : rarity,
-          collection: preferredCollectionSafe
+          collection: lockedMeta.title || preferredCollectionSafe
         });
 
         // Cache signature (includes variant id now)
