@@ -726,6 +726,7 @@
         anyCandidates[String(p.handle || '').trim()] = {
           handle: p.handle,
           title: p.title,
+          real_name: p.real_name || '',
           variant_id: vid,
           rarity: rawR ? normalizeRarity(rawR) : '',
           collection_key: p.collection_key || ''
@@ -753,6 +754,7 @@
       var baseItem = {
         handle: p.handle,
         title: p.title,
+        real_name: p.real_name || '',
         variant_id: vid,
         rarity: rarity,
         collection_key: collectionKey
@@ -1458,7 +1460,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         var addedAssigned = resolved.added;
         var baseHandleAssigned = String(baseAssigned.handle || '').trim();
         var addedHandleAssigned = String(addedAssigned.handle || baseHandleAssigned).trim();
-        var assignedTitle = baseAssigned.title || addedAssigned.title || '';
+        var assignedTitle = baseAssigned.real_name || baseAssigned.title || addedAssigned.real_name || addedAssigned.title || '';
         var assignedVariantId = addedAssigned.variant_id;
         var assignedRarity = baseAssigned.rarity || rarity;
 

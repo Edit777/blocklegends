@@ -31,11 +31,28 @@
   }
 
   function isDebug() {
-    try { return window.BL_DEBUG === true; } catch (e) { return false; }
+    try {
+      if (window.BL && typeof window.BL.isDebug === 'function') return window.BL.isDebug();
+      if (window.BL && window.BL.debug === true) return true;
+      return window.BL_DEBUG === true;
+    } catch (e) {
+      return false;
+    }
   }
 
   function shouldDebug() {
     return isDebug();
+  }
+
+  function getMinDistinctForSpecific() {
+    var min = MIN_DISTINCT_FOR_SPECIFIC;
+    try {
+      if (M && M.CFG && typeof M.CFG.preferredMinPerRarity !== 'undefined') {
+        min = Number(M.CFG.preferredMinPerRarity);
+      }
+    } catch (e) {}
+    if (!isFinite(min) || min < 0) min = MIN_DISTINCT_FOR_SPECIFIC;
+    return min;
   }
 
   function debugLog() {
@@ -879,6 +896,11 @@ function ensureCssOnce() {
       }
     }
 
+    if (card && card.getAttribute('data-update-prices') === 'true') {
+      card.setAttribute('data-price', String(displayPrice));
+      card.setAttribute('data-compare-price', String(displayCompare));
+    }
+
     // image
     var img = card.querySelector('img.upsell__image__img');
     if (img && v.image) {
@@ -936,6 +958,8 @@ function ensureCssOnce() {
       var switched = false;
       var enabledOptions = [];
 
+      var minSpecific = getMinDistinctForSpecific();
+
       Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
         var vid = String(opt.value || '').trim();
         var rarity = normalizeRarityForIndex(getVariantRarity(vid));
@@ -944,7 +968,7 @@ function ensureCssOnce() {
         if (rarity === anyKey) {
           eligibleFlag = totalDistinct >= MIN_DISTINCT_FOR_ANY;
         } else if (rarity) {
-          eligibleFlag = (counts[rarity] || 0) >= MIN_DISTINCT_FOR_SPECIFIC;
+          eligibleFlag = (counts[rarity] || 0) >= minSpecific;
         }
         opt.disabled = !eligibleFlag;
         opt.hidden = false;
