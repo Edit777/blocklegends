@@ -14,6 +14,7 @@ TITLE_FIELD = 'Title'
 EXCLUDE_FIELD = 'Exclude from Mystery (product.metafields.custom.exclude_from_mystery)'
 STATUS_FIELD = 'Status'
 HANDLE_FIELD = 'Handle'
+TITLE_EXCLUDE = 'mystery figure'
 
 EXCLUDED_HANDLES = {
     'mystery-add-on',
@@ -31,13 +32,6 @@ ALLOWED_RARITIES = {
     'legendary',
 }
 
-TITLE_SUFFIXES = [
-    '— Block Legends Figure',
-    '– Block Legends Figure',
-    '- Block Legends Figure',
-]
-
-
 def normalize_bool(value: str) -> bool:
     value = (value or '').strip().lower()
     return value in {'true', '1', 'yes', 'y'}
@@ -50,14 +44,14 @@ def normalize_pool_key(value: str) -> str:
 def normalize_identity(real_name: str, title: str) -> str:
     identity = (real_name or '').strip()
     if identity:
-        return identity
+        return ' '.join(identity.split())
 
     cleaned = (title or '').strip()
-    for suffix in TITLE_SUFFIXES:
-        if cleaned.endswith(suffix):
-            cleaned = cleaned[: -len(suffix)].strip()
-            break
-    return cleaned
+    return ' '.join(cleaned.split())
+
+
+def normalize_title(value: str) -> str:
+    return ' '.join((value or '').strip().lower().split())
 
 
 def normalize_rarity(value: str) -> str:
@@ -82,6 +76,10 @@ def main() -> None:
                 continue
 
             if normalize_bool(row.get(EXCLUDE_FIELD)):
+                continue
+
+            title_value = normalize_title(row.get(TITLE_FIELD))
+            if title_value == TITLE_EXCLUDE:
                 continue
 
             handle_value = (row.get(HANDLE_FIELD) or '').strip().lower()

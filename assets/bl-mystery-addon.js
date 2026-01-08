@@ -981,6 +981,12 @@ function ensureCssOnce() {
         per_rarity_distinct: counts,
         enabled_options: enabledOptions.map(function (opt) { return opt.value; })
       });
+      logAddonDebug('addon-availability', {
+        poolKey: key,
+        totalDistinct: totalDistinct,
+        perRarityDistinct: counts,
+        enabledOptions: enabledOptions.map(function (opt) { return opt.value; })
+      });
 
       // fallback if current disabled (prefer Any)
       var cur = String(selectEl.value || '').trim();
