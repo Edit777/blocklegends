@@ -287,21 +287,21 @@
     card.className = 'bl-mystery-card';
 
     card.innerHTML = [
-      '<div class="bl-mystery-row" data-bl-mode-row>\n',
-      '  <div class="bl-mystery-label">Mode</div>\n',
-      '  <div class="bl-pill-group" data-bl-mode-group>\n',
-      '    <button type="button" class="bl-pill" data-mode="random">' + MODE_LABELS.random + '</button>\n',
-      '    <button type="button" class="bl-pill" data-mode="preferred">' + MODE_LABELS.preferred + '</button>\n',
-      '  </div>\n',
-      '</div>\n',
-      '<div class="bl-mystery-row" data-bl-rarity-row>\n',
-      '  <div class="bl-mystery-label">Rarity</div>\n',
-      '  <div class="bl-pill-group" data-bl-rarity-group></div>\n',
-      '</div>\n',
-      '<div class="bl-mystery-row bl-collection-row" data-bl-collection-row style="display:none;">\n',
-      '  <div class="bl-mystery-label">Collection</div>\n',
-      '  <select class="bl-collection-select" data-bl-collection-select></select>\n',
-      '</div>\n',
+      '<div class="bl-mystery-row" data-bl-mode-row>',
+      '  <div class="bl-mystery-label">Mode</div>',
+      '  <div class="bl-pill-group" data-bl-mode-group>',
+      '    <button type="button" class="bl-pill" data-mode="random">' + MODE_LABELS.random + '</button>',
+      '    <button type="button" class="bl-pill" data-mode="preferred">' + MODE_LABELS.preferred + '</button>',
+      '  </div>',
+      '</div>',
+      '<div class="bl-mystery-row" data-bl-rarity-row>',
+      '  <div class="bl-mystery-label">Rarity</div>',
+      '  <div class="bl-pill-group" data-bl-rarity-group></div>',
+      '</div>',
+      '<div class="bl-mystery-row bl-collection-row" data-bl-collection-row style="display:none;">',
+      '  <div class="bl-mystery-label">Collection</div>',
+      '  <select class="bl-collection-select" data-bl-collection-select></select>',
+      '</div>',
       '<div class="bl-mystery-helper" data-bl-helper role="status" aria-live="polite"></div>'
     ].join('');
 

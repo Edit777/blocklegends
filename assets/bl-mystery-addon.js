@@ -19,6 +19,8 @@
   var observer = null;
   var observerRunning = false;
   var RARITY_ORDER = ['any', 'common', 'rare', 'epic', 'legendary', 'special', 'mythical'];
+  var MIN_DISTINCT_FOR_SPECIFIC = 3;
+  var MIN_DISTINCT_FOR_ANY = 1;
 
   function getAddonHandle() {
     try {
@@ -115,30 +117,47 @@
     return ctx;
   }
 
-  function resolveLockedCollection() {
+  function getPoolContextFromCard(card) {
+    var ctx = { key: '', title: '', handle: '' };
+    if (!card) return ctx;
+    try {
+      ctx.key = String((card.dataset && card.dataset.blPoolKey) || card.getAttribute('data-bl-pool-key') || '').trim();
+      ctx.title = String((card.dataset && card.dataset.blPoolTitle) || card.getAttribute('data-bl-pool-title') || '').trim();
+      ctx.handle = String((card.dataset && card.dataset.blPoolHandle) || card.getAttribute('data-bl-pool-handle') || '').trim();
+      if (!ctx.handle) {
+        ctx.handle = String((card.dataset && card.dataset.lockedCollection) || card.getAttribute('data-locked-collection') || '').trim();
+      }
+    } catch (e) {}
+    return ctx;
+  }
+
+  function resolveLockedCollection(card) {
     var ctx = getPoolContext();
-    var handle = ctx.handle;
+    if (!ctx.key && !ctx.handle) ctx = getPoolContextFromCard(card);
+    var key = ctx.key || ctx.handle;
+    var handle = ctx.handle || ctx.key;
+    var title = ctx.title;
     if (shouldDebug()) {
       try {
         console.log('[BL Mystery Addon][debug] pool context resolved', {
-          poolKey: ctx.key,
-          poolTitle: ctx.title,
-          poolHandle: ctx.handle
+          poolKey: key,
+          poolTitle: title,
+          poolHandle: handle
         });
       } catch (e) {}
     }
     if (handle && isInvalidLockedHandle(handle)) {
-      debugLockedCollection({ handle: handle, title: ctx.title, source: 'pool-context', rejected: true });
+      debugLockedCollection({ handle: handle, title: title, source: 'pool-context', rejected: true });
       handle = '';
     } else if (handle) {
-      debugLockedCollection({ handle: handle, title: ctx.title, source: 'pool-context', rejected: false });
+      debugLockedCollection({ handle: handle, title: title, source: 'pool-context', rejected: false });
     }
 
     if (!handle && shouldDebug()) {
-      debugLockedCollection({ handle: '', title: ctx.title, source: 'pool-context', rejected: true });
+      debugLockedCollection({ handle: '', title: title, source: 'pool-context', rejected: true });
     }
 
-    return { handle: handle, title: ctx.title, key: ctx.key };
+    return { handle: handle, title: title, key: key };
   }
 
   var addonVariantIdsPromise = null;
@@ -535,6 +554,24 @@ function ensureCssOnce() {
     return el;
   }
 
+  function setAddonProperties(form, meta, rarity) {
+    if (!form) return;
+    var locked = meta && meta.handle ? meta.handle : '';
+    var key = meta && meta.key ? meta.key : '';
+    var title = meta && meta.title ? meta.title : '';
+    ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+    ensureHidden(form, '_bl_locked_collection_name', title);
+    ensureHidden(form, '_bl_locked_collection_title', title);
+    ensureHidden(form, '_bl_locked_pool_key', key);
+    ensureHidden(form, '_bl_locked_pool_handle', locked);
+    ensureHidden(form, '_bl_locked_pool_title', title);
+    ensureHidden(form, '_bl_selected_rarity', rarity || '');
+    ensureHidden(form, '_bl_requested_rarity', rarity || '');
+    if (M && M.CFG && M.CFG.propRequestedTier) {
+      ensureHidden(form, M.CFG.propRequestedTier, rarity || '');
+    }
+  }
+
   function collectProperties(form) {
     var props = {};
     if (!form) return props;
@@ -603,7 +640,7 @@ function ensureCssOnce() {
   }
 
   function getLockedCollectionMeta(card, form) {
-    return resolveLockedCollection();
+    return resolveLockedCollection(card);
   }
 
   function getLockedCollectionKey(card, form) {
@@ -868,13 +905,12 @@ function ensureCssOnce() {
       if (!pool) return false;
 
       var anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase();
+      var totalDistinct = Number(pool.totalDistinct || 0);
+      var perRarityDistinct = pool.perRarityDistinct || {};
       var counts = {};
-      var totalCount = 0;
-      Object.keys(pool).forEach(function (rarityKey) {
-        var entry = pool[rarityKey];
-        var count = entry && typeof entry.count === 'number' ? entry.count : 0;
-        counts[rarityKey] = count;
-        totalCount += count;
+
+      Object.keys(perRarityDistinct || {}).forEach(function (rarityKey) {
+        counts[String(rarityKey || '').toLowerCase()] = Number(perRarityDistinct[rarityKey] || 0);
       });
 
       if (shouldDebug()) {
@@ -882,12 +918,14 @@ function ensureCssOnce() {
           console.log('[BL Mystery Addon][debug] pool availability', {
             poolKey: key,
             poolTitle: formatCollectionName(card),
-            counts: counts
+            totalDistinct: totalDistinct,
+            perRarityDistinct: counts
           });
         } catch (e) {}
       }
 
       var switched = false;
+      var enabledOptions = [];
 
       Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
         var vid = String(opt.value || '').trim();
@@ -895,41 +933,52 @@ function ensureCssOnce() {
         var eligibleFlag = true;
 
         if (rarity === anyKey) {
-          eligibleFlag = totalCount > 0;
+          eligibleFlag = totalDistinct >= MIN_DISTINCT_FOR_ANY;
         } else if (rarity) {
-          eligibleFlag = (counts[rarity] || 0) > 0;
+          eligibleFlag = (counts[rarity] || 0) >= MIN_DISTINCT_FOR_SPECIFIC;
         }
         opt.disabled = !eligibleFlag;
         opt.hidden = !eligibleFlag;
+        if (eligibleFlag) enabledOptions.push(opt);
       });
 
       logAddonDebug('addon-eligibility-updated', {
         pool_key: key,
-        availability: counts,
-        select: selectEl,
-        options: Array.prototype.slice.call(selectEl.options || []).map(function (opt) {
-          return {
-            value: opt.value,
-            disabled: opt.disabled,
-            hidden: opt.hidden
-          };
-        })
+        total_distinct: totalDistinct,
+        per_rarity_distinct: counts,
+        enabled_options: enabledOptions.map(function (opt) { return opt.value; })
       });
 
-      // fallback if current disabled
+      // fallback if current disabled (prefer Any)
       var cur = String(selectEl.value || '').trim();
       var curOpt = selectEl.querySelector('option[value="' + cur.replace(/"/g, '\\"') + '"]');
       if (curOpt && curOpt.disabled) {
         var fallback = '';
+        var anyFallback = '';
 
         for (var i = 0; i < selectEl.options.length; i++) {
-          if (!selectEl.options[i].disabled) { fallback = String(selectEl.options[i].value); break; }
+          var opt = selectEl.options[i];
+          if (opt.disabled) continue;
+          var r = getVariantRarity(String(opt.value || '').trim());
+          if (r === anyKey && !anyFallback) anyFallback = String(opt.value);
+          if (!fallback) fallback = String(opt.value);
         }
 
-        if (fallback && fallback !== cur) {
-          selectEl.value = fallback;
+        var target = anyFallback || fallback;
+        if (target && target !== cur) {
+          selectEl.value = target;
           switched = true;
         }
+      }
+
+      if (shouldDebug()) {
+        try {
+          console.log('[BL Mystery Addon][debug] addon-selection', {
+            poolKey: key,
+            selected: selectEl.value,
+            enabled: enabledOptions.map(function (opt) { return opt.value; })
+          });
+        } catch (e) {}
       }
 
       return switched;
@@ -1032,18 +1081,22 @@ function ensureCssOnce() {
     var lockedTitle = lockedMeta.title;
     var poolKey = lockedMeta.key;
     var parentHandle = String(card.getAttribute('data-parent-handle') || '').trim();
+    var hasPoolContext = !!(poolKey && locked);
 
     if (form) {
       ensureHidden(form, '_bl_is_addon', '1');
       if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
-      if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
-      if (lockedTitle) ensureHidden(form, '_bl_locked_collection_name', lockedTitle);
-      if (lockedTitle) ensureHidden(form, '_bl_locked_collection_title', lockedTitle);
+      setAddonProperties(form, lockedMeta, getVariantRarity(card.getAttribute('data-id') || ''));
       var parentUidInput = ensureHidden(form, '_bl_parent_uid', '');
       if (parentUidInput && !parentUidInput.value) parentUidInput.value = generateUid('bl-parent');
 
       form.addEventListener('submit', function (evt) {
-        if (!locked) {
+        lockedMeta = getLockedCollectionMeta(card, form);
+        locked = lockedMeta.handle;
+        lockedTitle = lockedMeta.title;
+        poolKey = lockedMeta.key;
+        hasPoolContext = !!(poolKey && locked);
+        if (!hasPoolContext) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
           if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
           return;
@@ -1051,9 +1104,7 @@ function ensureCssOnce() {
         logAddonDebug('addon-submit', { locked_collection: locked, pool_key: poolKey });
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
-        if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
-        if (lockedTitle) ensureHidden(form, '_bl_locked_collection_name', lockedTitle);
-        if (lockedTitle) ensureHidden(form, '_bl_locked_collection_title', lockedTitle);
+        setAddonProperties(form, lockedMeta, getVariantRarity(selectEl ? selectEl.value : ''));
         var submitParentUid = ensureHidden(form, '_bl_parent_uid', '');
         if (submitParentUid && !submitParentUid.value) submitParentUid.value = generateUid('bl-parent');
 
@@ -1075,14 +1126,17 @@ function ensureCssOnce() {
     // ensure variant map is ready, then eligibility, then apply
     (M && typeof M.fetchVariantMap === 'function' ? M.fetchVariantMap() : Promise.resolve())
       .then(function () {
-        if (!locked) {
+        if (!hasPoolContext) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
           logAddonDebug('addon-collection-missing', { locked_collection: locked });
+          if (selectEl) selectEl.disabled = true;
           return false;
         }
         return disableIneligibleOptions(card, variants, selectEl, poolKey);
       })
       .then(function (switched) {
+        var selectedRarity = getVariantRarity(selectEl ? selectEl.value : initialId);
+        setAddonProperties(form, lockedMeta, selectedRarity);
         applyVariant(card, variants, selectEl ? selectEl.value : initialId);
         updateHint(card, selectEl);
         if (switched) {
@@ -1100,12 +1154,15 @@ function ensureCssOnce() {
         locked = lockedMeta.handle;
         lockedTitle = lockedMeta.title;
         poolKey = lockedMeta.key;
-        if (!locked) {
+        hasPoolContext = !!(poolKey && locked);
+        if (!hasPoolContext) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
           logAddonDebug('addon-collection-missing', { locked_collection: locked });
+          if (selectEl) selectEl.disabled = true;
           return;
         }
         disableIneligibleOptions(card, variants, selectEl, poolKey).then(function (switched) {
+          setAddonProperties(form, lockedMeta, getVariantRarity(selectEl.value));
           applyVariant(card, variants, selectEl.value);
           updateHint(card, selectEl);
           if (switched) {
@@ -1175,4 +1232,20 @@ function ensureCssOnce() {
       bindCard(card);
     });
   };
+
+  function initOnReady() {
+    try {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { A.init(document); });
+      } else {
+        A.init(document);
+      }
+    } catch (e) {}
+  }
+
+  initOnReady();
+
+  document.addEventListener('shopify:section:load', function (evt) {
+    try { A.init(evt && evt.target ? evt.target : document); } catch (e) {}
+  });
 })();
