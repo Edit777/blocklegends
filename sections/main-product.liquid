@@ -108,6 +108,7 @@
         class="product__info-container main-product__info-container"
       >
         {%- assign product_form_id = 'product-form-' | append: section.id -%}
+        {% render 'bl-pool-context', product: product, collection: collection %}
 
         {%- for block in section.blocks -%}
           {%- case block.type -%}

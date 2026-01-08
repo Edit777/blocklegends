@@ -503,6 +503,17 @@
       } catch (e4) {}
     }
 
+    if (shouldDebug()) {
+      try {
+        console.log('[BL Mystery][debug] pool context resolved', {
+          poolKey: meta.key || '',
+          poolHandle: meta.handle || '',
+          poolTitle: meta.title || '',
+          source: meta.source || ''
+        });
+      } catch (e5) {}
+    }
+
     return meta;
   }
 
@@ -781,6 +792,7 @@
 
     return byR;
   }
+  M.buildPoolIndex = buildPoolIndex;
 
   function fetchPoolPage(collectionHandle, page) {
     var url = '/collections/' + encodeURIComponent(collectionHandle) +

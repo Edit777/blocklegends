@@ -13,7 +13,7 @@
   assign addon_preselected = block.settings.prdouct_3_preselected
   assign addon_featured_image = block.settings.product_3_image
   assign addon_description = block.settings.product_3_desc
-  assign addon_description_clean = addon_description | replace: '\n', '' | replace: '\\n', '' | strip
+  assign addon_description_clean = addon_description | strip_newlines | replace: '\n', '' | replace: '\\n', '' | strip
   assign addon_percentage_discount = block.settings.product_3_percentage_discount | plus: 0
   assign addon_percentage_left = 100.0 | minus: addon_percentage_discount | divided_by: 100.0
   assign addon_fixed_discount = block.settings.product_3_fixed_amount_discount | times: 100.0

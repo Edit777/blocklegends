@@ -100,6 +100,7 @@
           data-url="{{ product.url }}"
         >
           {%- assign product_form_id = 'product-form-' | append: section.id -%}
+          {% render 'bl-pool-context', product: product, collection: collection %}
 
           {%- for block in section.blocks -%}
             {%- case block.type -%}
