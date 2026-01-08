@@ -181,8 +181,8 @@
   function resolveLockedCollection(card) {
     var ctx = getPoolContext();
     if (!ctx.key && !ctx.handle) ctx = getPoolContextFromCard(card);
-    var key = ctx.key || ctx.handle;
-    var handle = ctx.handle || ctx.key;
+    var key = ctx.key || '';
+    var handle = ctx.handle || '';
     var title = ctx.title;
     if (shouldDebug()) {
       try {
@@ -398,8 +398,6 @@
       mergedProps._bl_assign_uid = assignUid;
       mergedProps._bl_is_addon = '1';
       mergedProps._bl_parent_uid = addonParentUid;
-      if (!mergedProps._bl_assigned_variant_id && id) mergedProps._bl_assigned_variant_id = id;
-
       if (props._bl_parent_handle && !mergedProps._bl_parent_handle) mergedProps._bl_parent_handle = props._bl_parent_handle;
       if (props._bl_locked_collection && !mergedProps._bl_locked_collection) mergedProps._bl_locked_collection = props._bl_locked_collection;
 
@@ -668,8 +666,79 @@ function ensureCssOnce() {
   }
 
   var poolAvailabilityPromises = {};
+  var poolValidationPromises = {};
   function normalizePoolHandle(handle) {
     return String(handle || '').trim();
+  }
+
+  function getPoolView() {
+    return (M && M.CFG && M.CFG.poolView) ? M.CFG.poolView : 'mystery';
+  }
+
+  function validatePoolEndpoint(handle, meta) {
+    var poolHandle = normalizePoolHandle(handle);
+    var poolView = getPoolView();
+    var url = poolHandle
+      ? '/collections/' + encodeURIComponent(poolHandle) + '?view=' + encodeURIComponent(poolView)
+      : '';
+
+    if (!poolHandle) {
+      logAddonDebug('pool-validation-missing-handle', {
+        poolKey: meta && meta.key ? meta.key : '',
+        poolHandle: poolHandle,
+        url: url
+      });
+      return Promise.resolve({ ok: false, reason: 'missing-handle', status: 0, url: url, length: 0 });
+    }
+
+    if (poolValidationPromises[poolHandle]) return poolValidationPromises[poolHandle];
+
+    poolValidationPromises[poolHandle] = fetch(url, { credentials: 'same-origin' })
+      .then(function (response) {
+        var status = response.status;
+        return response.text().then(function (text) {
+          var parsedOk = false;
+          var data = null;
+          var length = 0;
+          try {
+            data = JSON.parse(text || '{}');
+            parsedOk = true;
+          } catch (e) {
+            parsedOk = false;
+          }
+
+          if (parsedOk && data && Array.isArray(data.products)) length = data.products.length;
+
+          var hasFields = parsedOk && data && Array.isArray(data.products) && (data.collection || data.collection_handle);
+          var ok = status === 200 && hasFields;
+
+          logAddonDebug('pool-validation-response', {
+            poolKey: meta && meta.key ? meta.key : '',
+            poolHandle: poolHandle,
+            url: url,
+            status: status,
+            parsed: parsedOk,
+            length: length
+          });
+
+          if (!ok) {
+            return { ok: false, reason: 'bad-handle-view', status: status, url: url, length: length };
+          }
+
+          return { ok: true, status: status, url: url, length: length, data: data };
+        });
+      })
+      .catch(function (err) {
+        logAddonDebug('pool-validation-error', {
+          poolKey: meta && meta.key ? meta.key : '',
+          poolHandle: poolHandle,
+          url: url,
+          error: String(err || '')
+        });
+        return { ok: false, reason: 'fetch-error', status: 0, url: url, length: 0 };
+      });
+
+    return poolValidationPromises[poolHandle];
   }
 
   function normalizeDistinctIdentity(item) {
@@ -705,6 +774,41 @@ function ensureCssOnce() {
       perRarityDistinct: perRarityDistinct,
       totalDistinct: Object.keys(totalSet).length
     };
+  }
+
+  function enableAnyOnlyOption(selectEl) {
+    if (!selectEl) return [];
+    var anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase();
+    var enabledOptions = [];
+    var anyFound = false;
+
+    Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
+      var rarity = normalizeRarityForIndex(getVariantRarity(String(opt.value || '').trim()));
+      var isAny = rarity === anyKey;
+      if (isAny) {
+        opt.disabled = false;
+        anyFound = true;
+        enabledOptions.push(opt);
+      } else {
+        opt.disabled = true;
+      }
+      opt.hidden = false;
+    });
+
+    if (!anyFound && selectEl.options.length) {
+      selectEl.options[0].disabled = false;
+      enabledOptions.push(selectEl.options[0]);
+    }
+
+    if (enabledOptions.length) {
+      selectEl.value = String(enabledOptions[0].value || '');
+    }
+
+    logAddonDebug('addon-availability-fallback', {
+      enabled_options: enabledOptions.map(function (opt) { return opt.value; })
+    });
+
+    return enabledOptions;
   }
 
   function loadPoolAvailability(handle) {
@@ -918,6 +1022,31 @@ function ensureCssOnce() {
     }, 5000);
   }
 
+  function handlePoolFailure(card, selectEl, lockedMeta, result) {
+    var reason = result && result.reason ? result.reason : '';
+    var message = 'Pool unavailable (bad handle/view)';
+    if (!lockedMeta || !lockedMeta.handle) {
+      message = 'This add-on is unavailable because a locked collection could not be determined.';
+    } else if (reason === 'bad-handle-view') {
+      message = 'Pool unavailable (bad handle/view)';
+    }
+
+    showNotice(card, message);
+    if (selectEl) {
+      setAddonDisabled(card, selectEl, false);
+      enableAnyOnlyOption(selectEl);
+      updateHint(card, selectEl);
+    }
+
+    logAddonDebug('addon-pool-failure', {
+      pool_handle: lockedMeta && lockedMeta.handle ? lockedMeta.handle : '',
+      pool_key: lockedMeta && lockedMeta.key ? lockedMeta.key : '',
+      reason: reason,
+      validation: result && result.validation ? result.validation : null
+    });
+    return false;
+  }
+
   function applyVariant(card, variants, variantId) {
     var v = variants.find(function (x) { return String(x.id) === String(variantId); }) || variants[0];
     if (!v) return;
@@ -988,108 +1117,121 @@ function ensureCssOnce() {
   }
 
   function disableIneligibleOptions(card, variants, selectEl, lockedMeta) {
-    if (!selectEl) return Promise.resolve(false);
+    if (!selectEl) return Promise.resolve({ ok: false, reason: 'missing-select', switched: false });
 
     var poolHandle = normalizePoolHandle(lockedMeta && lockedMeta.handle ? lockedMeta.handle : '');
     if (!poolHandle) {
       logAddonDebug('addon-pool-handle-missing', { pool_handle: poolHandle });
-      return Promise.resolve(false);
+      return Promise.resolve({ ok: false, reason: 'missing-handle', switched: false });
     }
 
-    return loadPoolAvailability(poolHandle).then(function (availability) {
-      if (!availability) return false;
-
-      var anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase();
-      var totalDistinct = Number(availability.totalDistinct || 0);
-      var perRarityDistinct = availability.perRarityDistinct || {};
-      var counts = {};
-
-      Object.keys(perRarityDistinct || {}).forEach(function (rarityKey) {
-        counts[String(rarityKey || '').toLowerCase()] = Number(perRarityDistinct[rarityKey] || 0);
-      });
-      ['common', 'rare', 'epic', 'legendary'].forEach(function (rarityKey) {
-        if (typeof counts[rarityKey] === 'undefined') counts[rarityKey] = 0;
-      });
-
-      if (shouldDebug()) {
-        try {
-          console.log('[BL Mystery Addon][debug] pool availability', {
-            poolHandle: poolHandle,
-            poolTitle: formatCollectionName(card),
-            totalDistinct: totalDistinct,
-            perRarityDistinct: counts
-          });
-        } catch (e) {}
+    return validatePoolEndpoint(poolHandle, lockedMeta).then(function (validation) {
+      if (!validation || !validation.ok) {
+        return {
+          ok: false,
+          reason: (validation && validation.reason) || 'validation-failed',
+          switched: false,
+          validation: validation || null
+        };
       }
 
-      var switched = false;
-      var enabledOptions = [];
-
-      var minSpecific = getMinDistinctForSpecific();
-
-      Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
-        var vid = String(opt.value || '').trim();
-        var rarity = normalizeRarityForIndex(getVariantRarity(vid));
-        var eligibleFlag = true;
-
-        if (rarity === anyKey) {
-          eligibleFlag = totalDistinct >= MIN_DISTINCT_FOR_ANY;
-        } else if (rarity) {
-          eligibleFlag = (counts[rarity] || 0) >= minSpecific;
-        }
-        opt.disabled = !eligibleFlag;
-        opt.hidden = false;
-        if (eligibleFlag) enabledOptions.push(opt);
-      });
-
-      logAddonDebug('addon-eligibility-updated', {
-        pool_handle: poolHandle,
-        total_distinct: totalDistinct,
-        per_rarity_distinct: counts,
-        enabled_options: enabledOptions.map(function (opt) { return opt.value; })
-      });
-      logAddonDebug('addon-availability', {
-        poolHandle: poolHandle,
-        totalDistinct: totalDistinct,
-        perRarityDistinct: counts,
-        enabledOptions: enabledOptions.map(function (opt) { return opt.value; })
-      });
-
-      // fallback if current disabled (prefer Any)
-      var cur = String(selectEl.value || '').trim();
-      var curOpt = selectEl.querySelector('option[value="' + cur.replace(/"/g, '\\"') + '"]');
-      if (curOpt && curOpt.disabled) {
-        var fallback = '';
-        var anyFallback = '';
-
-        for (var i = 0; i < selectEl.options.length; i++) {
-          var opt = selectEl.options[i];
-          if (opt.disabled) continue;
-          var r = getVariantRarity(String(opt.value || '').trim());
-          if (r === anyKey && !anyFallback) anyFallback = String(opt.value);
-          if (!fallback) fallback = String(opt.value);
+      return loadPoolAvailability(poolHandle).then(function (availability) {
+        if (!availability) {
+          return { ok: false, reason: 'availability-missing', switched: false, validation: validation };
         }
 
-        var target = anyFallback || fallback;
-        if (target && target !== cur) {
-          selectEl.value = target;
-          switched = true;
+        var anyKey = String((M && M.CFG && M.CFG.anyRarityKey) || 'any').toLowerCase();
+        var totalDistinct = Number(availability.totalDistinct || 0);
+        var perRarityDistinct = availability.perRarityDistinct || {};
+        var counts = {};
+
+        Object.keys(perRarityDistinct || {}).forEach(function (rarityKey) {
+          counts[String(rarityKey || '').toLowerCase()] = Number(perRarityDistinct[rarityKey] || 0);
+        });
+        ['common', 'rare', 'epic', 'legendary'].forEach(function (rarityKey) {
+          if (typeof counts[rarityKey] === 'undefined') counts[rarityKey] = 0;
+        });
+
+        if (shouldDebug()) {
+          try {
+            console.log('[BL Mystery Addon][debug] pool availability', {
+              poolHandle: poolHandle,
+              poolTitle: formatCollectionName(card),
+              totalDistinct: totalDistinct,
+              perRarityDistinct: counts
+            });
+          } catch (e) {}
         }
-      }
 
-      if (shouldDebug()) {
-        try {
-          console.log('[BL Mystery Addon][debug] addon-selection', {
-            poolHandle: poolHandle,
-            selected: selectEl.value,
-            enabled: enabledOptions.map(function (opt) { return opt.value; })
-          });
-        } catch (e) {}
-      }
+        var switched = false;
+        var enabledOptions = [];
+        var minSpecific = getMinDistinctForSpecific();
 
-      return switched;
-    }).catch(function () {
-      return false;
+        Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
+          var vid = String(opt.value || '').trim();
+          var rarity = normalizeRarityForIndex(getVariantRarity(vid));
+          var eligibleFlag = true;
+
+          if (rarity === anyKey) {
+            eligibleFlag = totalDistinct >= MIN_DISTINCT_FOR_ANY;
+          } else if (rarity) {
+            eligibleFlag = (counts[rarity] || 0) >= minSpecific;
+          }
+          opt.disabled = !eligibleFlag;
+          opt.hidden = false;
+          if (eligibleFlag) enabledOptions.push(opt);
+        });
+
+        logAddonDebug('addon-eligibility-updated', {
+          pool_handle: poolHandle,
+          total_distinct: totalDistinct,
+          per_rarity_distinct: counts,
+          min_specific: minSpecific,
+          enabled_options: enabledOptions.map(function (opt) { return opt.value; })
+        });
+        logAddonDebug('addon-availability', {
+          poolHandle: poolHandle,
+          totalDistinct: totalDistinct,
+          perRarityDistinct: counts,
+          enabledOptions: enabledOptions.map(function (opt) { return opt.value; })
+        });
+
+        // fallback if current disabled (prefer Any)
+        var cur = String(selectEl.value || '').trim();
+        var curOpt = selectEl.querySelector('option[value="' + cur.replace(/"/g, '\\"') + '"]');
+        if (curOpt && curOpt.disabled) {
+          var fallback = '';
+          var anyFallback = '';
+
+          for (var i = 0; i < selectEl.options.length; i++) {
+            var opt = selectEl.options[i];
+            if (opt.disabled) continue;
+            var r = getVariantRarity(String(opt.value || '').trim());
+            if (r === anyKey && !anyFallback) anyFallback = String(opt.value);
+            if (!fallback) fallback = String(opt.value);
+          }
+
+          var target = anyFallback || fallback;
+          if (target && target !== cur) {
+            selectEl.value = target;
+            switched = true;
+          }
+        }
+
+        if (shouldDebug()) {
+          try {
+            console.log('[BL Mystery Addon][debug] addon-selection', {
+              poolHandle: poolHandle,
+              selected: selectEl.value,
+              enabled: enabledOptions.map(function (opt) { return opt.value; })
+            });
+          } catch (e) {}
+        }
+
+        return { ok: true, switched: switched, counts: counts, enabledOptions: enabledOptions, validation: validation };
+      });
+    }).catch(function (err) {
+      return { ok: false, reason: 'availability-error', switched: false, error: err || null };
     });
   }
 
@@ -1167,6 +1309,154 @@ function ensureCssOnce() {
     card.setAttribute('data-bl-addon-disabled', disabled ? 'true' : 'false');
   }
 
+  function findAddonForm(card) {
+    if (!card) return null;
+    return (
+      card.querySelector('form[data-type="add-to-cart-form"]') ||
+      card.querySelector('form[action^="/cart/add"]') ||
+      card.querySelector('form')
+    );
+  }
+
+  function getAssignedVariantIdFromForm(form) {
+    if (!form) return '';
+    var props = collectProperties(form);
+    return props._bl_assigned_variant_id || props[(M && M.CFG && M.CFG.propAssignedVariantId) || '_assigned_variant_id'] || '';
+  }
+
+  function addAssignedVariantToCart(card, form, assignedVariantId) {
+    if (!assignedVariantId) return Promise.resolve(false);
+    var props = collectProperties(form);
+    var payload = {
+      id: assignedVariantId,
+      quantity: 1,
+      properties: props
+    };
+
+    logAddonDebug('addon-plus-add-to-cart', {
+      assigned_variant_id: assignedVariantId,
+      payload: payload
+    });
+
+    return fetch('/cart/add.js', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    }).then(function (resp) {
+      logAddonDebug('addon-plus-add-to-cart-response', {
+        status: resp.status,
+        assigned_variant_id: assignedVariantId
+      });
+      if (!resp.ok) return false;
+      return resp.json().then(function () { return true; }).catch(function () { return true; });
+    });
+  }
+
+  function handleAddonPlusClick(card, button) {
+    if (!card || !M || typeof M.computeAndApplyAssignment !== 'function') return;
+    if (card.__blAddonAdding) return;
+    card.__blAddonAdding = true;
+
+    var form = findAddonForm(card);
+    if (!form) {
+      showNotice(card, 'Unable to add add-on because the form is missing.');
+      card.__blAddonAdding = false;
+      return;
+    }
+
+    var selectEl = findSelectEl(card);
+    var lockedMeta = getLockedCollectionMeta(card, form);
+    var lockedHandle = lockedMeta.handle;
+    var poolKey = lockedMeta.key;
+    var rarity = selectEl ? getVariantRarity(selectEl.value) : '';
+
+    logAddonDebug('addon-plus-click', {
+      poolKey: poolKey,
+      poolHandle: lockedHandle,
+      rarity: rarity
+    });
+
+    if (!lockedHandle) {
+      showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
+      card.__blAddonAdding = false;
+      return;
+    }
+
+    ensureHidden(form, '_bl_is_addon', '1');
+    var parentHandle = String(card.getAttribute('data-parent-handle') || '').trim();
+    if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
+
+    var parentUidInput = ensureHidden(form, '_bl_parent_uid', '');
+    if (parentUidInput && !parentUidInput.value) parentUidInput.value = generateUid('bl-parent');
+
+    setAddonProperties(form, lockedMeta, rarity);
+
+    validatePoolEndpoint(lockedHandle, lockedMeta)
+      .then(function (validation) {
+        if (!validation || !validation.ok) {
+          handlePoolFailure(card, selectEl, lockedMeta, validation || {});
+          return { aborted: true };
+        }
+        return M.computeAndApplyAssignment(form, getAddonHandle(), { force: true });
+      })
+      .then(function (assignedOk) {
+        if (assignedOk && assignedOk.aborted) return false;
+        if (!assignedOk) {
+          showNotice(card, 'Unable to assign a figure from the pool.');
+          logAddonDebug('addon-plus-assignment-failed', { pool_handle: lockedHandle, pool_key: poolKey });
+          return false;
+        }
+
+        var assignedVariantId = getAssignedVariantIdFromForm(form);
+        if (!assignedVariantId) {
+          showNotice(card, 'Unable to assign a figure from the pool.');
+          logAddonDebug('addon-plus-assignment-missing', { pool_handle: lockedHandle, pool_key: poolKey });
+          return false;
+        }
+
+        return addAssignedVariantToCart(card, form, assignedVariantId).then(function (ok) {
+          if (!ok) {
+            showNotice(card, 'Unable to add the assigned figure to cart.');
+            return false;
+          }
+          return true;
+        });
+      })
+      .catch(function (err) {
+        logAddonDebug('addon-plus-add-error', { error: String(err || '') });
+        showNotice(card, 'Unable to add the assigned figure to cart.');
+      })
+      .then(function () {
+        card.__blAddonAdding = false;
+      }, function () {
+        card.__blAddonAdding = false;
+      });
+  }
+
+  var addonPlusHandlerBound = false;
+  function bindAddonPlusHandler() {
+    if (addonPlusHandlerBound) return;
+    addonPlusHandlerBound = true;
+
+    document.addEventListener('click', function (evt) {
+      var target = evt && evt.target ? evt.target : null;
+      if (!target || !target.closest) return;
+      var button = target.closest('.upsell__plus-btn');
+      if (!button) return;
+      var card = button.closest('.upsell[data-upsell-addon="true"]');
+      if (!card) return;
+
+      evt.preventDefault();
+      evt.stopPropagation();
+
+      handleAddonPlusClick(card, button);
+    });
+  }
+
   function bindCard(card) {
     if (card.__blAddonBound) return;
     card.__blAddonBound = true;
@@ -1195,7 +1485,7 @@ function ensureCssOnce() {
     var lockedTitle = lockedMeta.title;
     var poolKey = lockedMeta.key;
     var parentHandle = String(card.getAttribute('data-parent-handle') || '').trim();
-    var hasPoolContext = !!(poolKey && locked);
+    var hasPoolContext = !!locked;
 
     if (form) {
       ensureHidden(form, '_bl_is_addon', '1');
@@ -1209,10 +1499,10 @@ function ensureCssOnce() {
         locked = lockedMeta.handle;
         lockedTitle = lockedMeta.title;
         poolKey = lockedMeta.key;
-        hasPoolContext = !!(poolKey && locked);
+        hasPoolContext = !!locked;
         if (!hasPoolContext) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
-          setAddonDisabled(card, selectEl, true);
+          setAddonDisabled(card, selectEl, false);
           if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
           return;
         }
@@ -1244,18 +1534,24 @@ function ensureCssOnce() {
         if (!hasPoolContext) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
           logAddonDebug('addon-collection-missing', { locked_collection: locked });
-          setAddonDisabled(card, selectEl, true);
-          return false;
+          setAddonDisabled(card, selectEl, false);
+          return { ok: false, reason: 'missing-handle' };
         }
         setAddonDisabled(card, selectEl, false);
         return disableIneligibleOptions(card, variants, selectEl, lockedMeta);
       })
-      .then(function (switched) {
+      .then(function (result) {
+        if (!result || !result.ok) {
+          handlePoolFailure(card, selectEl, lockedMeta, result || {});
+          applyVariant(card, variants, selectEl ? selectEl.value : initialId);
+          updateHint(card, selectEl);
+          return;
+        }
         var selectedRarity = getVariantRarity(selectEl ? selectEl.value : initialId);
         setAddonProperties(form, lockedMeta, selectedRarity);
         applyVariant(card, variants, selectEl ? selectEl.value : initialId);
         updateHint(card, selectEl);
-        if (switched) {
+        if (result.switched) {
           showNotice(card, 'Some rarities are not available for this collection right now. Switched to an available option.');
         }
       })
@@ -1270,19 +1566,25 @@ function ensureCssOnce() {
         locked = lockedMeta.handle;
         lockedTitle = lockedMeta.title;
         poolKey = lockedMeta.key;
-        hasPoolContext = !!(poolKey && locked);
+        hasPoolContext = !!locked;
         if (!hasPoolContext) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
           logAddonDebug('addon-collection-missing', { locked_collection: locked });
-          setAddonDisabled(card, selectEl, true);
+          setAddonDisabled(card, selectEl, false);
           return;
         }
         setAddonDisabled(card, selectEl, false);
-        disableIneligibleOptions(card, variants, selectEl, lockedMeta).then(function (switched) {
+        disableIneligibleOptions(card, variants, selectEl, lockedMeta).then(function (result) {
+          if (!result || !result.ok) {
+            handlePoolFailure(card, selectEl, lockedMeta, result || {});
+            applyVariant(card, variants, selectEl.value);
+            updateHint(card, selectEl);
+            return;
+          }
           setAddonProperties(form, lockedMeta, getVariantRarity(selectEl.value));
           applyVariant(card, variants, selectEl.value);
           updateHint(card, selectEl);
-          if (switched) {
+          if (result.switched) {
             showNotice(card, 'Some rarities are not available for this collection right now. Switched to an available option.');
           }
         });
@@ -1301,14 +1603,18 @@ function ensureCssOnce() {
           var updatedLocked = updatedLockedMeta.handle;
           if (updatedSelect && updatedLocked) {
             setAddonDisabled(card, updatedSelect, false);
-            disableIneligibleOptions(card, variants, updatedSelect, updatedLockedMeta).then(function (switched) {
-              if (switched) {
+            disableIneligibleOptions(card, variants, updatedSelect, updatedLockedMeta).then(function (result) {
+              if (!result || !result.ok) {
+                handlePoolFailure(card, updatedSelect, updatedLockedMeta, result || {});
+                return;
+              }
+              if (result.switched) {
                 showNotice(card, 'Some rarities are not available for this collection right now. Switched to an available option.');
               }
             });
           } else if (!updatedLocked) {
             showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
-            setAddonDisabled(card, updatedSelect, true);
+            setAddonDisabled(card, updatedSelect, false);
           }
           // do NOT rebuild layout; only keep price/hint accurate
           if (updatedSelect) {
@@ -1339,6 +1645,7 @@ function ensureCssOnce() {
     if (!U || !M || !M.CFG) return;
 
     startObserver();
+    bindAddonPlusHandler();
 
     var cards = (U && typeof U.qsa === 'function')
       ? U.qsa(root, '.upsell[data-upsell-addon="true"]')
