@@ -456,7 +456,7 @@
       try {
         var poolEl = document.querySelector('#blPoolContext');
         if (poolEl) {
-          locked = String((poolEl.dataset && poolEl.dataset.blPoolCollection) || poolEl.getAttribute('data-bl-pool-collection') || '').trim();
+          locked = String((poolEl.dataset && poolEl.dataset.blPoolHandle) || poolEl.getAttribute('data-bl-pool-handle') || '').trim();
           if (locked && isInvalidLockedHandle(locked)) {
             debugLockedCollection({ handle: locked, source: 'pool-context', rejected: true });
             locked = '';
