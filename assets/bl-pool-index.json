@@ -1,6 +1,6 @@
 {
   "albuquerque": {
-    "generatedAt": "2026-01-08T05:32:45Z",
+    "generatedAt": "2026-01-08T06:54:33Z",
     "perRarityDistinct": {
       "common": 2,
       "epic": 1,
@@ -10,7 +10,7 @@
     "totalDistinct": 5
   },
   "clash": {
-    "generatedAt": "2026-01-08T05:32:45Z",
+    "generatedAt": "2026-01-08T06:54:33Z",
     "perRarityDistinct": {
       "common": 1,
       "epic": 1,
@@ -20,17 +20,17 @@
     "totalDistinct": 4
   },
   "hawkins": {
-    "generatedAt": "2026-01-08T05:32:45Z",
+    "generatedAt": "2026-01-08T06:54:33Z",
     "perRarityDistinct": {
       "common": 4,
       "epic": 4,
-      "legendary": 3,
+      "legendary": 0,
       "rare": 3
     },
-    "totalDistinct": 14
+    "totalDistinct": 11
   },
   "magic": {
-    "generatedAt": "2026-01-08T05:32:45Z",
+    "generatedAt": "2026-01-08T06:54:33Z",
     "perRarityDistinct": {
       "common": 14,
       "epic": 9,
@@ -40,13 +40,13 @@
     "totalDistinct": 41
   },
   "superheroes": {
-    "generatedAt": "2026-01-08T05:32:45Z",
+    "generatedAt": "2026-01-08T06:54:33Z",
     "perRarityDistinct": {
       "common": 26,
       "epic": 16,
-      "legendary": 13,
+      "legendary": 12,
       "rare": 24
     },
-    "totalDistinct": 79
+    "totalDistinct": 78
   }
 }
