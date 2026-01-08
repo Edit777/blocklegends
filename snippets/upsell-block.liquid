@@ -1,32 +1,35 @@
 {%- liquid
-  assign excluded_handles = 'catalog,all,frontpage' | split: ','
-  assign pool_collection = nil
-
-  if collection
-    unless excluded_handles contains collection.handle
-      assign pool_collection = collection
-    endunless
-  endif
-
-  if pool_collection == nil and product != blank
-    for product_collection in product.collections
-      unless excluded_handles contains product_collection.handle
-        assign pool_collection = product_collection
-        break
-      endunless
-    endfor
-  endif
--%}
-
-{%- liquid
   assign use_auto_collection = block.settings.enable_dynamic_recommendations
   assign current_product = product
+  assign excluded_handles = 'catalog,all,frontpage' | split: ','
   assign bl_pool_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip
-  assign bl_pool_handle = product.metafields.custom.pool_collection_handle.value | default: product.metafields.custom.pool_collection_handle | strip
+  assign pool_collection = nil
   assign bl_pool_title = ''
 
+  if bl_pool_key == blank
+    if collection
+      unless excluded_handles contains collection.handle
+        assign pool_collection = collection
+      endunless
+    endif
+
+    if pool_collection == nil and product != blank
+      for product_collection in product.collections
+        unless excluded_handles contains product_collection.handle
+          assign pool_collection = product_collection
+          break
+        endunless
+      endfor
+    endif
+  endif
+
+  assign bl_pool_handle = bl_pool_key
   if bl_pool_handle == blank and pool_collection
     assign bl_pool_handle = pool_collection.handle | strip
+  endif
+
+  if bl_pool_key == blank and bl_pool_handle != blank
+    assign bl_pool_key = bl_pool_handle
   endif
 
   if bl_pool_handle != blank
@@ -104,16 +107,9 @@
 {%- comment -%}
   Canonical pool context for mystery add-on + rarity availability (consumed by JS).
 {%- endcomment -%}
-<div
-  id="blPoolContext"
-  data-pool-key="{{ bl_pool_key }}"
-  data-pool-title="{{ bl_pool_title }}"
-  data-pool-handle="{{ bl_pool_handle }}"
-  data-bl-pool-key="{{ bl_pool_key }}"
-  data-bl-pool-title="{{ bl_pool_title }}"
-  data-bl-pool-handle="{{ bl_pool_handle }}"
-  hidden
-></div>
+{%- if type != 'product-info' -%}
+  {% render 'bl-pool-context', product: product, collection: collection %}
+{%- endif -%}
 
 <div
   class='{{ type }}-upsells-container{% if display_count > 1 and block.settings.stacking == "column" %} upsells-container--stacked-columns{% endif %}{% if display_count > 1 and block.settings.stacking == "slider" %} side-margins-negative{% endif %}'

@@ -66,6 +66,17 @@
     }
   }
 
+  function cancelPending(txnId, reason) {
+    inFlight = Math.max(0, inFlight - 1);
+    if (pendingTxnId === txnId) {
+      pendingCartUpdate = false;
+      pendingTxnId = 0;
+      pendingInternal = false;
+      clearTimeout(pendingExpireTimer);
+    }
+    log('cart mutation cancelled', { txnId, reason: reason || 'unknown' });
+  }
+
   function markDrawerDirty() {
     // Ignore drawer churn (e.g., timers) unless a cart mutation is pending
     if (!pendingCartUpdate && inFlight === 0) return;
@@ -198,12 +209,19 @@
         window.BL.mysteryAddon &&
         typeof window.BL.mysteryAddon.enrichCartAddFormData === 'function';
 
-      try {
-        if (shouldEnrich) {
-          try { await window.BL.mysteryAddon.enrichCartAddFormData(init.body); }
-          catch (e) { log('cart add enrich error', e); }
+      if (shouldEnrich) {
+        try {
+          const enrichOk = await window.BL.mysteryAddon.enrichCartAddFormData(init.body);
+          if (enrichOk === false) {
+            cancelPending(txnId, 'addon-enrich-failed');
+            return Promise.reject(new Error('Addon enrichment failed'));
+          }
+        } catch (e) {
+          log('cart add enrich error', e);
         }
+      }
 
+      try {
         const res = await origFetch(input, init);
         return res;
       } finally {
@@ -242,7 +260,7 @@
       return origSetRequestHeader.apply(this, arguments);
     };
 
-    XHR.prototype.send = function () {
+    XHR.prototype.send = function (body) {
       const url = this.__bl_url || '';
       if (!isCartMutationUrl(url)) return origSend.apply(this, arguments);
 
@@ -253,14 +271,44 @@
       markPending(txnId, internal);
       log('cart xhr start', { inFlight, method: this.__bl_method, url, txnId, internal });
 
-      this.addEventListener('loadend', () => {
-        inFlight = Math.max(0, inFlight - 1);
-        log('cart xhr done', { inFlight, method: this.__bl_method, url, txnId, internal });
-        document.dispatchEvent(new CustomEvent('bl:cart:mutated', { detail: { reason: 'cart_xhr_done', txnId, internal } }));
-        scheduleStable('cart_xhr_done');
-      });
+      const self = this;
+      const sendNow = function () {
+        self.addEventListener('loadend', () => {
+          inFlight = Math.max(0, inFlight - 1);
+          log('cart xhr done', { inFlight, method: self.__bl_method, url, txnId, internal });
+          document.dispatchEvent(new CustomEvent('bl:cart:mutated', { detail: { reason: 'cart_xhr_done', txnId, internal } }));
+          scheduleStable('cart_xhr_done');
+        });
 
-      return origSend.apply(this, arguments);
+        return origSend.call(self, body);
+      };
+
+      const shouldEnrich =
+        /\/cart\/add(\.js)?(\?|$)/i.test(url) &&
+        body &&
+        typeof FormData !== 'undefined' &&
+        body instanceof FormData &&
+        window.BL &&
+        window.BL.mysteryAddon &&
+        typeof window.BL.mysteryAddon.enrichCartAddFormData === 'function';
+
+      if (shouldEnrich) {
+        window.BL.mysteryAddon.enrichCartAddFormData(body)
+          .then(function (ok) {
+            if (ok === false) {
+              cancelPending(txnId, 'addon-enrich-failed');
+              return;
+            }
+            sendNow();
+          })
+          .catch(function (e) {
+            log('cart xhr enrich error', e);
+            sendNow();
+          });
+        return;
+      }
+
+      return sendNow();
     };
   }
 

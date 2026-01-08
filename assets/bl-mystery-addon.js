@@ -46,11 +46,6 @@
 
   function getMinDistinctForSpecific() {
     var min = MIN_DISTINCT_FOR_SPECIFIC;
-    try {
-      if (M && M.CFG && typeof M.CFG.preferredMinPerRarity !== 'undefined') {
-        min = Number(M.CFG.preferredMinPerRarity);
-      }
-    } catch (e) {}
     if (!isFinite(min) || min < 0) min = MIN_DISTINCT_FOR_SPECIFIC;
     return min;
   }
@@ -290,6 +285,7 @@
     var assignmentPropKey = (M && M.CFG && M.CFG.propAssignedVariantId) || '_assigned_variant_id';
     var parentAssignments = {};
     var addonAssignments = {};
+    var assignmentFailed = false;
 
     function recordParentAssignment(uid, variantId) {
       var key = String(uid || '').trim();
@@ -386,6 +382,7 @@
         await M.computeAndApplyAssignment(syntheticForm, getAddonHandle(), { force: true, excludeVariantIds: dedupedExcludes });
       } catch (errCompute) {
         debugLog('addon-enrich-compute-error', errCompute);
+        assignmentFailed = true;
       }
 
       var computedProps = collectProperties(syntheticForm);
@@ -404,7 +401,16 @@
       stripDebugProps(mergedProps);
 
       var assignedVariantId = mergedProps._bl_assigned_variant_id || mergedProps[assignmentPropKey] || '';
-      if (assignedVariantId) rewriteItemIdForIndex(formData, idx, assignedVariantId);
+      if (assignedVariantId) {
+        rewriteItemIdForIndex(formData, idx, assignedVariantId);
+        logAddonDebug('addon-enrich-swap', {
+          original_variant_id: id,
+          assigned_variant_id: assignedVariantId,
+          pool_handle: mergedProps._bl_locked_pool_handle || mergedProps._bl_locked_collection || ''
+        });
+      } else {
+        assignmentFailed = true;
+      }
 
       rewritePropertiesForIndex(formData, idx, mergedProps);
       parentUidByIndex[idx] = addonParentUid;
@@ -413,6 +419,14 @@
       var addonAssignedVariant = mergedProps._bl_assigned_variant_id || mergedProps[assignmentPropKey] || '';
       if (addonAssignedVariant) recordAddonAssignment(addonParentUid, addonAssignedVariant);
     }
+
+    if (assignmentFailed) {
+      if (A && typeof A.notifyError === 'function') {
+        A.notifyError('Unable to assign a figure from the pool.');
+      }
+      return false;
+    }
+    return true;
   };
 
 function ensureCssOnce() {
@@ -675,6 +689,56 @@ function ensureCssOnce() {
     return (M && M.CFG && M.CFG.poolView) ? M.CFG.poolView : 'mystery';
   }
 
+  function getPoolCacheKey(handle) {
+    return 'bl-mystery-pool-' + String(handle || '').trim();
+  }
+
+  function readPoolCache(handle) {
+    var key = getPoolCacheKey(handle);
+    if (!key) return null;
+    try {
+      if (!window.sessionStorage) return null;
+      var raw = window.sessionStorage.getItem(key);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (data && Array.isArray(data.products)) return data;
+    } catch (e) {}
+    try {
+      if (window.sessionStorage) window.sessionStorage.removeItem(key);
+    } catch (e2) {}
+    return null;
+  }
+
+  function writePoolCache(handle, data) {
+    var key = getPoolCacheKey(handle);
+    if (!key || !data) return;
+    try {
+      if (window.sessionStorage) window.sessionStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {}
+  }
+
+  function fetchPoolJson(handle) {
+    var poolHandle = normalizePoolHandle(handle);
+    if (!poolHandle) return Promise.resolve(null);
+
+    var cached = readPoolCache(poolHandle);
+    if (cached) return Promise.resolve(cached);
+
+    var poolView = getPoolView();
+    var url = '/collections/' + encodeURIComponent(poolHandle) + '?view=' + encodeURIComponent(poolView);
+
+    return fetch(url, { credentials: 'same-origin' })
+      .then(function (response) {
+        if (!response.ok) throw new Error('Pool HTTP ' + response.status);
+        return response.json();
+      })
+      .then(function (json) {
+        if (json && Array.isArray(json.products)) writePoolCache(poolHandle, json);
+        return json;
+      })
+      .catch(function () { return null; });
+  }
+
   function validatePoolEndpoint(handle, meta) {
     var poolHandle = normalizePoolHandle(handle);
     var poolView = getPoolView();
@@ -815,13 +879,15 @@ function ensureCssOnce() {
     var key = normalizePoolHandle(handle);
     if (!key) return Promise.resolve(null);
     if (poolAvailabilityPromises[key]) return poolAvailabilityPromises[key];
-    if (!M || typeof M.fetchPoolAllPages !== 'function') {
+    if (!M || typeof M.buildPoolIndex !== 'function') {
       poolAvailabilityPromises[key] = Promise.resolve(null);
       return poolAvailabilityPromises[key];
     }
 
-    poolAvailabilityPromises[key] = M.fetchPoolAllPages(key)
-      .then(function (index) {
+    poolAvailabilityPromises[key] = fetchPoolJson(key)
+      .then(function (json) {
+        if (!json) return null;
+        var index = M.buildPoolIndex(json);
         if (!index) return null;
         return computeDistinctAvailability(index);
       })
@@ -1022,6 +1088,16 @@ function ensureCssOnce() {
     }, 5000);
   }
 
+  A.notifyError = function (message) {
+    var msg = message || 'Unable to assign a figure from the pool.';
+    var card = document.querySelector('.upsell[data-upsell-addon="true"]');
+    if (card) {
+      showNotice(card, msg);
+      return;
+    }
+    try { console.warn('[BL Mystery Addon] ' + msg); } catch (e) {}
+  };
+
   function handlePoolFailure(card, selectEl, lockedMeta, result) {
     var reason = result && result.reason ? result.reason : '';
     var message = 'Pool unavailable (bad handle/view)';
@@ -1216,6 +1292,10 @@ function ensureCssOnce() {
             selectEl.value = target;
             switched = true;
           }
+        }
+
+        if (!enabledOptions.length) {
+          enableAnyOnlyOption(selectEl);
         }
 
         if (shouldDebug()) {
