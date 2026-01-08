@@ -21,7 +21,7 @@
 {%- liquid
   assign use_auto_collection = block.settings.enable_dynamic_recommendations
   assign current_product = product
-  assign bl_pool_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip | downcase
+  assign bl_pool_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip
   assign bl_pool_handle = ''
   assign bl_pool_title = ''
 
@@ -104,6 +104,9 @@
 {%- endcomment -%}
 <div
   id="blPoolContext"
+  data-pool-key="{{ bl_pool_key }}"
+  data-pool-title="{{ bl_pool_title }}"
+  data-pool-handle="{{ bl_pool_handle }}"
   data-bl-pool-key="{{ bl_pool_key }}"
   data-bl-pool-title="{{ bl_pool_title }}"
   data-bl-pool-handle="{{ bl_pool_handle }}"
