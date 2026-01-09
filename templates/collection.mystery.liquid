@@ -6,14 +6,20 @@
   "page": {{ paginate.current_page | json }},
   "pages": {{ paginate.pages | json }},
   "next_page": {% if paginate.next %}{{ paginate.current_page | plus: 1 }}{% else %}null{% endif %},
+  "has_next": {% if paginate.next %}true{% else %}false{% endif %},
   "products": [
     {%- for p in collection.products -%}
       {
         "handle": {{ p.handle | json }},
         "title": {{ p.title | json }},
+        "real_name": {{ p.metafields.custom.real_name.value | default: p.metafields.custom.real_name | json }},
         "rarity": {{ p.metafields.custom.rarity.value | default: p.metafields.custom.rarity | downcase | json }},
         "exclude_from_mystery": {{ p.metafields.custom.exclude_from_mystery.value | default: false | json }},
-        "variant_id": {{ p.selected_or_first_available_variant.id | json }}
+        "variant_id": {{ p.selected_or_first_available_variant.id | json }},
+        "variant_available": {{ p.selected_or_first_available_variant.available | json }},
+        "variant_sku": {{ p.selected_or_first_available_variant.sku | json }},
+        "available": {{ p.available | json }},
+        "tags": {{ p.tags | json }}
       }{%- unless forloop.last -%},{%- endunless -%}
     {%- endfor -%}
   ]

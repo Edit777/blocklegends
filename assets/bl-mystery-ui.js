@@ -264,21 +264,21 @@
     card.className = 'bl-mystery-card';
 
     card.innerHTML = [
-      '<div class="bl-mystery-row" data-bl-mode-row>\n',
-      '  <div class="bl-mystery-label">Mode</div>\n',
-      '  <div class="bl-pill-group" data-bl-mode-group>\n',
-      '    <button type="button" class="bl-pill" data-mode="random">' + MODE_LABELS.random + '</button>\n',
-      '    <button type="button" class="bl-pill" data-mode="preferred">' + MODE_LABELS.preferred + '</button>\n',
-      '  </div>\n',
-      '</div>\n',
-      '<div class="bl-mystery-row" data-bl-rarity-row>\n',
-      '  <div class="bl-mystery-label">Rarity</div>\n',
-      '  <div class="bl-pill-group" data-bl-rarity-group></div>\n',
-      '</div>\n',
-      '<div class="bl-mystery-row bl-collection-row" data-bl-collection-row style="display:none;">\n',
-      '  <div class="bl-mystery-label">Collection</div>\n',
-      '  <select class="bl-collection-select" data-bl-collection-select></select>\n',
-      '</div>\n',
+      '<div class="bl-mystery-row" data-bl-mode-row>',
+      '<div class="bl-mystery-label">Mode</div>',
+      '<div class="bl-pill-group" data-bl-mode-group>',
+      '<button type="button" class="bl-pill" data-mode="random">' + MODE_LABELS.random + '</button>',
+      '<button type="button" class="bl-pill" data-mode="preferred">' + MODE_LABELS.preferred + '</button>',
+      '</div>',
+      '</div>',
+      '<div class="bl-mystery-row" data-bl-rarity-row>',
+      '<div class="bl-mystery-label">Rarity</div>',
+      '<div class="bl-pill-group" data-bl-rarity-group></div>',
+      '</div>',
+      '<div class="bl-mystery-row bl-collection-row" data-bl-collection-row style="display:none;">',
+      '<div class="bl-mystery-label">Collection</div>',
+      '<select class="bl-collection-select" data-bl-collection-select></select>',
+      '</div>',
       '<div class="bl-mystery-helper" data-bl-helper role="status" aria-live="polite"></div>'
     ].join('');
 
@@ -380,19 +380,24 @@
     }
 
     function applyEligibility() {
-      var modePreferred = state.mode === MODE_LABELS.preferred;
       var rarityBtns = ui.rarityButtons || [];
 
-      if (!modePreferred || !state.collection) {
+      if (!state.collection) {
         rarityBtns.forEach(function (btn) { btn.disabled = false; btn.classList.remove('is-disabled'); btn.setAttribute('aria-disabled', 'false'); });
         return Promise.resolve();
       }
 
       return computeCounts(state.collection).then(function (counts) {
-        var min = Number(M.CFG.preferredMinPerRarity || 0);
+        var minSpecific = Number(M.CFG.minDistinctForSpecific || 0);
+        var minAny = Number(M.CFG.minDistinctForAny || 0);
         rarityBtns.forEach(function (btn) {
           var r = String(btn.getAttribute('data-rarity') || '').toLowerCase();
-          var eligible = (r === ANY) || (Number(counts && counts[r] || 0) >= min);
+          var eligible = true;
+          if (r === ANY) {
+            eligible = Number(counts && counts.total || 0) >= minAny;
+          } else {
+            eligible = Number(counts && counts[r] || 0) >= minSpecific;
+          }
           btn.disabled = !eligible;
           btn.classList.toggle('is-disabled', !eligible);
           btn.setAttribute('aria-disabled', eligible ? 'false' : 'true');
@@ -400,7 +405,8 @@
 
         var currentBtn = rarityBtns.find(function (b) { return b.classList.contains('is-active'); });
         if (currentBtn && currentBtn.getAttribute('aria-disabled') === 'true') {
-          var fallback = rarityBtns.find(function (b) { return b.getAttribute('aria-disabled') === 'false'; });
+          var fallback = rarityBtns.find(function (b) { return b.getAttribute('data-rarity') === ANY && b.getAttribute('aria-disabled') === 'false'; });
+          if (!fallback) fallback = rarityBtns.find(function (b) { return b.getAttribute('aria-disabled') === 'false'; });
           state.rarity = fallback ? String(fallback.getAttribute('data-rarity') || ANY).toLowerCase() : ANY;
         }
       }).catch(function () {

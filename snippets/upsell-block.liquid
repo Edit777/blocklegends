@@ -8,14 +8,8 @@
   assign addon_handle = 'mystery-add-on'
   assign addon_product = all_products[addon_handle]
 
-  # Primary collection for current product (lock add-on to this)
-  assign bl_primary_collection = ''
-  for c in current_product.collections
-    unless c.handle == 'all' or c.handle == 'frontpage'
-      assign bl_primary_collection = c.handle
-      break
-    endunless
-  endfor
+  # Primary pool key for current product (lock add-on to this)
+  assign bl_primary_collection = current_product.metafields.custom.collection_key | strip | downcase
 
   assign bl_addon_enabled = false
   if addon_product != blank and bl_primary_collection != blank
@@ -485,6 +479,15 @@
     </splide-component>
   {% endif %}
 </div>
+
+{%- if bl_addon_enabled and current_product.handle != 'mystery-figure' -%}
+  <div
+    id="blPoolContext"
+    data-bl-pool-key="{{ current_product.metafields.custom.collection_key | strip | downcase }}"
+    data-bl-pool-title="{{ current_product.metafields.custom.collection_key | strip }}"
+    hidden
+  ></div>
+{%- endif -%}
 
 <div
   class="bl-addon-notice"

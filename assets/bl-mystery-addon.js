@@ -29,7 +29,13 @@
   }
 
   function isDebug() {
-    try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
+    try {
+      if (window.BL_DEBUG) return true;
+      if (window.localStorage && window.localStorage.getItem('BL_DEBUG') === '1') return true;
+      return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false;
+    } catch (e) {
+      return false;
+    }
   }
 
   function debugLog() {
@@ -74,14 +80,27 @@
       .sort(function (a, b) { return a.index - b.index; });
   }
 
-  function getLockedCollectionHandleFromDom() {
+  function normalizePoolKey(key) {
+    return String(key || '').trim().toLowerCase();
+  }
+
+  function getPoolContextFromDom() {
     try {
-      var selector = '.upsell[data-upsell-addon="true"][data-locked-collection]';
-      var el = (U && typeof U.qs === 'function') ? U.qs(document, selector) : document.querySelector(selector);
-      var handle = el ? (el.getAttribute('data-locked-collection') || '').trim() : '';
-      if (handle) return handle;
-    } catch (e) {}
-    return '';
+      var el = document.getElementById('blPoolContext');
+      if (!el) return { key: '', title: '' };
+      var key = normalizePoolKey(el.getAttribute('data-bl-pool-key') || '');
+      var title = String(el.getAttribute('data-bl-pool-title') || '').trim();
+      return { key: key, title: title };
+    } catch (e) {
+      return { key: '', title: '' };
+    }
+  }
+
+  function getPoolKeyFromDomOrProductContext() {
+    // TODO: consolidate shared helper across modules
+    var ctx = getPoolContextFromDom();
+    if (ctx.key) return ctx;
+    return { key: '', title: '' };
   }
 
   var addonVariantIdsPromise = null;
@@ -148,6 +167,19 @@
       if (val === null || typeof val === 'undefined') return;
       try { fd.append(prefix + key + ']', String(val)); } catch (e) {}
     });
+  }
+
+  function rewriteItemIdForIndex(fd, idx, nextId) {
+    if (!fd) return;
+    var key = 'items[' + idx + '][id]';
+    try {
+      if (typeof fd.set === 'function') {
+        fd.set(key, String(nextId || ''));
+        return;
+      }
+    } catch (e) {}
+    try { fd.delete(key); } catch (e2) {}
+    try { fd.append(key, String(nextId || '')); } catch (e3) {}
   }
 
   A.enrichCartAddFormData = async function (formData) {
@@ -226,8 +258,11 @@
       }
 
       var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
-      var lockedCollection = props._bl_locked_collection || getLockedCollectionHandleFromDom();
-      if (lockedCollection) props._bl_locked_collection = lockedCollection;
+      var poolCtx = getPoolKeyFromDomOrProductContext();
+      var poolKey = normalizePoolKey(props._bl_pool_key || poolCtx.key || '');
+      var poolTitle = String(props._bl_pool_title || poolCtx.title || '').trim();
+      if (poolKey) props._bl_pool_key = poolKey;
+      if (poolTitle) props._bl_pool_title = poolTitle;
 
       var excludeVariantIds = [];
       if (addonParentUid && parentAssignments[addonParentUid]) excludeVariantIds.push(parentAssignments[addonParentUid]);
@@ -263,7 +298,8 @@
       if (!mergedProps._bl_assigned_variant_id && id) mergedProps._bl_assigned_variant_id = id;
 
       if (props._bl_parent_handle && !mergedProps._bl_parent_handle) mergedProps._bl_parent_handle = props._bl_parent_handle;
-      if (props._bl_locked_collection && !mergedProps._bl_locked_collection) mergedProps._bl_locked_collection = props._bl_locked_collection;
+      if (props._bl_pool_key && !mergedProps._bl_pool_key) mergedProps._bl_pool_key = props._bl_pool_key;
+      if (props._bl_pool_title && !mergedProps._bl_pool_title) mergedProps._bl_pool_title = props._bl_pool_title;
 
       stripDebugProps(mergedProps);
 
@@ -272,7 +308,17 @@
       lastParentUid = addonParentUid;
 
       var addonAssignedVariant = mergedProps._bl_assigned_variant_id || mergedProps[assignmentPropKey] || '';
-      if (addonAssignedVariant) recordAddonAssignment(addonParentUid, addonAssignedVariant);
+      if (addonAssignedVariant) {
+        recordAddonAssignment(addonParentUid, addonAssignedVariant);
+        rewriteItemIdForIndex(formData, idx, addonAssignedVariant);
+        debugLog('addon-assigned-variant', {
+          poolKey: poolKey,
+          assigned_variant_id: addonAssignedVariant,
+          assigned_handle: mergedProps._assigned_handle || mergedProps._bl_assigned_handle || '',
+          assigned_title: mergedProps._assigned_title || mergedProps._bl_assigned_title || '',
+          rarity: mergedProps._bl_rarity || mergedProps._bl_requested_rarity || ''
+        });
+      }
     }
   };
 
@@ -581,10 +627,18 @@ function ensureCssOnce() {
   }
 
   function formatCollectionName(card) {
-    var name = (card.getAttribute('data-locked-collection-name') || '').trim();
+    var name = (card.getAttribute('data-bl-pool-title') || '').trim();
+    if (!name) {
+      var ctx = getPoolKeyFromDomOrProductContext();
+      name = ctx.title || '';
+    }
     if (name) return name;
 
-    var handle = (card.getAttribute('data-locked-collection') || '').trim();
+    var handle = normalizePoolKey(card.getAttribute('data-bl-pool-key') || '');
+    if (!handle) {
+      var ctxHandle = getPoolKeyFromDomOrProductContext();
+      handle = ctxHandle.key || '';
+    }
     if (!handle) return '';
     return handle
       .replace(/[-_]+/g, ' ')
@@ -703,17 +757,19 @@ function ensureCssOnce() {
   function disableIneligibleOptions(card, variants, selectEl) {
     if (!selectEl || !M || typeof M.fetchPoolAllPages !== 'function') return Promise.resolve(false);
 
-    var locked = String(card.getAttribute('data-locked-collection') || '').trim();
-    if (!locked) return Promise.resolve(false);
+    var ctx = getPoolKeyFromDomOrProductContext();
+    var poolKey = normalizePoolKey(card.getAttribute('data-bl-pool-key') || ctx.key || '');
+    if (!poolKey) return Promise.resolve(false);
 
-    return M.fetchPoolAllPages(locked).then(function () {
+    return M.fetchPoolAllPages(poolKey).then(function () {
       var switched = false;
       if (typeof M.getPoolCounts !== 'function') return switched;
 
-      var counts = M.getPoolCounts(locked);
+      var counts = M.getPoolCounts(poolKey);
       if (!counts) return switched;
 
-      var min = Number((M.CFG && M.CFG.preferredMinPerRarity) || 0);
+      var minSpecific = Number((M.CFG && M.CFG.minDistinctForSpecific) || 0);
+      var minAny = Number((M.CFG && M.CFG.minDistinctForAny) || 0);
       var anyKey = String((M.CFG && M.CFG.anyRarityKey) || 'any');
 
       Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
@@ -721,8 +777,10 @@ function ensureCssOnce() {
         var rarity = getVariantRarity(vid);
         var eligible = true;
 
-        if (rarity && rarity !== anyKey) {
-          eligible = Number(counts[rarity] || 0) >= min;
+        if (rarity && rarity === anyKey) {
+          eligible = Number(counts.total || 0) >= minAny;
+        } else if (rarity) {
+          eligible = Number(counts[rarity] || 0) >= minSpecific;
         }
         opt.disabled = !eligible;
       });
@@ -751,6 +809,9 @@ function ensureCssOnce() {
           switched = true;
         }
       }
+
+      var poolTitle = String(card.getAttribute('data-bl-pool-title') || '').trim() || getPoolKeyFromDomOrProductContext().title || '';
+      logPoolDebugState(poolKey, poolTitle, counts, selectEl);
 
       return switched;
     }).catch(function () {
@@ -815,6 +876,32 @@ function ensureCssOnce() {
     hintEl.__blLastHint = nextText;
   }
 
+  function logPoolDebugState(poolKey, poolTitle, counts, selectEl) {
+    if (!isDebug()) return;
+    var enabled = [];
+    try {
+      Array.prototype.slice.call(selectEl.options || []).forEach(function (opt) {
+        if (!opt.disabled) {
+          var r = getVariantRarity(String(opt.value || ''));
+          if (r) enabled.push(r);
+        }
+      });
+    } catch (e) {}
+    debugLog('pool-state', {
+      poolKey: poolKey,
+      poolTitle: poolTitle,
+      totalDistinct: Number(counts.total || 0),
+      perRarityDistinct: {
+        common: Number(counts.common || 0),
+        rare: Number(counts.rare || 0),
+        epic: Number(counts.epic || 0),
+        legendary: Number(counts.legendary || 0)
+      },
+      enabledOptions: enabled,
+      selected: selectEl ? getVariantRarity(String(selectEl.value || '')) : ''
+    });
+  }
+
   function bindCard(card) {
     if (card.__blAddonBound) return;
     card.__blAddonBound = true;
@@ -838,18 +925,31 @@ function ensureCssOnce() {
 
     var productFormEl = card.querySelector('product-form');
 
-    var locked = String(card.getAttribute('data-locked-collection') || '').trim();
+    var poolCtx = getPoolKeyFromDomOrProductContext();
+    var poolKey = normalizePoolKey(card.getAttribute('data-bl-pool-key') || poolCtx.key || '');
+    var poolTitle = String(card.getAttribute('data-bl-pool-title') || poolCtx.title || poolKey || '').trim();
     var parentHandle = String(card.getAttribute('data-parent-handle') || '').trim();
+
+    if (poolKey) {
+      card.setAttribute('data-bl-pool-key', poolKey);
+      card.setAttribute('data-bl-pool-title', poolTitle);
+    }
 
     if (form) {
       ensureHidden(form, '_bl_is_addon', '1');
       if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
-      if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+      if (poolKey) ensureHidden(form, '_bl_pool_key', poolKey);
+      if (poolTitle) ensureHidden(form, '_bl_pool_title', poolTitle);
 
       form.addEventListener('submit', function () {
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
-        if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+        if (poolKey) ensureHidden(form, '_bl_pool_key', poolKey);
+        if (poolTitle) ensureHidden(form, '_bl_pool_title', poolTitle);
+
+        var selectEl = card.querySelector('select[data-bl-addon-select="1"]');
+        var rarity = selectEl ? getVariantRarity(String(selectEl.value || '')) : '';
+        if (rarity) ensureHidden(form, '_bl_rarity', rarity);
 
         // assignment happens in engine submit safety; keep flags in sync
       });
@@ -857,6 +957,17 @@ function ensureCssOnce() {
 
     if (productFormEl && form) {
       patchCartDrawerProductForm(productFormEl, form);
+    }
+
+    if (!poolKey) {
+      debugLog('missing-pool-key', { handle: h });
+      showNotice(card, 'Mystery add-on is unavailable right now. Please refresh and try again.');
+      try {
+        Array.prototype.slice.call(card.querySelectorAll('button, select, input')).forEach(function (el) {
+          if (el) el.disabled = true;
+        });
+      } catch (e) {}
+      return;
     }
 
     var selectEl = buildSelect(card, variants);
@@ -871,6 +982,10 @@ function ensureCssOnce() {
       .then(function (switched) {
         applyVariant(card, variants, selectEl ? selectEl.value : initialId);
         updateHint(card, selectEl);
+        if (form && selectEl) {
+          var rarity = getVariantRarity(String(selectEl.value || ''));
+          if (rarity) ensureHidden(form, '_bl_rarity', rarity);
+        }
         if (switched) {
           showNotice(card, 'Some rarities are not available for this collection right now. Switched to an available option.');
         }
@@ -885,6 +1000,10 @@ function ensureCssOnce() {
         disableIneligibleOptions(card, variants, selectEl).then(function (switched) {
           applyVariant(card, variants, selectEl.value);
           updateHint(card, selectEl);
+          if (form) {
+            var rarity = getVariantRarity(String(selectEl.value || ''));
+            if (rarity) ensureHidden(form, '_bl_rarity', rarity);
+          }
           if (switched) {
             showNotice(card, 'Some rarities are not available for this collection right now. Switched to an available option.');
           }
