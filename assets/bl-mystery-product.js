@@ -7,7 +7,24 @@
 
   var HANDLE = M.CFG.mysteryFigureHandle || 'mystery-figure';
   var ANY_KEY = (M.CFG.anyRarityKey || 'any').toLowerCase();
-  var MIN_PER_RARITY = Number(M.CFG.preferredMinPerRarity || 0);
+  var MIN_PER_RARITY = Number(M.CFG.minDistinctForSpecific || 0);
+  var MIN_FOR_ANY = Number(M.CFG.minDistinctForAny || 0);
+
+  function isDebug() {
+    try {
+      if (window.BL_DEBUG) return true;
+      if (window.localStorage && window.localStorage.getItem('BL_DEBUG') === '1') return true;
+      return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function debugLog() {
+    if (!isDebug()) return;
+    var args = Array.prototype.slice.call(arguments);
+    try { console.log.apply(console, ['[BL Mystery Product]'].concat(args)); } catch (e) {}
+  }
 
   function onReady(cb) {
     if (document.readyState === 'loading') {
@@ -31,6 +48,19 @@
     el.style.display = target;
   }
 
+  function ensureHidden(form, key, value) {
+    if (!form) return;
+    var name = 'properties[' + key + ']';
+    var input = form.querySelector('input[name="' + name.replace(/"/g, '\\"') + '"]');
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      form.appendChild(input);
+    }
+    input.value = String(value == null ? '' : value);
+  }
+
   function parseCollections(root) {
     try {
       var raw = root.getAttribute('data-collections') || '[]';
@@ -38,6 +68,17 @@
       if (Array.isArray(parsed)) return parsed;
     } catch (e) {}
     return [];
+  }
+
+  function normalizePoolKey(key) {
+    return String(key || '').trim().toLowerCase();
+  }
+
+  function setPoolContext(poolKey, poolTitle) {
+    var ctx = document.getElementById('blPoolContext');
+    if (!ctx) return;
+    if (poolKey) ctx.setAttribute('data-bl-pool-key', poolKey);
+    if (poolTitle) ctx.setAttribute('data-bl-pool-title', poolTitle);
   }
 
   function getVariantId(form) {
@@ -222,15 +263,18 @@
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
-  function applyEligibility(root, form, entries, collectionHandle, selection, noticeEl) {
+  function applyEligibility(root, form, entries, poolKey, selection, noticeEl) {
     if (!form || !entries.length) return Promise.resolve({ switched: false, rarity: selection.rarity });
-    return M.fetchPoolAllPages(collectionHandle).then(function () {
-      var counts = typeof M.getPoolCounts === 'function' ? M.getPoolCounts(collectionHandle) : null;
+    if (!poolKey) return Promise.resolve({ switched: false, rarity: selection.rarity });
+    return M.fetchPoolAllPages(poolKey).then(function () {
+      var counts = typeof M.getPoolCounts === 'function' ? M.getPoolCounts(poolKey) : null;
       if (!counts) return { switched: false, rarity: selection.rarity };
 
       entries.forEach(function (entry) {
         var rarityKey = (entry.rarity || '').toLowerCase();
-        var eligible = rarityKey === ANY_KEY ? true : Number(counts[rarityKey] || 0) >= MIN_PER_RARITY;
+        var eligible = rarityKey === ANY_KEY
+          ? Number(counts.total || 0) >= MIN_FOR_ANY
+          : Number(counts[rarityKey] || 0) >= MIN_PER_RARITY;
         setRarityDisabled(entry, !eligible);
       });
 
@@ -280,7 +324,7 @@
     var state = {
       mode: M.CFG.modeRandomLabel,
       rarity: ANY_KEY,
-      collection: dropdown.value || ''
+      collection: dropdown.value || root.getAttribute('data-bl-pool-key') || ''
     };
 
     var initialSelection = getSelection(getVariantId(form));
@@ -309,6 +353,28 @@
       updateHint(hintEl, state.rarity, label);
     }
 
+    function logPoolState() {
+      if (!isDebug()) return;
+      var poolKey = normalizePoolKey(state.collection || '');
+      if (!poolKey) return;
+      var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(poolKey) : null;
+      if (!counts) return;
+      var enabled = rarityEntries.filter(function (entry) { return !entry.input.disabled; }).map(function (entry) { return entry.rarity; });
+      debugLog('pool-state', {
+        poolKey: poolKey,
+        poolTitle: getCollectionTitle(state.collection) || '',
+        totalDistinct: Number(counts.total || 0),
+        perRarityDistinct: {
+          common: Number(counts.common || 0),
+          rare: Number(counts.rare || 0),
+          epic: Number(counts.epic || 0),
+          legendary: Number(counts.legendary || 0)
+        },
+        enabledOptions: enabled,
+        selected: state.rarity
+      });
+    }
+
     function syncVariant() {
       var targetId = findVariantIdFor(state.mode, state.rarity, availability);
       if (targetId) setVariantId(form, targetId);
@@ -318,13 +384,6 @@
     }
 
     function handleEligibility() {
-      if (M.normalizeMode(state.mode) !== M.CFG.modePreferredLabel) {
-        clearRarityDisabled(rarityEntries);
-        setDisplay(noticeEl, false);
-        safeText(noticeEl, '');
-        return Promise.resolve({ switched: false, rarity: state.rarity });
-      }
-
       return applyEligibility(root, form, rarityEntries, state.collection || dropdown.value, state, noticeEl)
         .then(function (result) {
           if (result && result.rarity) {
@@ -340,13 +399,25 @@
       markRarityActive(rarityEntries, state.rarity);
       updateHelper();
       syncVariant();
+      ensureHidden(form, '_bl_rarity', state.rarity || ANY_KEY);
+    }
+
+    function syncPoolProperties() {
+      var nextPoolKey = normalizePoolKey(state.collection || '');
+      var nextTitle = getCollectionTitle(state.collection) || '';
+      setPoolContext(nextPoolKey, nextTitle);
+      ensureHidden(form, '_bl_pool_key', nextPoolKey);
+      ensureHidden(form, '_bl_pool_title', nextTitle);
+      ensureHidden(form, '_bl_rarity', state.rarity || ANY_KEY);
     }
 
     dropdown.addEventListener('change', function () {
       state.collection = dropdown.value;
+      syncPoolProperties();
       handleEligibility().then(function (res) {
         if (res && res.rarity) state.rarity = res.rarity;
         refresh();
+        logPoolState();
       });
     });
 
@@ -359,6 +430,7 @@
         markRarityActive(rarityEntries, state.rarity);
         updateHelper();
         syncVariant();
+        ensureHidden(form, '_bl_rarity', state.rarity || ANY_KEY);
       });
     });
 
@@ -372,9 +444,11 @@
           setDisplay(noticeEl, false);
           safeText(noticeEl, '');
         }
+        syncPoolProperties();
         handleEligibility().then(function (res) {
           if (res && res.rarity) state.rarity = res.rarity;
           refresh();
+          logPoolState();
         });
       });
     });
@@ -383,17 +457,29 @@
       var sel = getSelection(getVariantId(form));
       state.mode = sel.mode || state.mode;
       state.rarity = sel.rarity || state.rarity;
+      syncPoolProperties();
       refresh();
     });
 
+    form.addEventListener('submit', function () {
+      syncPoolProperties();
+    });
+
     Promise.all([
-      (typeof M.fetchVariantMap === 'function') ? M.fetchVariantMap() : Promise.resolve(),
-      (typeof M.fetchPoolAllPages === 'function') ? M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle) : Promise.resolve()
+      (typeof M.fetchVariantMap === 'function') ? M.fetchVariantMap() : Promise.resolve()
     ]).finally(function () {
+      var initialPoolKey = normalizePoolKey(state.collection || root.getAttribute('data-bl-pool-key') || '');
+      var initialTitle = getCollectionTitle(state.collection) || root.getAttribute('data-bl-pool-title') || '';
+      if (initialPoolKey) {
+        setPoolContext(initialPoolKey, initialTitle);
+        ensureHidden(form, '_bl_pool_key', initialPoolKey);
+        ensureHidden(form, '_bl_pool_title', initialTitle);
+      }
       markRarityActive(rarityEntries, state.rarity);
       handleEligibility().then(function (res) {
         if (res && res.rarity) state.rarity = res.rarity;
         refresh();
+        logPoolState();
       });
     });
   }

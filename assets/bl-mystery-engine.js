@@ -20,7 +20,13 @@
   }
 
   function isDebug() {
-    try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
+    try {
+      if (window.BL_DEBUG) return true;
+      if (window.localStorage && window.localStorage.getItem('BL_DEBUG') === '1') return true;
+      return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false;
+    } catch (e) {
+      return false;
+    }
   }
 
   function debugLog() {
@@ -37,13 +43,13 @@
     mysteryAddonHandle: 'mystery-add-on',
 
     poolView: 'mystery',
-    defaultPoolCollectionHandle: 'all',
 
     allowedRarities: ['common', 'rare', 'epic', 'legendary'],
     hardExcludedRarities: ['special', 'mythical'],
 
-    // Minimum per rarity to consider a rarity-tier "eligible" for a collection UI
-    preferredMinPerRarity: 3,
+    // Minimum distinct per rarity to consider a rarity-tier "eligible" for a pool UI
+    minDistinctForSpecific: 3,
+    minDistinctForAny: 1,
 
     modeRandomLabel: 'Random Collection',
     modePreferredLabel: 'Preferred Collection',
@@ -75,7 +81,11 @@
     propVisibleAssignedRarity: 'Assigned Rarity',
     propVisibleRequestedTier: 'Requested Tier',
     propVisiblePoolUsed: 'Pool Used',
-    propVisibleMode: 'Mode'
+    propVisibleMode: 'Mode',
+
+    propPoolKey: '_bl_pool_key',
+    propPoolTitle: '_bl_pool_title',
+    propPoolRarity: '_bl_rarity'
   };
 
   // Lucky Box rarity weights (must sum to 1.0 ideally)
@@ -100,6 +110,29 @@
     var s = String(r || '').trim().toLowerCase();
     if (s === M.CFG.anyRarityKey) return M.CFG.anyRarityKey;
     return M.CFG.allowedRarities.indexOf(s) !== -1 ? s : 'common';
+  }
+
+  function normalizePoolKey(key) {
+    return String(key || '').trim().toLowerCase();
+  }
+
+  function getPoolContextFromDom() {
+    try {
+      var el = document.getElementById('blPoolContext');
+      if (!el) return { key: '', title: '' };
+      var key = normalizePoolKey(el.getAttribute('data-bl-pool-key') || '');
+      var title = String(el.getAttribute('data-bl-pool-title') || '').trim();
+      return { key: key, title: title };
+    } catch (e) {
+      return { key: '', title: '' };
+    }
+  }
+
+  function getPoolKeyFromDomOrProductContext() {
+    // TODO: consolidate shared helper across modules
+    var ctx = getPoolContextFromDom();
+    if (ctx.key) return ctx;
+    return { key: '', title: '' };
   }
 
   function normalizeMode(m) {
@@ -167,6 +200,8 @@
   M.parseSelectionFromText = parseSelectionFromText;
   M.normalizeRarity = normalizeRarity;
   M.normalizeMode = normalizeMode;
+  M.normalizePoolKey = normalizePoolKey;
+  M.getPoolKeyFromDomOrProductContext = getPoolKeyFromDomOrProductContext;
 
   M.getVariantSelection = function (variantId) {
     try {
@@ -181,16 +216,18 @@
     return state.variantIdToSelection;
   };
 
-  M.getPoolCounts = function (collectionHandle) {
-    var h = String(collectionHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
+  M.getPoolCounts = function (poolKey) {
+    var h = normalizePoolKey(poolKey);
     var idx = state.pools[h];
     if (!idx) return null;
+    var distinct = idx._distinctCounts || {};
+    var totalDistinct = Number(idx._totalDistinct || 0);
     return {
-      common: (idx.common || []).length,
-      rare: (idx.rare || []).length,
-      epic: (idx.epic || []).length,
-      legendary: (idx.legendary || []).length,
-      total: (idx.common || []).length + (idx.rare || []).length + (idx.epic || []).length + (idx.legendary || []).length
+      common: Number(distinct.common || 0),
+      rare: Number(distinct.rare || 0),
+      epic: Number(distinct.epic || 0),
+      legendary: Number(distinct.legendary || 0),
+      total: totalDistinct
     };
   };
 
@@ -199,7 +236,7 @@
     if (r === M.CFG.anyRarityKey) return true;
     var c = M.getPoolCounts(collectionHandle);
     if (!c) return false;
-    return Number(c[r] || 0) >= Number(M.CFG.preferredMinPerRarity || 0);
+    return Number(c[r] || 0) >= Number(M.CFG.minDistinctForSpecific || 0);
   };
 
   /* -----------------------------
@@ -240,6 +277,22 @@
       if (/^\d+$/.test(v)) return v;
     } catch (e) {}
     return null;
+  }
+
+  function getPoolKeyFromForm(form) {
+    try {
+      var poolInput = form.querySelector('[name="properties[' + M.CFG.propPoolKey + ']"]');
+      if (poolInput && poolInput.value) return normalizePoolKey(poolInput.value);
+    } catch (e) {}
+    return '';
+  }
+
+  function getPoolTitleFromForm(form) {
+    try {
+      var titleInput = form.querySelector('[name="properties[' + M.CFG.propPoolTitle + ']"]');
+      if (titleInput && titleInput.value) return String(titleInput.value || '').trim();
+    } catch (e) {}
+    return '';
   }
 
   function getPreferredCollectionFromForm(form) {
@@ -402,6 +455,13 @@
   function buildPoolIndex(poolJson) {
     var byR = emptyPoolIndex();
     var list = (poolJson && poolJson.products) ? poolJson.products : [];
+    var distinctByRarity = {
+      common: new Set(),
+      rare: new Set(),
+      epic: new Set(),
+      legendary: new Set()
+    };
+    var totalDistinct = new Set();
 
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
@@ -464,19 +524,39 @@
       }
 
       var rarity = normalizeRarity(rawR);
+      var realName = String(p.real_name || p.realName || '').trim();
+      var title = String(p.title || '').trim();
+      var identityKey = String(realName || title || '').trim().toLowerCase();
+      if (identityKey) {
+        totalDistinct.add(identityKey);
+        if (distinctByRarity[rarity]) distinctByRarity[rarity].add(identityKey);
+      }
+
       byR[rarity].push({
         handle: p.handle,
-        title: p.title,
+        title: title,
+        real_name: realName,
         variant_id: vid,
-        rarity: rarity
+        rarity: rarity,
+        tags: p.tags || [],
+        available: p.available !== false,
+        variant_available: p.variant_available !== false
       });
     }
+
+    byR._distinctCounts = {
+      common: distinctByRarity.common.size,
+      rare: distinctByRarity.rare.size,
+      epic: distinctByRarity.epic.size,
+      legendary: distinctByRarity.legendary.size
+    };
+    byR._totalDistinct = totalDistinct.size;
 
     return byR;
   }
 
-  function fetchPoolPage(collectionHandle, page) {
-    var url = '/collections/' + encodeURIComponent(collectionHandle) +
+  function fetchPoolPage(poolKey, page) {
+    var url = '/collections/' + encodeURIComponent(poolKey) +
       '?view=' + encodeURIComponent(M.CFG.poolView) +
       '&page=' + encodeURIComponent(page);
 
@@ -488,8 +568,8 @@
   }
 
   M.fetchPoolAllPages = function (collectionHandle) {
-    var h = String(collectionHandle || '').trim();
-    if (!h) h = M.CFG.defaultPoolCollectionHandle;
+    var h = normalizePoolKey(collectionHandle);
+    if (!h) return Promise.reject(new Error('Missing pool key'));
 
     if (state.poolPromises[h]) return state.poolPromises[h];
 
@@ -504,7 +584,9 @@
               var list = (json && json.products) ? json.products : [];
               if (!list.length) return null;
               all = all.concat(list);
+              var hasNext = (json && json.has_next === false) ? false : true;
               page += 1;
+              if (!hasNext) return null;
               return loop();
             })
             .catch(function (err) {
@@ -517,8 +599,10 @@
           var idx = buildPoolIndex({ products: all });
           state.pools[h] = idx;
 
+          var distinct = idx._distinctCounts || {};
           U.log('[BL Mystery] Pool loaded', h, {
             total: all.length,
+            distinct_total: idx._totalDistinct || 0,
             common: idx.common.length,
             rare: idx.rare.length,
             epic: idx.epic.length,
@@ -528,11 +612,12 @@
           debugLog('pool-loaded', {
             handle: h,
             total: all.length,
+            distinct_total: idx._totalDistinct || 0,
             perRarity: {
-              common: idx.common.length,
-              rare: idx.rare.length,
-              epic: idx.epic.length,
-              legendary: idx.legendary.length
+              common: Number(distinct.common || 0),
+              rare: Number(distinct.rare || 0),
+              epic: Number(distinct.epic || 0),
+              legendary: Number(distinct.legendary || 0)
             }
           });
 
@@ -552,22 +637,27 @@
      POOL STATS (for UI)
   ------------------------------ */
   M.getPoolStats = function (collectionHandle) {
-    var h = String(collectionHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
+    var h = normalizePoolKey(collectionHandle);
     return M.fetchPoolAllPages(h).then(function (idx) {
-      var c = (idx && idx.common) ? idx.common.length : 0;
-      var r = (idx && idx.rare) ? idx.rare.length : 0;
-      var e = (idx && idx.epic) ? idx.epic.length : 0;
-      var l = (idx && idx.legendary) ? idx.legendary.length : 0;
+      var distinct = (idx && idx._distinctCounts) ? idx._distinctCounts : {};
+      var c = Number(distinct.common || 0);
+      var r = Number(distinct.rare || 0);
+      var e = Number(distinct.epic || 0);
+      var l = Number(distinct.legendary || 0);
+      var total = Number(idx && idx._totalDistinct ? idx._totalDistinct : 0);
+      var minSpecific = Number(M.CFG.minDistinctForSpecific || 0);
+      var minAny = Number(M.CFG.minDistinctForAny || 0);
 
       return {
         handle: h,
         counts: { common: c, rare: r, epic: e, legendary: l },
-        total: c + r + e + l,
+        total: total,
         eligible: {
-          common: c >= M.CFG.preferredMinPerRarity,
-          rare: r >= M.CFG.preferredMinPerRarity,
-          epic: e >= M.CFG.preferredMinPerRarity,
-          legendary: l >= M.CFG.preferredMinPerRarity
+          any: total >= minAny,
+          common: c >= minSpecific,
+          rare: r >= minSpecific,
+          epic: e >= minSpecific,
+          legendary: l >= minSpecific
         }
       };
     });
@@ -606,7 +696,8 @@
     opts = opts || {};
     var excludeMap = opts.excludeMap || null;
 
-    var h = String(poolHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
+    var h = normalizePoolKey(poolHandle);
+    if (!h) return null;
     var r = normalizeRarity(rarity);
     var idx = state.pools[h];
     if (!idx || !idx[r] || !idx[r].length) return null;
@@ -666,7 +757,8 @@
     opts = opts || {};
     var excludeMap = opts.excludeMap || null;
 
-    var h = String(poolHandle || '').trim() || M.CFG.defaultPoolCollectionHandle;
+    var h = normalizePoolKey(poolHandle);
+    if (!h) return null;
     var idx = state.pools[h];
     if (!idx) return null;
 
@@ -846,15 +938,19 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
     form.dataset.blMysteryComputing = '1';
   } catch (e) {}
 
-  // Ensure caches (pool only when we actually assign)
-  var pAll = assignNow ? M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle) : Promise.resolve(null);
   var pMap = M.fetchVariantMap();
 
   // Wrap everything so we ALWAYS release the computing lock
-  return Promise.all([pAll, pMap])
+  return Promise.all([pMap])
     .then(function () {
       var sel = getSelectionFromForm(form, handle);
-      var lockedCollection = getLockedCollectionFromForm(form);
+      var poolKey = getPoolKeyFromForm(form);
+      var poolTitle = getPoolTitleFromForm(form);
+      if (!poolKey) {
+        var domCtx = getPoolKeyFromDomOrProductContext();
+        poolKey = domCtx.key;
+        if (!poolTitle && domCtx.title) poolTitle = domCtx.title;
+      }
 
       // Add-on forced preferred mode
       if (handle === M.CFG.mysteryAddonHandle) sel.mode = M.CFG.modePreferredLabel;
@@ -863,19 +959,14 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       var rarity = normalizeRarity(sel.rarity);
       var isAny = (rarity === M.CFG.anyRarityKey);
 
-      var requestedCollection =
-        (mode === M.CFG.modePreferredLabel) ? getPreferredCollectionFromForm(form) : '';
-      if (handle === M.CFG.mysteryAddonHandle && lockedCollection) {
-        requestedCollection = lockedCollection;
+      if (!poolKey) {
+        U.err('[BL Mystery] Missing pool key; abort assignment.', { handle: handle, mode: mode, rarity: rarity });
+        debugLog('missing-pool-key', { handle: handle, mode: mode, rarity: rarity });
+        return false;
       }
 
-      var poolHandleUsed =
-        (mode === M.CFG.modePreferredLabel && requestedCollection)
-          ? requestedCollection
-          : M.CFG.defaultPoolCollectionHandle;
-      if (handle === M.CFG.mysteryAddonHandle && lockedCollection) {
-        poolHandleUsed = lockedCollection;
-      }
+      var requestedCollection = poolKey;
+      var poolHandleUsed = poolKey;
 
       // IMPORTANT: include CURRENT variant id in signature (fixes "I changed variant but it didn't reroll")
       var currentVariantId = '';
@@ -883,10 +974,9 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
       var sig = buildSignature(handle, mode, rarity, requestedCollection) + '|' + currentVariantId;
 
-      var preferredCollectionSafe = (mode === M.CFG.modePreferredLabel) ? (requestedCollection || '') : '';
-      if (handle === M.CFG.mysteryAddonHandle && lockedCollection) {
-        preferredCollectionSafe = lockedCollection;
-      }
+      var preferredCollectionSafe = requestedCollection || '';
+      var poolTitleSafe = String(poolTitle || '').trim();
+      if (!poolTitleSafe) poolTitleSafe = poolHandleUsed;
 
       // If not assigning now, just persist requested state and clear stale assignment
       if (!assignNow) {
@@ -894,6 +984,9 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         upsertHidden(form, M.CFG.propSelectedMode, mode);
         upsertHidden(form, M.CFG.propPreferredCollection, preferredCollectionSafe);
         upsertHidden(form, M.CFG.propRequestedTier, isAny ? M.CFG.anyRarityKey : rarity);
+        upsertHidden(form, M.CFG.propPoolKey, poolHandleUsed);
+        upsertHidden(form, M.CFG.propPoolTitle, poolTitleSafe);
+        upsertHidden(form, M.CFG.propPoolRarity, isAny ? M.CFG.anyRarityKey : rarity);
         upsertHidden(form, '_bl_mode', mode === M.CFG.modePreferredLabel ? 'preferred' : 'random');
         upsertHidden(form, '_bl_locked_collection', preferredCollectionSafe);
         upsertHidden(form, '_bl_requested_rarity', isAny ? M.CFG.anyRarityKey : rarity);
@@ -925,6 +1018,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           rarity: rarity,
           requestedCollection: requestedCollection,
           poolUsed: poolHandleUsed,
+          poolKey: poolHandleUsed,
           variantId: currentVariantId,
           signature: sig
         });
@@ -1014,6 +1108,9 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
         // Persist what user selected (tier) vs what they got (actual)
         upsertHidden(form, M.CFG.propSelectedMode, mode);
         upsertHidden(form, M.CFG.propRequestedTier, isAny ? M.CFG.anyRarityKey : rarity);
+        upsertHidden(form, M.CFG.propPoolKey, poolHandleUsed);
+        upsertHidden(form, M.CFG.propPoolTitle, poolTitleSafe);
+        upsertHidden(form, M.CFG.propPoolRarity, isAny ? M.CFG.anyRarityKey : rarity);
         // Supplemental properties for storefront tracking
         upsertHidden(form, '_bl_mode', mode === M.CFG.modePreferredLabel ? 'preferred' : 'random');
         upsertHidden(form, '_bl_locked_collection', preferredCollectionSafe);
@@ -1060,6 +1157,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           mode: mode,
           requestedCollection: requestedCollection,
           poolUsed: poolHandleUsed,
+          poolKey: poolHandleUsed,
           requestedTier: isAny ? 'Lucky Box' : rarity,
           variantId: currentVariantId,
           force: force
@@ -1072,6 +1170,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           rarity: rarity,
           requestedCollection: requestedCollection,
           poolUsed: poolHandleUsed,
+          poolKey: poolHandleUsed,
           variantId: currentVariantId,
           signature: sig,
           assignment_uid: assignmentUid,
@@ -1079,6 +1178,14 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
           assigned_variant_gid: assignedGid,
           assigned_sku: assignedSku || '',
           properties: collectProperties(form)
+        });
+
+        debugLog('add-to-cart', {
+          poolKey: poolHandleUsed,
+          assigned_variant_id: chosen.variant_id,
+          assigned_handle: chosen.handle,
+          assigned_title: chosen.title,
+          rarity: chosen.rarity
         });
 
         try {
@@ -1239,7 +1346,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
             role: handle === M.CFG.mysteryAddonHandle ? 'addon' : 'parent',
             mode: propsSnapshot._bl_mode || propsSnapshot[M.CFG.propSelectedMode] || '',
             rarity: propsSnapshot._bl_requested_rarity || propsSnapshot[M.CFG.propRequestedTier] || '',
-            requestedCollection: propsSnapshot._bl_locked_collection || propsSnapshot[M.CFG.propPreferredCollection] || '',
+            requestedCollection: propsSnapshot[M.CFG.propPoolKey] || propsSnapshot._bl_locked_collection || propsSnapshot[M.CFG.propPreferredCollection] || '',
             signature: form.dataset.blAssignedSig || '',
             assignment_uid: propsSnapshot._bl_assignment_uid || form.dataset.blAssignmentUid || '',
             assigned_handle: propsSnapshot[M.CFG.propAssignedHandle] || '',
@@ -1274,7 +1381,10 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
     // Warm caches (safe)
     M.fetchVariantMap();
-    M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle);
+    var ctx = getPoolKeyFromDomOrProductContext();
+    if (ctx && ctx.key) {
+      M.fetchPoolAllPages(ctx.key).catch(function () {});
+    }
 
     // Bind user-driven precompute + submit safety
     M.bindSubmitSafety();
@@ -1338,15 +1448,18 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
   }
 
   function disableRaritiesByCounts(root, counts){
-    var min = Number(M.CFG.preferredMinPerRarity || 0);
+    var minSpecific = Number(M.CFG.minDistinctForSpecific || 0);
+    var minAny = Number(M.CFG.minDistinctForAny || 0);
     var anyKey = String(M.CFG.anyRarityKey || 'any').toLowerCase();
 
     qsa(root, SEL.rarityBtns).forEach(function (btn) {
       var r = String(btn.getAttribute('data-bl-rarity') || '').toLowerCase();
       var eligible = true;
 
-      if (r && r !== anyKey) {
-        eligible = Number(counts[r] || 0) >= min;
+      if (r === anyKey) {
+        eligible = Number(counts.total || 0) >= minAny;
+      } else if (r) {
+        eligible = Number(counts[r] || 0) >= minSpecific;
       }
 
       btn.setAttribute('aria-disabled', eligible ? 'false' : 'true');
@@ -1364,9 +1477,10 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
     return firstOk ? String(firstOk.getAttribute('data-bl-rarity')||anyKey).toLowerCase() : anyKey;
   }
 
-  function applyPreferredEligibility(root, collectionHandle){
-    return M.fetchPoolAllPages(collectionHandle).then(function(){
-      var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(collectionHandle) : null;
+  function applyPreferredEligibility(root, poolKey){
+    if (!poolKey) return Promise.resolve();
+    return M.fetchPoolAllPages(poolKey).then(function(){
+      var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(poolKey) : null;
       if (!counts) return;
 
       disableRaritiesByCounts(root, counts);
