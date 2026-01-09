@@ -1,3 +1,11 @@
+{%- assign rating_label = block.settings.label -%}
+{%- if product and product.metafields.reviews.rating.value != blank -%}
+  {%- assign rating_value = product.metafields.reviews.rating.value.rating -%}
+  {%- assign rating_count = product.metafields.reviews.rating_count -%}
+  {%- if rating_value != blank and rating_count != blank -%}
+    {%- assign rating_label = rating_value | append: ' ' | append: rating_count | append: '+ Positive reviews' -%}
+  {%- endif -%}
+{%- endif -%}
 <div class="rating-stars" style='--rating:{{ block.settings.rating }};--visible-stars:{{ block.settings.rating | ceil }};--star-color:{{ block.settings.star_color }};--bg-star-color:{{ block.settings.bg_star_color }};--font-size:{{ block.settings.size | divided_by: 10.0 }}rem;--alignment:{{ block.settings.alignment }};{% if margins %}--margin-top: {{ block.settings.margin_top | divided_by: 10.0 }}rem;--margin-bottom: {{ block.settings.margin_bottom | divided_by: 10.0 }}rem;{% endif %}' {% if block_attributes %}{{ block.shopify_attributes }}{% endif %}>
   {% if block.settings.scroll_id != blank %}<a href="{{ block.settings.scroll_id }}">{% endif %}
     <div class='rating-stars-and-text font-size--desktop-auto flex-center'>
@@ -23,7 +31,7 @@
           {% endfor %}
         </div>
       </div>
-      <span class="rating-stars__label">&nbsp;{{ block.settings.label }}</span>
+      <span class="rating-stars__label">&nbsp;{{ rating_label }}</span>
     </div>
   {% if block.settings.scroll_id != blank %}</a>{% endif %}
 </div>
