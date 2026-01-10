@@ -81,14 +81,17 @@
       role="list"
     >
       {%- for collection in collections -%}
-        <li class="collection-list__item grid__item" data-mobile-columns="{{ section.settings.columns_mobile }}">
-          {% render 'card-collection',
-            card_collection: collection,
-            media_aspect_ratio: section.settings.image_ratio,
-            columns: 3,
-            custom_section_styling: section.settings.custon_styling
-          %}
-        </li>
+        {%- assign bl_hide = collection.metafields.custom.bl_hide_from_all_collections.value | default: collection.metafields.custom.bl_hide_from_all_collections | default: false -%}
+        {%- unless bl_hide == true or bl_hide == 'true' -%}
+          <li class="collection-list__item grid__item" data-mobile-columns="{{ section.settings.columns_mobile }}">
+            {% render 'card-collection',
+              card_collection: collection,
+              media_aspect_ratio: section.settings.image_ratio,
+              columns: 3,
+              custom_section_styling: section.settings.custon_styling
+            %}
+          </li>
+        {%- endunless -%}
       {%- endfor -%}
     </ul>
     {% render 'pagination', paginate: paginate %}

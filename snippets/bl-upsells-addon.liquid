@@ -67,6 +67,7 @@
     data-upsell-addon="true"
     data-parent-handle="{{ current_product.handle }}"
     data-locked-collection="{{ bl_primary_collection }}"
+    data-bl-pool-key="{{ bl_primary_collection }}"
     data-locked-collection-name="{{ bl_locked_collection_title }}"
     data-money-format="{{ shop.money_format }}"
     data-currency="{{ localization.country.currency.iso_code | default: cart.currency.iso_code | default: shop.currency }}"
@@ -211,6 +212,7 @@
 
           <input type="hidden" name="properties[_bl_is_addon]" value="1">
           <input type="hidden" name="properties[_bl_parent_handle]" value="{{ current_product.handle }}">
+          <input type="hidden" name="properties[_preferred_collection]" value="{{ bl_primary_collection }}">
           <input type="hidden" name="properties[_bl_locked_collection]" value="{{ bl_primary_collection }}">
           <input type="hidden" name="properties[_bl_parent_uid]" value="">
 
