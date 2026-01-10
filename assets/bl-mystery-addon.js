@@ -21,6 +21,7 @@
   var RARITY_ORDER = ['any', 'common', 'rare', 'epic', 'legendary', 'special', 'mythical'];
   var MIN_DISTINCT_FOR_SPECIFIC = 3;
   var MIN_DISTINCT_FOR_ANY = 1;
+  var BL_DEBUG = false;
 
   function getAddonHandle() {
     try {
@@ -41,7 +42,7 @@
   }
 
   function shouldDebug() {
-    return isDebug();
+    return isDebug() || BL_DEBUG === true;
   }
 
   function getMinDistinctForSpecific() {
@@ -739,6 +740,45 @@ function ensureCssOnce() {
       .catch(function () { return null; });
   }
 
+  function fetchPoolAllProducts(handle) {
+    var poolHandle = normalizePoolHandle(handle);
+    if (!poolHandle) return Promise.resolve([]);
+
+    var cached = readPoolCache(poolHandle);
+    if (cached && Array.isArray(cached.products)) return Promise.resolve(cached.products);
+
+    var poolView = getPoolView();
+    var all = [];
+    var page = 1;
+
+    function loop() {
+      var url = '/collections/' + encodeURIComponent(poolHandle) + '?view=' + encodeURIComponent(poolView) + '&page=' + encodeURIComponent(page);
+      return fetch(url, { credentials: 'same-origin' })
+        .then(function (response) {
+          if (!response.ok) throw new Error('Pool HTTP ' + response.status);
+          return response.json();
+        })
+        .then(function (json) {
+          var list = (json && json.products) ? json.products : [];
+          if (!list.length) return null;
+          all = all.concat(list);
+          page += 1;
+          return loop();
+        })
+        .catch(function (err) {
+          if (page === 1) throw err;
+          return null;
+        });
+    }
+
+    return loop()
+      .then(function () {
+        if (all.length) writePoolCache(poolHandle, { products: all });
+        return all;
+      })
+      .catch(function () { return []; });
+  }
+
   function validatePoolEndpoint(handle, meta) {
     var poolHandle = normalizePoolHandle(handle);
     var poolView = getPoolView();
@@ -884,10 +924,20 @@ function ensureCssOnce() {
       return poolAvailabilityPromises[key];
     }
 
-    poolAvailabilityPromises[key] = fetchPoolJson(key)
-      .then(function (json) {
-        if (!json) return null;
-        var index = M.buildPoolIndex(json);
+    if (M && typeof M.fetchPoolAllPages === 'function') {
+      poolAvailabilityPromises[key] = M.fetchPoolAllPages(key)
+        .then(function (index) {
+          if (!index) return null;
+          return computeDistinctAvailability(index);
+        })
+        .catch(function () { return null; });
+      return poolAvailabilityPromises[key];
+    }
+
+    poolAvailabilityPromises[key] = fetchPoolAllProducts(key)
+      .then(function (products) {
+        if (!products || !products.length) return null;
+        var index = M.buildPoolIndex({ products: products });
         if (!index) return null;
         return computeDistinctAvailability(index);
       })
@@ -1232,6 +1282,7 @@ function ensureCssOnce() {
           try {
             console.log('[BL Mystery Addon][debug] pool availability', {
               poolHandle: poolHandle,
+              poolKey: lockedMeta && lockedMeta.key ? lockedMeta.key : '',
               poolTitle: formatCollectionName(card),
               totalDistinct: totalDistinct,
               perRarityDistinct: counts
@@ -1260,6 +1311,7 @@ function ensureCssOnce() {
 
         logAddonDebug('addon-eligibility-updated', {
           pool_handle: poolHandle,
+          pool_key: lockedMeta && lockedMeta.key ? lockedMeta.key : '',
           total_distinct: totalDistinct,
           per_rarity_distinct: counts,
           min_specific: minSpecific,
@@ -1267,6 +1319,7 @@ function ensureCssOnce() {
         });
         logAddonDebug('addon-availability', {
           poolHandle: poolHandle,
+          poolKey: lockedMeta && lockedMeta.key ? lockedMeta.key : '',
           totalDistinct: totalDistinct,
           perRarityDistinct: counts,
           enabledOptions: enabledOptions.map(function (opt) { return opt.value; })

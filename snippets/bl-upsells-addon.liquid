@@ -63,6 +63,7 @@
     data-skip-unavailable="{{ block.settings.skip_unavailable }}"
     data-upsell-addon="true"
     data-parent-handle="{{ current_product.handle }}"
+    data-locked-collection="{{ bl_pool_key }}"
     data-money-format="{{ shop.money_format }}"
     data-currency="{{ localization.country.currency.iso_code | default: cart.currency.iso_code | default: shop.currency }}"
     {% if block.settings.update_prices %}
@@ -206,7 +207,7 @@
 
           <input type="hidden" name="properties[_bl_is_addon]" value="1">
           <input type="hidden" name="properties[_bl_parent_handle]" value="{{ current_product.handle }}">
-          <input type="hidden" name="properties[_bl_locked_collection]" value="{{ bl_pool_handle }}">
+          <input type="hidden" name="properties[_bl_locked_collection]" value="{{ bl_pool_key }}">
           <input type="hidden" name="properties[_bl_locked_collection_name]" value="{{ bl_locked_collection_title | escape }}">
           <input type="hidden" name="properties[_bl_locked_collection_title]" value="{{ bl_locked_collection_title | escape }}">
           <input type="hidden" name="properties[_bl_locked_pool_key]" value="{{ bl_pool_key }}">
