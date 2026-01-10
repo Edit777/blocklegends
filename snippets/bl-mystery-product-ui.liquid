@@ -2,7 +2,7 @@
   data-bl-mystery-ui
   data-product-handle="{{ product.handle }}"
   data-bl-pool-key="{{ product.metafields.custom.collection_key | strip | downcase }}"
-  data-bl-pool-title="{{ product.metafields.custom.collection_key | strip }}"
+  data-bl-pool-title="{{ product.metafields.custom.collection_key | strip | escape }}"
   data-collections='{% capture bl_collections_json %}[
     {%- assign is_first = true -%}
     {%- for link in linklists['mystery-pools'].links -%}
@@ -17,7 +17,9 @@
   <div
     id="blPoolContext"
     data-bl-pool-key="{{ product.metafields.custom.collection_key | strip | downcase }}"
-    data-bl-pool-title="{{ product.metafields.custom.collection_key | strip }}"
+    data-bl-pool-title="{{ product.metafields.custom.collection_key | strip | escape }}"
+    data-bl-product-pool-key="{{ product.metafields.custom.collection_key | strip | downcase }}"
+    data-bl-product-collection-handle="{{ product.collections.first.handle | default: '' }}"
     hidden
   ></div>
   <div class="bl-mystery-selector" data-bl-mystery-selector>

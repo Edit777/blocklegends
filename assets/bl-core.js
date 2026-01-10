@@ -6,6 +6,7 @@
 (function () {
   window.BL = window.BL || {};
   window.BL.utils = window.BL.utils || {};
+  window.BL_DEBUG = true;
 
   var U = window.BL.utils;
 
@@ -195,5 +196,142 @@
   U.productHandleFromUrl = function () {
     var m = window.location.pathname.match(/^\/products\/([^\/]+)/);
     return m ? m[1] : null;
+  };
+
+  function normalizePoolKey(key) {
+    return String(key || '').trim().toLowerCase();
+  }
+
+  function readPoolContextFromDom() {
+    try {
+      var el = document.getElementById('blPoolContext');
+      if (!el) return { key: '', title: '' };
+      return {
+        key: normalizePoolKey(el.getAttribute('data-bl-pool-key') || ''),
+        title: String(el.getAttribute('data-bl-pool-title') || '').trim()
+      };
+    } catch (e) {
+      return { key: '', title: '' };
+    }
+  }
+
+  function readPoolKeyFromMetafieldNode() {
+    try {
+      var el = document.querySelector('[data-bl-product-pool-key]');
+      if (!el) return '';
+      return normalizePoolKey(el.getAttribute('data-bl-product-pool-key') || '');
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function parseInternalPoolHandles() {
+    var handles = [];
+    var attr = '';
+    try {
+      var el = document.querySelector('[data-bl-internal-pools]');
+      if (el) attr = el.getAttribute('data-bl-internal-pools') || '';
+    } catch (e) {}
+    if (attr) {
+      try {
+        var parsed = JSON.parse(attr);
+        if (Array.isArray(parsed)) handles = parsed.map(function (c) { return String(c.handle || c || '').trim().toLowerCase(); });
+      } catch (e2) {}
+    }
+    if (!handles.length) {
+      try {
+        var listNode = document.querySelector('[data-collections], [data-bl-collections]');
+        if (listNode) {
+          var raw = listNode.getAttribute('data-collections') || listNode.getAttribute('data-bl-collections') || '';
+          if (raw) {
+            var parsedList = JSON.parse(raw);
+            if (Array.isArray(parsedList)) {
+              handles = parsedList.map(function (c) { return String(c.handle || '').trim().toLowerCase(); }).filter(Boolean);
+            }
+          }
+        }
+      } catch (e3) {}
+    }
+    return handles;
+  }
+
+  window.BL.getPoolKeyFromPage = function () {
+    var ctx = readPoolContextFromDom();
+    if (ctx.key) return ctx.key;
+
+    var metafieldKey = readPoolKeyFromMetafieldNode();
+    if (metafieldKey) return metafieldKey;
+
+    var fallbackNode = null;
+    try { fallbackNode = document.querySelector('[data-bl-pool-key]'); } catch (e) {}
+    if (fallbackNode) {
+      var fallbackKey = normalizePoolKey(fallbackNode.getAttribute('data-bl-pool-key') || '');
+      if (fallbackKey) return fallbackKey;
+    }
+
+    var internalHandles = parseInternalPoolHandles();
+    var productCollectionHandle = '';
+    try {
+      var collectionNode = document.querySelector('[data-bl-product-collection-handle]');
+      if (collectionNode) productCollectionHandle = normalizePoolKey(collectionNode.getAttribute('data-bl-product-collection-handle') || '');
+    } catch (e2) {}
+    if (productCollectionHandle) {
+      var denied = ['catalog', 'all', 'frontpage'];
+      if (denied.indexOf(productCollectionHandle) === -1 && internalHandles.indexOf(productCollectionHandle) !== -1) {
+        return productCollectionHandle;
+      }
+    }
+
+    return null;
+  };
+
+  window.BL.getPoolTitleFromPage = function () {
+    var ctx = readPoolContextFromDom();
+    if (ctx.title) return ctx.title;
+    return '';
+  };
+
+  window.BL.fetchPoolAllPages = function (poolKey) {
+    var handle = normalizePoolKey(poolKey);
+    if (!handle) return Promise.reject(new Error('Missing pool key'));
+
+    var view = 'mystery';
+    try {
+      if (window.BL && window.BL.mysteryEngine && window.BL.mysteryEngine.CFG && window.BL.mysteryEngine.CFG.poolView) {
+        view = window.BL.mysteryEngine.CFG.poolView;
+      }
+    } catch (e) {}
+
+    function fetchPage(page) {
+      var url = '/collections/' + encodeURIComponent(handle) + '?view=' + encodeURIComponent(view) + '&page=' + encodeURIComponent(page);
+      return fetch(url, { credentials: 'same-origin' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('Pool HTTP ' + r.status);
+          return r.json();
+        });
+    }
+
+    return fetchPage(1).then(function (first) {
+      if (!first || !Array.isArray(first.products)) {
+        throw new Error('Pool response missing products');
+      }
+      var pages = Number(first.pages || 1);
+      var all = first.products.slice();
+      if (pages <= 1) return all;
+
+      var requests = [];
+      for (var p = 2; p <= pages; p++) {
+        requests.push(fetchPage(p));
+      }
+      return Promise.all(requests).then(function (rest) {
+        rest.forEach(function (json) {
+          if (!json || !Array.isArray(json.products)) {
+            throw new Error('Pool response missing products');
+          }
+          all = all.concat(json.products);
+        });
+        return all;
+      });
+    });
   };
 })();

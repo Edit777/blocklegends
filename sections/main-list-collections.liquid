@@ -81,6 +81,9 @@
       role="list"
     >
       {%- for collection in collections -%}
+        {%- if collection.metafields.custom.bl_hide_from_all_collections.value == true -%}
+          {%- continue -%}
+        {%- endif -%}
         <li class="collection-list__item grid__item" data-mobile-columns="{{ section.settings.columns_mobile }}">
           {% render 'card-collection',
             card_collection: collection,
