@@ -74,7 +74,11 @@
   Canonical pool context for mystery add-on + rarity availability (consumed by JS).
 {%- endcomment -%}
 {%- if type != 'product-info' -%}
-  {% render 'bl-pool-context', product: product, collection: collection %}
+  <div
+    id="blPoolContext"
+    data-bl-pool-key="{{ current_product.metafields.custom.collection_key.value | default: current_product.metafields.custom.collection_key | strip | downcase }}"
+    hidden
+  ></div>
 {%- endif -%}
 
 <div

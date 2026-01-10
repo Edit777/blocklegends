@@ -14,12 +14,12 @@
       {
         "handle": {{ p.handle | json }},
         "title": {{ p.title | json }},
-        "real_name": {{ p.metafields.custom.real_name.value | default: p.metafields.custom.real_name | json }},
+        "real_name": {{ p.metafields.custom.real_name.value | default: p.metafields.custom.real_name | default: p.title | default: p.handle | json }},
         "available": {{ p.available | json }},
         "variant_available": {{ bl_first_variant.available | json }},
         "rarity": {{ p.metafields.custom.rarity.value | default: p.metafields.custom.rarity | downcase | json }},
         "collection_key": {{ p.metafields.custom.collection_key.value | default: p.metafields.custom.collection_key | json }},
-        "exclude_from_mystery": {{ p.metafields.custom.exclude_from_mystery.value | default: false | json }},
+        "exclude_from_mystery": {{ p.metafields.custom.exclude_from_mystery.value | default: p.metafields.custom.exclude_from_mystery | default: false | json }},
         "tags": {{ p.tags | json }},
         "variant_id": {{ bl_first_variant.id | json }}
       }{%- unless forloop.last -%},{%- endunless -%}

@@ -117,68 +117,50 @@
     } catch (e) {}
   }
 
-  // Canonical pool context (defined in snippets/upsell-block.liquid).
-  function getPoolContext() {
-    var ctx = { key: '', title: '', handle: '' };
+  function getPoolKeyFromForm(form) {
     try {
-      var poolEl = document.querySelector('#blPoolContext');
-      if (!poolEl) return ctx;
-      ctx.key = String(
-        (poolEl.dataset && (poolEl.dataset.poolKey || poolEl.dataset.blPoolKey)) ||
-        poolEl.getAttribute('data-pool-key') ||
-        poolEl.getAttribute('data-bl-pool-key') ||
-        ''
-      ).trim();
-      ctx.title = String(
-        (poolEl.dataset && (poolEl.dataset.poolTitle || poolEl.dataset.blPoolTitle)) ||
-        poolEl.getAttribute('data-pool-title') ||
-        poolEl.getAttribute('data-bl-pool-title') ||
-        ''
-      ).trim();
-      ctx.handle = String(
-        (poolEl.dataset && (poolEl.dataset.poolHandle || poolEl.dataset.blPoolHandle)) ||
-        poolEl.getAttribute('data-pool-handle') ||
-        poolEl.getAttribute('data-bl-pool-handle') ||
-        ''
-      ).trim();
+      if (M && typeof M.getPoolKey === 'function') {
+        return M.getPoolKey(form, { formOnly: true });
+      }
     } catch (e) {}
-    return ctx;
+    return '';
   }
 
   function getPoolContextFromCard(card) {
-    var ctx = { key: '', title: '', handle: '' };
-    if (!card) return ctx;
+    if (!card) return { key: '', title: '', handle: '' };
+    var key = '';
+    var title = '';
+    var handle = '';
     try {
-      ctx.key = String(
+      key = String(
         (card.dataset && (card.dataset.poolKey || card.dataset.blPoolKey)) ||
         card.getAttribute('data-pool-key') ||
         card.getAttribute('data-bl-pool-key') ||
         ''
       ).trim();
-      ctx.title = String(
+      title = String(
         (card.dataset && (card.dataset.poolTitle || card.dataset.blPoolTitle)) ||
         card.getAttribute('data-pool-title') ||
         card.getAttribute('data-bl-pool-title') ||
         ''
       ).trim();
-      ctx.handle = String(
+      handle = String(
         (card.dataset && (card.dataset.poolHandle || card.dataset.blPoolHandle)) ||
         card.getAttribute('data-pool-handle') ||
         card.getAttribute('data-bl-pool-handle') ||
         ''
       ).trim();
-      if (!ctx.handle) {
-        ctx.handle = String((card.dataset && card.dataset.lockedCollection) || card.getAttribute('data-locked-collection') || '').trim();
+      if (!handle) {
+        handle = String((card.dataset && card.dataset.lockedCollection) || card.getAttribute('data-locked-collection') || '').trim();
       }
     } catch (e) {}
-    return ctx;
+    return { key: key, title: title, handle: handle };
   }
 
-  function resolveLockedCollection(card) {
-    var ctx = getPoolContext();
-    if (!ctx.key && !ctx.handle) ctx = getPoolContextFromCard(card);
-    var key = ctx.key || '';
-    var handle = ctx.handle || '';
+  function resolveLockedCollection(card, form) {
+    var key = getPoolKeyFromForm(form);
+    var ctx = getPoolContextFromCard(card);
+    var handle = key || ctx.key || ctx.handle || '';
     var title = ctx.title;
     if (shouldDebug()) {
       try {
@@ -200,7 +182,7 @@
       debugLockedCollection({ handle: '', title: title, source: 'pool-context', rejected: true });
     }
 
-    return { handle: handle, title: title, key: key };
+    return { handle: handle, title: title, key: key || ctx.key || '' };
   }
 
   var addonVariantIdsPromise = null;
@@ -352,7 +334,7 @@
       }
 
       var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
-      var lockedMeta = resolveLockedCollection(null);
+      var lockedMeta = resolveLockedCollection(null, null);
       var lockedKey = (M && M.CFG && M.CFG.propLockedCollectionLegacy) ? M.CFG.propLockedCollectionLegacy : '_bl_locked_collection';
       var lockedCollection = props[lockedKey] || '';
       if (lockedCollection && isInvalidLockedHandle(lockedCollection)) {
@@ -619,6 +601,10 @@ function ensureCssOnce() {
     var locked = meta && meta.handle ? meta.handle : '';
     var key = meta && meta.key ? meta.key : '';
     var title = meta && meta.title ? meta.title : '';
+    ensureHidden(form, '_bl_pool_key', key || locked);
+    if (M && M.CFG && M.CFG.propPreferredCollection) {
+      ensureHidden(form, M.CFG.propPreferredCollection, key || locked);
+    }
     ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
     ensureHidden(form, '_bl_locked_collection_name', title);
     ensureHidden(form, '_bl_locked_collection_title', title);
@@ -947,7 +933,7 @@ function ensureCssOnce() {
   }
 
   function getLockedCollectionMeta(card, form) {
-    return resolveLockedCollection(card);
+    return resolveLockedCollection(card, form);
   }
 
   function getLockedCollectionKey(card, form) {
@@ -1159,7 +1145,7 @@ function ensureCssOnce() {
 
     showNotice(card, message);
     if (selectEl) {
-      setAddonDisabled(card, selectEl, false);
+      setAddonDisabled(card, selectEl, true);
       enableAnyOnlyOption(selectEl);
       updateHint(card, selectEl);
     }
@@ -1635,7 +1621,7 @@ function ensureCssOnce() {
         hasPoolContext = !!locked;
         if (!hasPoolContext) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
-          setAddonDisabled(card, selectEl, false);
+          setAddonDisabled(card, selectEl, true);
           if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
           return;
         }
@@ -1667,7 +1653,7 @@ function ensureCssOnce() {
         if (!hasPoolContext) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
           logAddonDebug('addon-collection-missing', { locked_collection: locked });
-          setAddonDisabled(card, selectEl, false);
+          setAddonDisabled(card, selectEl, true);
           return { ok: false, reason: 'missing-handle' };
         }
         setAddonDisabled(card, selectEl, false);
@@ -1703,7 +1689,7 @@ function ensureCssOnce() {
         if (!hasPoolContext) {
           showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
           logAddonDebug('addon-collection-missing', { locked_collection: locked });
-          setAddonDisabled(card, selectEl, false);
+          setAddonDisabled(card, selectEl, true);
           return;
         }
         setAddonDisabled(card, selectEl, false);
@@ -1747,7 +1733,7 @@ function ensureCssOnce() {
             });
           } else if (!updatedLocked) {
             showNotice(card, 'This add-on is unavailable because a locked collection could not be determined.');
-            setAddonDisabled(card, updatedSelect, false);
+            setAddonDisabled(card, updatedSelect, true);
           }
           // do NOT rebuild layout; only keep price/hint accurate
           if (updatedSelect) {
