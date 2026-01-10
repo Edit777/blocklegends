@@ -5,7 +5,7 @@
     addon_display, bl_primary_collection, bl_is_slider
 {%- endcomment -%}
 
-{%- if addon_product == blank or addon_display == false -%}
+{%- if addon_product == blank -%}
   {%- break -%}
 {%- endif -%}
 
@@ -32,6 +32,13 @@
   elsif bl_primary_collection != blank
     assign bl_locked_collection_title = bl_primary_collection | replace: '-', ' ' | replace: '_', ' ' | capitalize
   endif
+
+  assign bl_addon_disabled = false
+  if bl_primary_collection == blank
+    assign bl_addon_disabled = true
+  endif
+
+  assign bl_addon_disabled_message = 'Add-on locked: assign this product to a pool to enable.'
 
 -%}
 
@@ -69,6 +76,8 @@
     data-locked-collection="{{ bl_primary_collection }}"
     data-bl-pool-key="{{ bl_primary_collection }}"
     data-locked-collection-name="{{ bl_locked_collection_title }}"
+    data-bl-addon-disabled="{% if bl_addon_disabled %}true{% else %}false{% endif %}"
+    data-bl-addon-disabled-message="{{ bl_addon_disabled_message }}"
     data-money-format="{{ shop.money_format }}"
     data-currency="{{ localization.country.currency.iso_code | default: cart.currency.iso_code | default: shop.currency }}"
     {% if block.settings.update_prices %}
@@ -123,7 +132,11 @@
 
             <div class="bl-addon-meta">
               <div class="bl-addon-controls" data-bl-addon-controls></div>
-              <div class="bl-addon-hint" data-bl-addon-hint></div>
+              <div class="bl-addon-hint" data-bl-addon-hint>
+                {% if bl_addon_disabled %}
+                  {{ bl_addon_disabled_message }}
+                {% endif %}
+              </div>
             </div>
 
             {%- unless addon_product.has_only_default_variant -%}
@@ -156,20 +169,20 @@
           </div>
 
           {% if block.settings.style == 'toggle_switch' %}
-            <button class='upsell__toggle-switch toggle-switch{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+            <button class='upsell__toggle-switch toggle-switch{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'{% if bl_addon_disabled %} disabled{% endif %}>
               <span class='toggle-switch__slider'>&nbsp;</span>
             </button>
           {% elsif block.settings.style == 'checkbox_1' %}
-            <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+            <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'{% if bl_addon_disabled %} disabled{% endif %}>
               {% render 'checkbox-icons' %}
             </button>
           {% elsif block.settings.style == 'checkbox_2' %}
-            <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+            <button class='upsell__checkbox flex-center{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'{% if bl_addon_disabled %} disabled{% endif %}>
               {% render 'material-icon', icon: 'add_circle', class: ' checkmark-unchecked' %}
               {% render 'material-icon', icon: 'check_circle', filled: true, class: ' checkmark-checked' %}
             </button>
           {% elsif block.settings.style == 'plus_button' %}
-            <button class='upsell__plus-btn{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'>
+            <button class='upsell__plus-btn{% if block.settings.toggle_element == "button" %} upsell-toggle-btn{% endif %}'{% if bl_addon_disabled %} disabled{% endif %}>
               {% render 'material-icon', icon: 'add', class: ' checkmark-unchecked' %}
               {% render 'material-icon', icon: 'check', filled: true, class: ' checkmark-checked' %}
             </button>
@@ -180,7 +193,7 @@
               class="upsell__add-btn button button--has-spinner"
               form="{{ addon_form_id }}"
               id="DisplayedSubmitBtn-{{ section.id }}-{{ block.id }}-addon"
-              {% if addon_product.first_available_variant.available == false %}disabled{% endif %}
+              {% if addon_product.first_available_variant.available == false or bl_addon_disabled %}disabled{% endif %}
             >
               <span>
                 {%- if addon_product.first_available_variant.available -%}

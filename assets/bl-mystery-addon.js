@@ -74,7 +74,20 @@
       .sort(function (a, b) { return a.index - b.index; });
   }
 
+  function getPoolKeyFromContext() {
+    try {
+      var ctx = document.getElementById('blPoolContext');
+      if (!ctx) return '';
+      return String(ctx.getAttribute('data-bl-pool-key') || '').trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
   function getLockedCollectionHandleFromDom() {
+    var ctxKey = getPoolKeyFromContext();
+    if (ctxKey) return ctxKey;
+
     try {
       var selector = '.upsell[data-upsell-addon="true"][data-locked-collection]';
       var el = (U && typeof U.qs === 'function') ? U.qs(document, selector) : document.querySelector(selector);
@@ -867,6 +880,39 @@ function ensureCssOnce() {
     hintEl.__blLastHint = nextText;
   }
 
+  function applyDisabledState(card, message) {
+    if (!card) return;
+    card.setAttribute('data-bl-addon-disabled', 'true');
+
+    var hintEl = card.querySelector('[data-bl-addon-hint]');
+    if (hintEl && message) {
+      hintEl.textContent = message;
+      hintEl.__blLastHint = message;
+    }
+
+    var controls = card.querySelector('[data-bl-addon-controls]');
+    var selectEl = controls ? controls.querySelector('select') : null;
+    if (selectEl) selectEl.disabled = true;
+
+    Array.prototype.slice.call(card.querySelectorAll('button')).forEach(function (btn) {
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+    });
+
+    var form =
+      card.querySelector('form[data-type="add-to-cart-form"]') ||
+      card.querySelector('form[action^="/cart/add"]') ||
+      card.querySelector('form');
+
+    if (form && !form.__blAddonDisabledBound) {
+      form.__blAddonDisabledBound = true;
+      form.addEventListener('submit', function (evt) {
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+      });
+    }
+  }
+
   function bindCard(card) {
     if (card.__blAddonBound) return;
     card.__blAddonBound = true;
@@ -890,8 +936,20 @@ function ensureCssOnce() {
 
     var productFormEl = card.querySelector('product-form');
 
-    var locked = String(card.getAttribute('data-locked-collection') || '').trim();
+    var ctxKey = getPoolKeyFromContext();
+    var locked = ctxKey || String(card.getAttribute('data-locked-collection') || '').trim();
+    if (ctxKey) {
+      card.setAttribute('data-locked-collection', ctxKey);
+      card.setAttribute('data-bl-pool-key', ctxKey);
+    }
+
     var parentHandle = String(card.getAttribute('data-parent-handle') || '').trim();
+    var disabledMessage = String(card.getAttribute('data-bl-addon-disabled-message') || '').trim() || 'Add-on locked: assign this product to a pool to enable.';
+
+    if (!locked) {
+      applyDisabledState(card, disabledMessage);
+      return;
+    }
 
     if (form) {
       ensureHidden(form, '_bl_is_addon', '1');

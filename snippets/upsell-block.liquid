@@ -10,9 +10,18 @@
 
   # Primary pool for current product (lock add-on to this)
   assign bl_primary_collection = current_product.metafields.custom.collection_key | default: '' | strip | downcase
+  if bl_primary_collection == blank
+    for tag in current_product.tags
+      assign bl_tag_key = tag | strip | downcase
+      if bl_tag_key starts_with 'bl-pool:'
+        assign bl_primary_collection = bl_tag_key | remove: 'bl-pool:' | strip
+        break
+      endif
+    endfor
+  endif
 
   assign bl_addon_enabled = false
-  if addon_product != blank and bl_primary_collection != blank
+  if addon_product != blank
     assign bl_addon_enabled = true
   endif
 
@@ -434,28 +443,12 @@
     assign bl_is_slider = true
   endif
 
-  assign addon_display = false
-  if bl_addon_enabled and addon_product != blank
-    assign addon_display = true
+  assign addon_display = addon_product != blank
 
-    if block.settings.hide_in_cart_items and block.settings.style == 'add_button'
-      for item in cart.items
-        if item.product.handle == addon_product.handle
-          assign addon_display = false
-          break
-        endif
-      endfor
-    endif
-
-    if addon_product.available == false
-      assign addon_display = false
-    endif
-
-    # Keep totals correct in parent scope (render cannot mutate parent variables)
-    assign bl_pool_total = bl_pool_total | plus: 1
-    if addon_display == false
-      assign hidden_products = hidden_products | plus: 1
-    endif
+  # Keep totals correct in parent scope (render cannot mutate parent variables)
+  assign bl_pool_total = bl_pool_total | plus: 1
+  if addon_display == false
+    assign hidden_products = hidden_products | plus: 1
   endif
 -%}
 

@@ -1,5 +1,14 @@
 {%- liquid
   assign pool_key = product.metafields.custom.collection_key | default: '' | strip | downcase
+  if pool_key == blank
+    for tag in product.tags
+      assign tag_key = tag | strip | downcase
+      if tag_key starts_with 'bl-pool:'
+        assign pool_key = tag_key | remove: 'bl-pool:' | strip
+        break
+      endif
+    endfor
+  endif
 -%}
 <div
   data-bl-mystery-ui
