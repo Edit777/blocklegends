@@ -48,6 +48,19 @@
     el.style.display = target;
   }
 
+  function disableForm(form, noticeEl, message) {
+    if (noticeEl) {
+      safeText(noticeEl, message || '');
+      setDisplay(noticeEl, true);
+    }
+    if (!form) return;
+    try {
+      Array.prototype.slice.call(form.querySelectorAll('button, select, input')).forEach(function (el) {
+        if (el && el.type !== 'hidden') el.disabled = true;
+      });
+    } catch (e) {}
+  }
+
   function ensureHidden(form, key, value) {
     if (!form) return;
     var name = 'properties[' + key + ']';
@@ -79,6 +92,15 @@
     if (!ctx) return;
     if (poolKey) ctx.setAttribute('data-bl-pool-key', poolKey);
     if (poolTitle) ctx.setAttribute('data-bl-pool-title', poolTitle);
+  }
+
+  function getPoolKeyFromPage() {
+    try {
+      if (window.BL && typeof window.BL.getPoolKeyFromPage === 'function') {
+        return window.BL.getPoolKeyFromPage();
+      }
+    } catch (e) {}
+    return null;
   }
 
   function getVariantId(form) {
@@ -296,6 +318,12 @@
       }
 
       return { switched: requiresFallback, rarity: picked };
+    }).catch(function (err) {
+      debugLog('pool-fetch-failed', { poolKey: poolKey, error: err });
+      entries.forEach(function (entry) { setRarityDisabled(entry, true); });
+      safeText(noticeEl, 'Mystery selection is unavailable right now. Please refresh and try again.');
+      setDisplay(noticeEl, true);
+      return { switched: false, rarity: selection.rarity };
     });
   }
 
@@ -355,7 +383,7 @@
 
     function logPoolState() {
       if (!isDebug()) return;
-      var poolKey = normalizePoolKey(state.collection || '');
+      var poolKey = normalizePoolKey(state.collection || getPoolKeyFromPage() || '');
       if (!poolKey) return;
       var counts = (typeof M.getPoolCounts === 'function') ? M.getPoolCounts(poolKey) : null;
       if (!counts) return;
@@ -461,15 +489,26 @@
       refresh();
     });
 
-    form.addEventListener('submit', function () {
+    form.addEventListener('submit', function (evt) {
       syncPoolProperties();
+      var requiredKey = normalizePoolKey(state.collection || getPoolKeyFromPage() || '');
+      if (!requiredKey) {
+        if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+        safeText(noticeEl, 'Please select a collection before adding this Mystery Figure to your cart.');
+        setDisplay(noticeEl, true);
+      }
     });
 
     Promise.all([
       (typeof M.fetchVariantMap === 'function') ? M.fetchVariantMap() : Promise.resolve()
     ]).finally(function () {
-      var initialPoolKey = normalizePoolKey(state.collection || root.getAttribute('data-bl-pool-key') || '');
+      var initialPoolKey = normalizePoolKey(state.collection || root.getAttribute('data-bl-pool-key') || getPoolKeyFromPage() || '');
       var initialTitle = getCollectionTitle(state.collection) || root.getAttribute('data-bl-pool-title') || '';
+      if (!initialPoolKey) {
+        debugLog('missing-pool-key', { handle: HANDLE });
+        disableForm(form, noticeEl, 'Mystery selection is unavailable right now. Missing pool key.');
+        return;
+      }
       if (initialPoolKey) {
         setPoolContext(initialPoolKey, initialTitle);
         ensureHidden(form, '_bl_pool_key', initialPoolKey);

@@ -116,23 +116,20 @@
     return String(key || '').trim().toLowerCase();
   }
 
-  function getPoolContextFromDom() {
+  function getPoolContextFromPage() {
+    var key = null;
     try {
-      var el = document.getElementById('blPoolContext');
-      if (!el) return { key: '', title: '' };
-      var key = normalizePoolKey(el.getAttribute('data-bl-pool-key') || '');
-      var title = String(el.getAttribute('data-bl-pool-title') || '').trim();
-      return { key: key, title: title };
-    } catch (e) {
-      return { key: '', title: '' };
-    }
-  }
-
-  function getPoolKeyFromDomOrProductContext() {
-    // TODO: consolidate shared helper across modules
-    var ctx = getPoolContextFromDom();
-    if (ctx.key) return ctx;
-    return { key: '', title: '' };
+      if (window.BL && typeof window.BL.getPoolKeyFromPage === 'function') {
+        key = window.BL.getPoolKeyFromPage();
+      }
+    } catch (e) {}
+    var title = '';
+    try {
+      if (window.BL && typeof window.BL.getPoolTitleFromPage === 'function') {
+        title = window.BL.getPoolTitleFromPage() || '';
+      }
+    } catch (e2) {}
+    return { key: normalizePoolKey(key || ''), title: title };
   }
 
   function normalizeMode(m) {
@@ -201,7 +198,7 @@
   M.normalizeRarity = normalizeRarity;
   M.normalizeMode = normalizeMode;
   M.normalizePoolKey = normalizePoolKey;
-  M.getPoolKeyFromDomOrProductContext = getPoolKeyFromDomOrProductContext;
+  M.getPoolContextFromPage = getPoolContextFromPage;
 
   M.getVariantSelection = function (variantId) {
     try {
@@ -555,18 +552,6 @@
     return byR;
   }
 
-  function fetchPoolPage(poolKey, page) {
-    var url = '/collections/' + encodeURIComponent(poolKey) +
-      '?view=' + encodeURIComponent(M.CFG.poolView) +
-      '&page=' + encodeURIComponent(page);
-
-    return fetch(url, { credentials: 'same-origin' })
-      .then(function (r) {
-        if (!r.ok) throw new Error('Pool HTTP ' + r.status);
-        return r.json();
-      });
-  }
-
   M.fetchPoolAllPages = function (collectionHandle) {
     var h = normalizePoolKey(collectionHandle);
     if (!h) return Promise.reject(new Error('Missing pool key'));
@@ -575,27 +560,10 @@
 
     state.poolPromises[h] = Promise.resolve()
       .then(function () {
-        var all = [];
-        var page = 1;
-
-        function loop() {
-          return fetchPoolPage(h, page)
-            .then(function (json) {
-              var list = (json && json.products) ? json.products : [];
-              if (!list.length) return null;
-              all = all.concat(list);
-              var hasNext = (json && json.has_next === false) ? false : true;
-              page += 1;
-              if (!hasNext) return null;
-              return loop();
-            })
-            .catch(function (err) {
-              if (page === 1) throw err;
-              return null;
-            });
+        if (!window.BL || typeof window.BL.fetchPoolAllPages !== 'function') {
+          throw new Error('Missing BL.fetchPoolAllPages');
         }
-
-        return loop().then(function () {
+        return window.BL.fetchPoolAllPages(h).then(function (all) {
           var idx = buildPoolIndex({ products: all });
           state.pools[h] = idx;
 
@@ -947,7 +915,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       var poolKey = getPoolKeyFromForm(form);
       var poolTitle = getPoolTitleFromForm(form);
       if (!poolKey) {
-        var domCtx = getPoolKeyFromDomOrProductContext();
+        var domCtx = getPoolContextFromPage();
         poolKey = domCtx.key;
         if (!poolTitle && domCtx.title) poolTitle = domCtx.title;
       }
@@ -1381,7 +1349,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
     // Warm caches (safe)
     M.fetchVariantMap();
-    var ctx = getPoolKeyFromDomOrProductContext();
+    var ctx = getPoolContextFromPage();
     if (ctx && ctx.key) {
       M.fetchPoolAllPages(ctx.key).catch(function () {});
     }

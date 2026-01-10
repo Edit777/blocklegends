@@ -69,7 +69,7 @@
     data-locked-collection="{{ bl_primary_collection }}"
     data-locked-collection-name="{{ bl_locked_collection_title }}"
     data-bl-pool-key="{{ current_product.metafields.custom.collection_key | strip | downcase }}"
-    data-bl-pool-title="{{ current_product.metafields.custom.collection_key | strip }}"
+    data-bl-pool-title="{{ current_product.metafields.custom.collection_key | strip | escape }}"
     data-money-format="{{ shop.money_format }}"
     data-currency="{{ localization.country.currency.iso_code | default: cart.currency.iso_code | default: shop.currency }}"
     {% if block.settings.update_prices %}
@@ -214,7 +214,7 @@
           <input type="hidden" name="properties[_bl_is_addon]" value="1">
           <input type="hidden" name="properties[_bl_parent_handle]" value="{{ current_product.handle }}">
           <input type="hidden" name="properties[_bl_pool_key]" value="{{ current_product.metafields.custom.collection_key | strip | downcase }}">
-          <input type="hidden" name="properties[_bl_pool_title]" value="{{ current_product.metafields.custom.collection_key | strip }}">
+          <input type="hidden" name="properties[_bl_pool_title]" value="{{ current_product.metafields.custom.collection_key | strip | escape }}">
           <input type="hidden" name="properties[_bl_rarity]" value="">
           <input type="hidden" name="properties[_bl_parent_uid]" value="">
 

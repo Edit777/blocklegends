@@ -84,23 +84,20 @@
     return String(key || '').trim().toLowerCase();
   }
 
-  function getPoolContextFromDom() {
+  function getPoolContextFromPage() {
+    var key = null;
+    var title = '';
     try {
-      var el = document.getElementById('blPoolContext');
-      if (!el) return { key: '', title: '' };
-      var key = normalizePoolKey(el.getAttribute('data-bl-pool-key') || '');
-      var title = String(el.getAttribute('data-bl-pool-title') || '').trim();
-      return { key: key, title: title };
-    } catch (e) {
-      return { key: '', title: '' };
-    }
-  }
-
-  function getPoolKeyFromDomOrProductContext() {
-    // TODO: consolidate shared helper across modules
-    var ctx = getPoolContextFromDom();
-    if (ctx.key) return ctx;
-    return { key: '', title: '' };
+      if (window.BL && typeof window.BL.getPoolKeyFromPage === 'function') {
+        key = window.BL.getPoolKeyFromPage();
+      }
+    } catch (e) {}
+    try {
+      if (window.BL && typeof window.BL.getPoolTitleFromPage === 'function') {
+        title = window.BL.getPoolTitleFromPage() || '';
+      }
+    } catch (e2) {}
+    return { key: normalizePoolKey(key || ''), title: title };
   }
 
   var addonVariantIdsPromise = null;
@@ -258,7 +255,7 @@
       }
 
       var addonParentUid = props._bl_parent_uid || lastParentUid || parentUidByIndex[idx] || generateUid('bl-parent');
-      var poolCtx = getPoolKeyFromDomOrProductContext();
+      var poolCtx = getPoolContextFromPage();
       var poolKey = normalizePoolKey(props._bl_pool_key || poolCtx.key || '');
       var poolTitle = String(props._bl_pool_title || poolCtx.title || '').trim();
       if (poolKey) props._bl_pool_key = poolKey;
@@ -627,16 +624,16 @@ function ensureCssOnce() {
   }
 
   function formatCollectionName(card) {
-    var name = (card.getAttribute('data-bl-pool-title') || '').trim();
+    var name = (getPoolContextFromPage().title || card.getAttribute('data-bl-pool-title') || '').trim();
     if (!name) {
-      var ctx = getPoolKeyFromDomOrProductContext();
+      var ctx = getPoolContextFromPage();
       name = ctx.title || '';
     }
     if (name) return name;
 
-    var handle = normalizePoolKey(card.getAttribute('data-bl-pool-key') || '');
+    var handle = normalizePoolKey(getPoolContextFromPage().key || card.getAttribute('data-bl-pool-key') || '');
     if (!handle) {
-      var ctxHandle = getPoolKeyFromDomOrProductContext();
+      var ctxHandle = getPoolContextFromPage();
       handle = ctxHandle.key || '';
     }
     if (!handle) return '';
@@ -757,8 +754,8 @@ function ensureCssOnce() {
   function disableIneligibleOptions(card, variants, selectEl) {
     if (!selectEl || !M || typeof M.fetchPoolAllPages !== 'function') return Promise.resolve(false);
 
-    var ctx = getPoolKeyFromDomOrProductContext();
-    var poolKey = normalizePoolKey(card.getAttribute('data-bl-pool-key') || ctx.key || '');
+    var ctx = getPoolContextFromPage();
+    var poolKey = normalizePoolKey(ctx.key || card.getAttribute('data-bl-pool-key') || '');
     if (!poolKey) return Promise.resolve(false);
 
     return M.fetchPoolAllPages(poolKey).then(function () {
@@ -810,11 +807,18 @@ function ensureCssOnce() {
         }
       }
 
-      var poolTitle = String(card.getAttribute('data-bl-pool-title') || '').trim() || getPoolKeyFromDomOrProductContext().title || '';
+      var poolTitle = String(getPoolContextFromPage().title || card.getAttribute('data-bl-pool-title') || '').trim();
       logPoolDebugState(poolKey, poolTitle, counts, selectEl);
 
       return switched;
-    }).catch(function () {
+    }).catch(function (err) {
+      debugLog('pool-fetch-failed', { poolKey: poolKey, error: err });
+      showNotice(card, 'Mystery add-on is unavailable right now. Please refresh and try again.');
+      try {
+        Array.prototype.slice.call(card.querySelectorAll('button, select, input')).forEach(function (el) {
+          if (el) el.disabled = true;
+        });
+      } catch (e) {}
       return false;
     });
   }
@@ -925,9 +929,9 @@ function ensureCssOnce() {
 
     var productFormEl = card.querySelector('product-form');
 
-    var poolCtx = getPoolKeyFromDomOrProductContext();
-    var poolKey = normalizePoolKey(card.getAttribute('data-bl-pool-key') || poolCtx.key || '');
-    var poolTitle = String(card.getAttribute('data-bl-pool-title') || poolCtx.title || poolKey || '').trim();
+    var poolCtx = getPoolContextFromPage();
+    var poolKey = normalizePoolKey(poolCtx.key || card.getAttribute('data-bl-pool-key') || '');
+    var poolTitle = String(poolCtx.title || card.getAttribute('data-bl-pool-title') || poolKey || '').trim();
     var parentHandle = String(card.getAttribute('data-parent-handle') || '').trim();
 
     if (poolKey) {
@@ -961,7 +965,7 @@ function ensureCssOnce() {
 
     if (!poolKey) {
       debugLog('missing-pool-key', { handle: h });
-      showNotice(card, 'Mystery add-on is unavailable right now. Please refresh and try again.');
+      showNotice(card, 'Mystery add-on is unavailable right now. Missing pool key.');
       try {
         Array.prototype.slice.call(card.querySelectorAll('button, select, input')).forEach(function (el) {
           if (el) el.disabled = true;

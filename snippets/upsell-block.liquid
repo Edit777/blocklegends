@@ -484,7 +484,9 @@
   <div
     id="blPoolContext"
     data-bl-pool-key="{{ current_product.metafields.custom.collection_key | strip | downcase }}"
-    data-bl-pool-title="{{ current_product.metafields.custom.collection_key | strip }}"
+    data-bl-pool-title="{{ current_product.metafields.custom.collection_key | strip | escape }}"
+    data-bl-product-pool-key="{{ current_product.metafields.custom.collection_key | strip | downcase }}"
+    data-bl-product-collection-handle="{{ current_product.collections.first.handle | default: '' }}"
     hidden
   ></div>
 {%- endif -%}
