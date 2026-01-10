@@ -61,6 +61,20 @@
 
   {% assign variant_images = product.images | where: 'attached_to_variant?', true | map: 'src' %}
 
+  {%- liquid
+    assign bl_pool_key = product.metafields.custom.collection_key | default: '' | strip | downcase
+    if bl_pool_key == blank
+      for tag in product.tags
+        assign bl_tag_key = tag | strip | downcase
+        if bl_tag_key starts_with 'bl-pool:'
+          assign bl_pool_key = bl_tag_key | remove: 'bl-pool:' | strip
+          break
+        endif
+      endfor
+    endif
+  -%}
+  <div id="blPoolContext" data-bl-pool-key="{{ bl_pool_key }}" hidden></div>
+
   {% if section.settings.display_id %}
     <copy-button class='section-id-btn button' data-content="#shopify-section-{{ section.id }}" data-success="false">
       <span class="copy-text">Click to copy section ID</span>
