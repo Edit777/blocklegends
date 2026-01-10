@@ -44,6 +44,21 @@
     return isDebug();
   }
 
+  function normalizePoolKey(val) {
+    var s = String(val || '').trim().toLowerCase();
+    return s ? s : '';
+  }
+
+  function resolvePoolKey(meta) {
+    if (M && typeof M.resolvePoolKey === 'function') return M.resolvePoolKey(meta || {});
+    meta = meta || {};
+    return normalizePoolKey(meta.lineItemPropsPoolKey)
+      || normalizePoolKey(meta.selectedPoolKey)
+      || normalizePoolKey(meta.productPoolKey)
+      || normalizePoolKey(meta.domPoolKey)
+      || null;
+  }
+
   function getMinDistinctForSpecific() {
     var min = MIN_DISTINCT_FOR_SPECIFIC;
     if (!isFinite(min) || min < 0) min = MIN_DISTINCT_FOR_SPECIFIC;
@@ -118,7 +133,7 @@
 
   // Canonical pool context (defined in snippets/upsell-block.liquid).
   function getPoolContext() {
-    var ctx = { key: '', title: '', handle: '' };
+    var ctx = { key: '', title: '' };
     try {
       var poolEl = document.querySelector('#blPoolContext');
       if (!poolEl) return ctx;
@@ -134,18 +149,12 @@
         poolEl.getAttribute('data-bl-pool-title') ||
         ''
       ).trim();
-      ctx.handle = String(
-        (poolEl.dataset && (poolEl.dataset.poolHandle || poolEl.dataset.blPoolHandle)) ||
-        poolEl.getAttribute('data-pool-handle') ||
-        poolEl.getAttribute('data-bl-pool-handle') ||
-        ''
-      ).trim();
     } catch (e) {}
     return ctx;
   }
 
   function getPoolContextFromCard(card) {
-    var ctx = { key: '', title: '', handle: '' };
+    var ctx = { key: '', title: '' };
     if (!card) return ctx;
     try {
       ctx.key = String(
@@ -160,46 +169,47 @@
         card.getAttribute('data-bl-pool-title') ||
         ''
       ).trim();
-      ctx.handle = String(
-        (card.dataset && (card.dataset.poolHandle || card.dataset.blPoolHandle)) ||
-        card.getAttribute('data-pool-handle') ||
-        card.getAttribute('data-bl-pool-handle') ||
-        ''
-      ).trim();
-      if (!ctx.handle) {
-        ctx.handle = String((card.dataset && card.dataset.lockedCollection) || card.getAttribute('data-locked-collection') || '').trim();
-      }
     } catch (e) {}
     return ctx;
   }
 
-  function resolveLockedCollection(card) {
+  function resolveLockedCollection(card, form) {
     var ctx = getPoolContext();
-    if (!ctx.key && !ctx.handle) ctx = getPoolContextFromCard(card);
-    var key = ctx.key || '';
-    var handle = ctx.handle || '';
+    if (!ctx.key) ctx = getPoolContextFromCard(card);
+    var lineItemPropsPoolKey = '';
+    try {
+      if (form) {
+        var props = collectProperties(form);
+        lineItemPropsPoolKey = props._bl_pool_key || props._bl_locked_pool_key || '';
+      }
+    } catch (e) {}
+    var resolvedKey = resolvePoolKey({
+      lineItemPropsPoolKey: lineItemPropsPoolKey,
+      productPoolKey: ctx.key,
+      domPoolKey: ctx.key
+    });
+    var key = resolvedKey || '';
     var title = ctx.title;
     if (shouldDebug()) {
       try {
         console.log('[BL Mystery Addon][debug] pool context resolved', {
           poolKey: key,
-          poolTitle: title,
-          poolHandle: handle
+          poolTitle: title
         });
       } catch (e) {}
     }
-    if (handle && isInvalidLockedHandle(handle)) {
-      debugLockedCollection({ handle: handle, title: title, source: 'pool-context', rejected: true });
-      handle = '';
-    } else if (handle) {
-      debugLockedCollection({ handle: handle, title: title, source: 'pool-context', rejected: false });
+    if (key && isInvalidLockedHandle(key)) {
+      debugLockedCollection({ handle: key, title: title, source: 'pool-context', rejected: true });
+      key = '';
+    } else if (key) {
+      debugLockedCollection({ handle: key, title: title, source: 'pool-context', rejected: false });
     }
 
-    if (!handle && shouldDebug()) {
+    if (!key && shouldDebug()) {
       debugLockedCollection({ handle: '', title: title, source: 'pool-context', rejected: true });
     }
 
-    return { handle: handle, title: title, key: key };
+    return { handle: key, title: title, key: key };
   }
 
   var addonVariantIdsPromise = null;
@@ -360,6 +370,8 @@
       }
       if (!lockedCollection) lockedCollection = lockedMeta.handle;
       if (lockedCollection) props[lockedKey] = lockedCollection;
+      if (!props._bl_pool_key && lockedMeta.key) props._bl_pool_key = lockedMeta.key;
+      if (!props._bl_rarity) props._bl_rarity = props._bl_selected_rarity || props._bl_requested_rarity || '';
       if (lockedMeta.title && !props._bl_locked_collection_name) props._bl_locked_collection_name = lockedMeta.title;
       logAddonDebug('addon-enrich-locked-collection', { locked_collection: lockedCollection });
 
@@ -624,6 +636,8 @@ function ensureCssOnce() {
     ensureHidden(form, '_bl_locked_pool_key', key);
     ensureHidden(form, '_bl_locked_pool_handle', locked);
     ensureHidden(form, '_bl_locked_pool_title', title);
+    if (key) ensureHidden(form, '_bl_pool_key', key);
+    if (rarity) ensureHidden(form, '_bl_rarity', rarity);
     ensureHidden(form, '_bl_selected_rarity', rarity || '');
     ensureHidden(form, '_bl_requested_rarity', rarity || '');
     if (M && M.CFG && M.CFG.propRequestedTier) {
@@ -682,7 +696,7 @@ function ensureCssOnce() {
   var poolAvailabilityPromises = {};
   var poolValidationPromises = {};
   function normalizePoolHandle(handle) {
-    return String(handle || '').trim();
+    return String(handle || '').trim().toLowerCase();
   }
 
   function getPoolView() {
@@ -725,7 +739,7 @@ function ensureCssOnce() {
     if (cached) return Promise.resolve(cached);
 
     var poolView = getPoolView();
-    var url = '/collections/' + encodeURIComponent(poolHandle) + '?view=' + encodeURIComponent(poolView);
+    var url = '/collections/' + encodeURIComponent(poolHandle) + '?view=' + encodeURIComponent(poolView) + '&page=1';
 
     return fetch(url, { credentials: 'same-origin' })
       .then(function (response) {
@@ -743,7 +757,7 @@ function ensureCssOnce() {
     var poolHandle = normalizePoolHandle(handle);
     var poolView = getPoolView();
     var url = poolHandle
-      ? '/collections/' + encodeURIComponent(poolHandle) + '?view=' + encodeURIComponent(poolView)
+      ? '/collections/' + encodeURIComponent(poolHandle) + '?view=' + encodeURIComponent(poolView) + '&page=1'
       : '';
 
     if (!poolHandle) {
@@ -884,12 +898,20 @@ function ensureCssOnce() {
       return poolAvailabilityPromises[key];
     }
 
-    poolAvailabilityPromises[key] = fetchPoolJson(key)
-      .then(function (json) {
-        if (!json) return null;
-        var index = M.buildPoolIndex(json);
+    poolAvailabilityPromises[key] = M.fetchPoolAllPages(key)
+      .then(function (index) {
         if (!index) return null;
-        return computeDistinctAvailability(index);
+        var counts = index.distinctCounts || null;
+        if (!counts) return computeDistinctAvailability(index);
+        return {
+          perRarityDistinct: {
+            common: Number(counts.common || 0),
+            rare: Number(counts.rare || 0),
+            epic: Number(counts.epic || 0),
+            legendary: Number(counts.legendary || 0)
+          },
+          totalDistinct: Number(counts.total || 0)
+        };
       })
       .catch(function () { return null; });
 
@@ -897,7 +919,7 @@ function ensureCssOnce() {
   }
 
   function getLockedCollectionMeta(card, form) {
-    return resolveLockedCollection(card);
+    return resolveLockedCollection(card, form);
   }
 
   function getLockedCollectionKey(card, form) {
