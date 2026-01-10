@@ -40,6 +40,14 @@
     return [];
   }
 
+  function getPoolKey(root) {
+    try {
+      return String(root.getAttribute('data-bl-pool-key') || '').trim().toLowerCase();
+    } catch (e) {
+      return '';
+    }
+  }
+
   function getVariantId(form) {
     try {
       var input = form.querySelector('input[name="id"]');
@@ -260,6 +268,7 @@
     if (String(root.getAttribute('data-product-handle') || '') !== HANDLE) return;
 
     var collections = parseCollections(root);
+    var poolKey = getPoolKey(root);
     var form = root.closest('section') ? root.closest('section').querySelector('form[data-type="add-to-cart-form"]') : null;
     if (!form) form = document.querySelector('form[data-type="add-to-cart-form"]');
     if (!form) return;
@@ -280,7 +289,8 @@
     var state = {
       mode: M.CFG.modeRandomLabel,
       rarity: ANY_KEY,
-      collection: dropdown.value || ''
+      collection: dropdown.value || poolKey || '',
+      poolKey: poolKey
     };
 
     var initialSelection = getSelection(getVariantId(form));
@@ -304,7 +314,7 @@
 
     function updateHelper() {
       var label = M.normalizeMode(state.mode) === M.CFG.modePreferredLabel
-        ? getCollectionTitle(state.collection)
+        ? getCollectionTitle(state.poolKey || state.collection)
         : M.CFG.modeRandomLabel;
       updateHint(hintEl, state.rarity, label);
     }
@@ -325,7 +335,7 @@
         return Promise.resolve({ switched: false, rarity: state.rarity });
       }
 
-      return applyEligibility(root, form, rarityEntries, state.collection || dropdown.value, state, noticeEl)
+      return applyEligibility(root, form, rarityEntries, state.poolKey || state.collection || dropdown.value, state, noticeEl)
         .then(function (result) {
           if (result && result.rarity) {
             state.rarity = normalizeRarityValue(result.rarity) || state.rarity;
@@ -388,7 +398,7 @@
 
     Promise.all([
       (typeof M.fetchVariantMap === 'function') ? M.fetchVariantMap() : Promise.resolve(),
-      (typeof M.fetchPoolAllPages === 'function') ? M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle) : Promise.resolve()
+      (typeof M.fetchPoolAllPages === 'function') ? M.fetchPoolAllPages(poolKey || M.CFG.defaultPoolCollectionHandle) : Promise.resolve()
     ]).finally(function () {
       markRarityActive(rarityEntries, state.rarity);
       handleEligibility().then(function (res) {

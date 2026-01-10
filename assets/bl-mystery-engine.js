@@ -37,7 +37,7 @@
     mysteryAddonHandle: 'mystery-add-on',
 
     poolView: 'mystery',
-    defaultPoolCollectionHandle: 'all',
+    defaultPoolCollectionHandle: '',
 
     allowedRarities: ['common', 'rare', 'epic', 'legendary'],
     hardExcludedRarities: ['special', 'mythical'],
@@ -100,6 +100,28 @@
     var s = String(r || '').trim().toLowerCase();
     if (s === M.CFG.anyRarityKey) return M.CFG.anyRarityKey;
     return M.CFG.allowedRarities.indexOf(s) !== -1 ? s : 'common';
+  }
+
+  function normalizePoolKey(key) {
+    return String(key || '').trim().toLowerCase();
+  }
+
+  function getPoolKeyFromElement(el) {
+    if (!el) return '';
+    var key = '';
+    try {
+      key = (el.getAttribute && el.getAttribute('data-bl-pool-key')) || '';
+    } catch (e) {}
+    if (!key && el.dataset) key = el.dataset.blPoolKey || '';
+    return normalizePoolKey(key);
+  }
+
+  function getPoolKeyFromForm(form) {
+    var key = getPoolKeyFromElement(form);
+    if (!key && form && typeof form.closest === 'function') {
+      key = getPoolKeyFromElement(form.closest('[data-bl-pool-key]'));
+    }
+    return normalizePoolKey(key);
   }
 
   function normalizeMode(m) {
@@ -242,7 +264,31 @@
     return null;
   }
 
-  function getPreferredCollectionFromForm(form) {
+  function setVariantIdOnForm(form, variantId) {
+    if (!form || !variantId) return false;
+    var vid = String(variantId || '').trim();
+    if (!vid) return false;
+
+    var sel = form.querySelector('select[name="id"]') || form.querySelector('select.variant-dropdown') || form.querySelector('select.sticky-atc__variant-select');
+    var changed = false;
+
+    if (sel && String(sel.value) !== vid) {
+      sel.value = vid;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      changed = true;
+    }
+
+    var input = form.querySelector('input[name="id"]');
+    if (input && String(input.value) !== vid) {
+      input.value = vid;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      changed = true;
+    }
+
+    return changed;
+  }
+
+  function getPreferredCollectionFromForm(form, poolKey) {
     // main mystery preferred collection property
     try {
       var a = form.querySelector('[name="properties[' + M.CFG.propPreferredCollection + ']"]');
@@ -255,15 +301,15 @@
       if (b && b.value) return String(b.value).trim();
     } catch (e) {}
 
-    return '';
+    return normalizePoolKey(poolKey);
   }
 
-  function getLockedCollectionFromForm(form) {
+  function getLockedCollectionFromForm(form, poolKey) {
     try {
       var b = form.querySelector('[name="properties[' + M.CFG.propLockedCollectionLegacy + ']"]');
       if (b && b.value) return String(b.value).trim();
     } catch (e) {}
-    return '';
+    return normalizePoolKey(poolKey);
   }
 
   function upsertHidden(form, key, value) {
@@ -847,14 +893,18 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
   } catch (e) {}
 
   // Ensure caches (pool only when we actually assign)
-  var pAll = assignNow ? M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle) : Promise.resolve(null);
+  var poolKey = getPoolKeyFromForm(form);
+  if (poolKey) M.CFG.defaultPoolCollectionHandle = poolKey;
+  var defaultPoolHandle = poolKey || M.CFG.defaultPoolCollectionHandle;
+
+  var pAll = assignNow ? M.fetchPoolAllPages(defaultPoolHandle) : Promise.resolve(null);
   var pMap = M.fetchVariantMap();
 
   // Wrap everything so we ALWAYS release the computing lock
   return Promise.all([pAll, pMap])
     .then(function () {
       var sel = getSelectionFromForm(form, handle);
-      var lockedCollection = getLockedCollectionFromForm(form);
+      var lockedCollection = getLockedCollectionFromForm(form, defaultPoolHandle);
 
       // Add-on forced preferred mode
       if (handle === M.CFG.mysteryAddonHandle) sel.mode = M.CFG.modePreferredLabel;
@@ -864,7 +914,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       var isAny = (rarity === M.CFG.anyRarityKey);
 
       var requestedCollection =
-        (mode === M.CFG.modePreferredLabel) ? getPreferredCollectionFromForm(form) : '';
+        (mode === M.CFG.modePreferredLabel) ? getPreferredCollectionFromForm(form, defaultPoolHandle) : '';
       if (handle === M.CFG.mysteryAddonHandle && lockedCollection) {
         requestedCollection = lockedCollection;
       }
@@ -872,7 +922,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
       var poolHandleUsed =
         (mode === M.CFG.modePreferredLabel && requestedCollection)
           ? requestedCollection
-          : M.CFG.defaultPoolCollectionHandle;
+          : defaultPoolHandle;
       if (handle === M.CFG.mysteryAddonHandle && lockedCollection) {
         poolHandleUsed = lockedCollection;
       }
@@ -1013,6 +1063,7 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
 
         // Persist what user selected (tier) vs what they got (actual)
         upsertHidden(form, M.CFG.propSelectedMode, mode);
+        upsertHidden(form, M.CFG.propPreferredCollection, preferredCollectionSafe);
         upsertHidden(form, M.CFG.propRequestedTier, isAny ? M.CFG.anyRarityKey : rarity);
         // Supplemental properties for storefront tracking
         upsertHidden(form, '_bl_mode', mode === M.CFG.modePreferredLabel ? 'preferred' : 'random');
@@ -1250,6 +1301,14 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
             properties: propsSnapshot
           });
 
+          var assignedVariantId = propsSnapshot._bl_assigned_variant_id || propsSnapshot[M.CFG.propAssignedVariantId] || '';
+          var originalVariantId = '';
+          try { originalVariantId = String(getNumericVariantIdFromForm(form) || ''); } catch (eOrig) {}
+
+          if (assignedVariantId && assignedVariantId !== originalVariantId) {
+            setVariantIdOnForm(form, assignedVariantId);
+          }
+
           // resubmit once, bypassing our own listener
           form.dataset.blMysteryBypass = '1';
 
@@ -1259,6 +1318,9 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
               else form.submit();
             } catch (err2) {
               try { form.submit(); } catch (e2) {}
+            }
+            if (originalVariantId && assignedVariantId && assignedVariantId !== originalVariantId) {
+              setVariantIdOnForm(form, originalVariantId);
             }
           }, 0);
         });
@@ -1273,8 +1335,12 @@ M.computeAndApplyAssignment = function (form, productHandle, opts) {
     M.__inited = true;
 
     // Warm caches (safe)
+    var initialPoolKey = getPoolKeyFromElement(document.querySelector('[data-bl-pool-key]'));
+    if (initialPoolKey) M.CFG.defaultPoolCollectionHandle = initialPoolKey;
     M.fetchVariantMap();
-    M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle);
+    if (M.CFG.defaultPoolCollectionHandle) {
+      M.fetchPoolAllPages(M.CFG.defaultPoolCollectionHandle);
+    }
 
     // Bind user-driven precompute + submit safety
     M.bindSubmitSafety();

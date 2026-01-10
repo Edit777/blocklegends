@@ -1,13 +1,33 @@
+{%- liquid
+  assign pool_key = product.metafields.custom.collection_key | default: '' | strip | downcase
+-%}
 <div
   data-bl-mystery-ui
   data-product-handle="{{ product.handle }}"
+  data-bl-pool-key="{{ pool_key }}"
   data-collections='{% capture bl_collections_json %}[
     {%- assign is_first = true -%}
     {%- for link in linklists['all-collections'].links -%}
       {%- if link.type == 'collection_link' -%}
-        {%- unless is_first -%},{%- endunless -%}
-        {"handle":"{{ link.object.handle | escape }}","title":"{{ link.object.title | escape_once }}"}
-        {%- assign is_first = false -%}
+        {%- assign bl_hide = link.object.metafields.custom.bl_hide_from_all_collections.value | default: link.object.metafields.custom.bl_hide_from_all_collections | default: false -%}
+        {%- if bl_hide == true or bl_hide == 'true' -%}
+          {%- unless is_first -%},{%- endunless -%}
+          {"handle":"{{ link.object.handle | escape }}","title":"{{ link.object.title | escape_once }}"}
+          {%- assign is_first = false -%}
+        {%- endif -%}
+      {%- endif -%}
+    {%- endfor -%}
+  ]{% endcapture %}{{ bl_collections_json | strip_newlines | escape }}'
+  data-bl-collections='{% capture bl_collections_json %}[
+    {%- assign is_first = true -%}
+    {%- for link in linklists['all-collections'].links -%}
+      {%- if link.type == 'collection_link' -%}
+        {%- assign bl_hide = link.object.metafields.custom.bl_hide_from_all_collections.value | default: link.object.metafields.custom.bl_hide_from_all_collections | default: false -%}
+        {%- if bl_hide == true or bl_hide == 'true' -%}
+          {%- unless is_first -%},{%- endunless -%}
+          {"handle":"{{ link.object.handle | escape }}","title":"{{ link.object.title | escape_once }}"}
+          {%- assign is_first = false -%}
+        {%- endif -%}
       {%- endif -%}
     {%- endfor -%}
   ]{% endcapture %}{{ bl_collections_json | strip_newlines | escape }}'
@@ -25,7 +45,10 @@
       <select id="BLPreferredCollection-{{ section.id }}" class="bl-mystery-select" data-bl-pref-collection-select>
         {%- for link in linklists['all-collections'].links -%}
           {%- if link.type == 'collection_link' -%}
-            <option value="{{ link.object.handle }}">{{ link.object.title }}</option>
+            {%- assign bl_hide = link.object.metafields.custom.bl_hide_from_all_collections.value | default: link.object.metafields.custom.bl_hide_from_all_collections | default: false -%}
+            {%- if bl_hide == true or bl_hide == 'true' -%}
+              <option value="{{ link.object.handle }}">{{ link.object.title }}</option>
+            {%- endif -%}
           {%- endif -%}
         {%- endfor -%}
       </select>

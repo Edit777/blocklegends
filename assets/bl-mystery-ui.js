@@ -181,6 +181,21 @@
     return [];
   }
 
+  function getPoolKey(root, form) {
+    var key = '';
+    try {
+      key = (root && root.getAttribute && root.getAttribute('data-bl-pool-key')) || '';
+    } catch (e) {}
+    if (!key && form) {
+      try { key = form.getAttribute('data-bl-pool-key') || ''; } catch (e2) {}
+      if (!key && typeof form.closest === 'function') {
+        var host = form.closest('[data-bl-pool-key]');
+        if (host) key = host.getAttribute('data-bl-pool-key') || '';
+      }
+    }
+    return String(key || '').trim().toLowerCase();
+  }
+
   function getStored(key) {
     try { return window.sessionStorage ? window.sessionStorage.getItem(key) : null; } catch (e) { return null; }
   }
@@ -215,7 +230,8 @@
 
   function syncHiddenProps(form, state) {
     var modeKey = state.mode === MODE_LABELS.preferred ? 'preferred' : 'random';
-    var collectionVal = (state.mode === MODE_LABELS.preferred) ? (state.collection || '') : '';
+    var poolKey = String(state.poolKey || '').trim();
+    var collectionVal = poolKey || ((state.mode === MODE_LABELS.preferred) ? (state.collection || '') : '');
     upsertHidden(form, M.CFG.propPreferredCollection, collectionVal);
     upsertHidden(form, '_bl_mode', modeKey);
     upsertHidden(form, '_bl_locked_collection', collectionVal);
@@ -334,7 +350,8 @@
     var ui = buildUI(root, form, collections);
     if (!ui) return;
 
-    var state = { mode: MODE_LABELS.random, rarity: ANY, collection: '' };
+    var poolKey = getPoolKey(root, form);
+    var state = { mode: MODE_LABELS.random, rarity: ANY, collection: '', poolKey: poolKey };
     var storedMode = getStored(STORAGE_KEYS.mode);
     var storedCollection = getStored(STORAGE_KEYS.collection);
     var storedRarity = getStored(STORAGE_KEYS.rarity);
@@ -342,7 +359,7 @@
     var initialSel = getSelectionFromForm(form);
     state.mode = M.normalizeMode(storedMode || initialSel.mode || MODE_LABELS.random);
     state.rarity = M.normalizeRarity(storedRarity || initialSel.rarity || ANY);
-    state.collection = storedCollection || getPreferredCollectionFromForm(form) || '';
+    state.collection = storedCollection || getPreferredCollectionFromForm(form) || poolKey || '';
 
     function persist() {
       setStored(STORAGE_KEYS.mode, state.mode === MODE_LABELS.preferred ? 'preferred' : 'random');
@@ -382,13 +399,14 @@
     function applyEligibility() {
       var modePreferred = state.mode === MODE_LABELS.preferred;
       var rarityBtns = ui.rarityButtons || [];
+      var collectionHandle = state.poolKey || state.collection;
 
-      if (!modePreferred || !state.collection) {
+      if (!modePreferred || !collectionHandle) {
         rarityBtns.forEach(function (btn) { btn.disabled = false; btn.classList.remove('is-disabled'); btn.setAttribute('aria-disabled', 'false'); });
         return Promise.resolve();
       }
 
-      return computeCounts(state.collection).then(function (counts) {
+      return computeCounts(collectionHandle).then(function (counts) {
         var min = Number(M.CFG.preferredMinPerRarity || 0);
         rarityBtns.forEach(function (btn) {
           var r = String(btn.getAttribute('data-rarity') || '').toLowerCase();
@@ -413,7 +431,7 @@
     }
 
     function updateHelper() {
-      var title = findCollectionTitle(state.collection);
+      var title = findCollectionTitle(state.poolKey || state.collection);
       var modePreferred = state.mode === MODE_LABELS.preferred;
       if (modePreferred && !state.collection) {
         setHelper('Select a collection to continue.', true);

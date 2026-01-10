@@ -153,6 +153,9 @@
   A.enrichCartAddFormData = async function (formData) {
     if (!formData || !(formData instanceof FormData)) return;
     if (!M || typeof M.computeAndApplyAssignment !== 'function') return;
+    try {
+      if (formData.get && formData.get('_bl_skip_mystery_addon_enrich') === '1') return;
+    } catch (e) {}
 
     var items = parseItemsFromFormData(formData);
     if (!items.length) return;
@@ -459,6 +462,55 @@ function ensureCssOnce() {
     } catch (e) {}
 
     return props;
+  }
+
+  function rewriteFormDataProperties(fd, props) {
+    if (!fd || typeof fd.forEach !== 'function') return;
+    var toDelete = [];
+
+    try {
+      fd.forEach(function (_, key) {
+        if (String(key || '').indexOf('properties[') === 0) toDelete.push(key);
+      });
+    } catch (e) {}
+
+    toDelete.forEach(function (k) { try { fd.delete(k); } catch (eDel) {} });
+
+    Object.keys(props || {}).forEach(function (key) {
+      var val = props[key];
+      if (val === null || typeof val === 'undefined') return;
+      try { fd.append('properties[' + key + ']', String(val)); } catch (e) {}
+    });
+  }
+
+  function getCartUiTargets() {
+    return {
+      drawer: document.querySelector('cart-drawer') || document.getElementById('CartDrawer'),
+      notification: document.querySelector('cart-notification')
+    };
+  }
+
+  function getSectionsToRender(targets) {
+    targets = targets || getCartUiTargets();
+    var sections = [];
+    if (targets.drawer && typeof targets.drawer.getSectionsToRender === 'function') {
+      sections = targets.drawer.getSectionsToRender().map(function (s) { return s.id; });
+    } else if (targets.notification && typeof targets.notification.getSectionsToRender === 'function') {
+      sections = targets.notification.getSectionsToRender().map(function (s) { return s.id; });
+    }
+    return sections;
+  }
+
+  function renderCartTargets(targets, parsedState) {
+    if (!parsedState) return;
+    targets = targets || getCartUiTargets();
+    if (targets.drawer && typeof targets.drawer.renderContents === 'function') {
+      targets.drawer.renderContents(parsedState);
+      return;
+    }
+    if (targets.notification && typeof targets.notification.renderContents === 'function') {
+      targets.notification.renderContents(parsedState);
+    }
   }
 
   function mirrorPropertiesToItems(form, props) {
@@ -845,14 +897,99 @@ function ensureCssOnce() {
       ensureHidden(form, '_bl_is_addon', '1');
       if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
       if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+      if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propPreferredCollection) || '_preferred_collection', locked);
 
       form.addEventListener('submit', function () {
         ensureHidden(form, '_bl_is_addon', '1');
         if (parentHandle) ensureHidden(form, '_bl_parent_handle', parentHandle);
         if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propLockedCollectionLegacy) || '_bl_locked_collection', locked);
+        if (locked) ensureHidden(form, (M && M.CFG && M.CFG.propPreferredCollection) || '_preferred_collection', locked);
 
         // assignment happens in engine submit safety; keep flags in sync
       });
+    }
+
+    if (form && !form.__blAddonSubmitBound) {
+      form.__blAddonSubmitBound = true;
+      form.addEventListener('submit', function (evt) {
+        if (form.dataset.blAddonSubmitting === '1') {
+          evt.preventDefault();
+          evt.stopImmediatePropagation();
+          return;
+        }
+
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+
+        form.dataset.blAddonSubmitting = '1';
+
+        var handle = getAddonHandle();
+        var targets = getCartUiTargets();
+
+        Promise.resolve()
+          .then(function () {
+            if (M && typeof M.computeAndApplyAssignment === 'function') {
+              return M.computeAndApplyAssignment(form, handle, { force: true });
+            }
+            return false;
+          })
+          .then(function (ok) {
+            if (!ok) {
+              showNotice(card, 'This add-on is temporarily unavailable. Please try again.');
+              return false;
+            }
+
+            var propsSnapshot = collectProperties(form);
+            mirrorPropertiesToItems(form, propsSnapshot);
+
+            var assignedVariantId = propsSnapshot._bl_assigned_variant_id || propsSnapshot[(M && M.CFG && M.CFG.propAssignedVariantId) || '_assigned_variant_id'] || '';
+            if (!assignedVariantId) {
+              showNotice(card, 'Unable to assign a figure right now. Please try again.');
+              return false;
+            }
+
+            var fd = new FormData(form);
+            fd.set('id', String(assignedVariantId));
+            if (!fd.get('quantity')) fd.set('quantity', '1');
+            rewriteFormDataProperties(fd, propsSnapshot);
+            fd.set('_bl_skip_mystery_addon_enrich', '1');
+
+            var sections = getSectionsToRender(targets);
+            if (sections.length) {
+              fd.set('sections', sections.join(','));
+              fd.set('sections_url', window.location.pathname);
+            }
+
+            return fetch('/cart/add.js', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Accept': 'application/json' },
+              body: fd
+            })
+              .then(function (res) {
+                if (!res.ok) throw res;
+                return res.json();
+              })
+              .then(function (json) {
+                renderCartTargets(targets, json);
+                return true;
+              });
+          })
+          .catch(function (err) {
+            if (err && err.json) {
+              err.json().then(function (data) {
+                showNotice(card, (data && data.description) ? data.description : 'Unable to add this add-on right now.');
+              }).catch(function () {
+                showNotice(card, 'Unable to add this add-on right now.');
+              });
+            } else {
+              showNotice(card, 'Unable to add this add-on right now.');
+            }
+          })
+          .finally(function () {
+            form.dataset.blAddonSubmitting = '0';
+          });
+      }, true);
     }
 
     if (productFormEl && form) {
