@@ -1,4 +1,10 @@
 <div
+  id="blPoolContext"
+  data-bl-pool-key="{{ product.metafields.custom.collection_key | strip | downcase }}"
+  hidden
+></div>
+
+<div
   data-bl-mystery-ui
   data-product-handle="{{ product.handle }}"
   data-collections='{% capture bl_collections_json %}[

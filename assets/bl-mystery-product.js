@@ -59,6 +59,10 @@
     return text.replace(/[-_]+/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
 
+  function normalizePoolKey(key) {
+    return String(key || '').trim().toLowerCase();
+  }
+
   function parseCollectionsFromRoot(root, dropdown) {
     var list = [];
     try {
@@ -257,8 +261,9 @@
   function syncHiddenProps(form, state) {
     if (!form || !state) return;
     var preferredMode = M.normalizeMode(state.mode) === M.CFG.modePreferredLabel;
-    var collectionVal = preferredMode ? (state.collection || '') : '';
+    var collectionVal = preferredMode ? normalizePoolKey(state.collection || '') : '';
     var modeKey = preferredMode ? 'preferred' : 'random';
+    upsertHidden(form, '_bl_pool_key', collectionVal);
     upsertHidden(form, M.CFG.propPreferredCollection, collectionVal);
     upsertHidden(form, '_bl_mode', modeKey);
     upsertHidden(form, '_bl_locked_collection', collectionVal);
@@ -335,6 +340,16 @@
     });
   }
 
+  function setSubmitEnabled(form, enabled, message, noticeEl) {
+    if (!form) return;
+    var btn = form.querySelector('[type="submit"]');
+    if (btn) btn.disabled = !enabled;
+    if (noticeEl) {
+      safeText(noticeEl, message || '');
+      setDisplay(noticeEl, !!message);
+    }
+  }
+
   function attach(root) {
     if (!root || root.dataset.blMysteryBound === '1') return;
     if (String(root.getAttribute('data-product-handle') || '') !== HANDLE) return;
@@ -362,6 +377,17 @@
     }
 
     root.dataset.blMysteryBound = '1';
+
+    if (!form.dataset.blMysterySwapBound) {
+      form.dataset.blMysterySwapBound = '1';
+      form.addEventListener('submit', function () {
+        var assignedInput = form.querySelector('input[name="properties[_bl_assigned_variant_id]"]');
+        var assigned = assignedInput ? String(assignedInput.value || '').trim() : '';
+        if (assigned && M && typeof M.applyAssignedVariantForSubmit === 'function') {
+          M.applyAssignedVariantForSubmit(form, assigned);
+        }
+      });
+    }
 
     var availability = findVariantAvailability(root);
     var collectionMap = {};
@@ -457,11 +483,22 @@
       markRarityActive(rarityEntries, state.rarity);
       updateHelper();
       syncHiddenProps(form, state);
+      updateSubmitState();
       syncVariant();
     }
 
+    function updateSubmitState() {
+      var preferred = M.normalizeMode(state.mode) === M.CFG.modePreferredLabel;
+      var key = preferred ? normalizePoolKey(state.collection || '') : (M.getPoolKey ? M.getPoolKey(form) : '');
+      if (!key) {
+        setSubmitEnabled(form, false, 'Please select a collection before adding to cart.', noticeEl);
+        return;
+      }
+      setSubmitEnabled(form, true, '', noticeEl);
+    }
+
     dropdown.addEventListener('change', function () {
-      state.collection = dropdown.value;
+      state.collection = normalizePoolKey(dropdown.value);
       handleEligibility().then(function (res) {
         if (res && res.rarity) state.rarity = res.rarity;
         refresh();
@@ -530,7 +567,7 @@
           try { console.log('[BL Mystery][debug] preferred-dropdown-populated', { count: collections.length }); } catch (e) {}
         }
         if (collections.length && !collectionMap[state.collection]) {
-          state.collection = collections[0].handle;
+          state.collection = normalizePoolKey(collections[0].handle);
           dropdown.value = state.collection;
         }
       }
