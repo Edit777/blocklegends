@@ -1,46 +1,16 @@
 {%- liquid
   assign use_auto_collection = block.settings.enable_dynamic_recommendations
   assign current_product = product
-  assign excluded_handles = 'catalog,all,frontpage' | split: ','
-  assign bl_pool_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip
-  assign pool_collection = nil
+  assign bl_pool_key = product.metafields.custom.collection_key.value | default: product.metafields.custom.collection_key | strip | downcase
   assign bl_pool_title = ''
 
-  if bl_pool_key == blank
-    if collection
-      unless excluded_handles contains collection.handle
-        assign pool_collection = collection
-      endunless
-    endif
-
-    if pool_collection == nil and product != blank
-      for product_collection in product.collections
-        unless excluded_handles contains product_collection.handle
-          assign pool_collection = product_collection
-          break
-        endunless
-      endfor
-    endif
-  endif
-
   assign bl_pool_handle = bl_pool_key
-  if bl_pool_handle == blank and pool_collection
-    assign bl_pool_handle = pool_collection.handle | strip
-  endif
-
-  if bl_pool_key == blank and bl_pool_handle != blank
-    assign bl_pool_key = bl_pool_handle
-  endif
 
   if bl_pool_handle != blank
     assign bl_pool_collection = collections[bl_pool_handle]
     if bl_pool_collection
       assign bl_pool_title = bl_pool_collection.title | strip | escape
     endif
-  endif
-
-  if bl_pool_title == blank and pool_collection and pool_collection.handle == bl_pool_handle
-    assign bl_pool_title = pool_collection.title | strip | escape
   endif
 
   if bl_pool_title == blank and bl_pool_handle != blank
@@ -54,7 +24,7 @@
   assign addon_product = all_products[addon_handle]
 
   assign bl_addon_enabled = false
-  if addon_product != blank and bl_pool_handle != blank
+  if addon_product != blank and bl_pool_key != blank
     assign bl_addon_enabled = true
   endif
 
@@ -67,10 +37,6 @@
 
   if use_auto_collection
     assign source_collection = collections[block.settings.upsell_collection]
-
-    if source_collection == blank and pool_collection
-      assign source_collection = pool_collection
-    endif
 
     if source_collection != blank
       assign product_list = source_collection.products
