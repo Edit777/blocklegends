@@ -12,6 +12,21 @@
     try { return (window.BL && typeof window.BL.isDebug === 'function') ? window.BL.isDebug() : false; } catch (e) { return false; }
   }
 
+  function normalizePoolKey(val) {
+    var s = String(val || '').trim().toLowerCase();
+    return s ? s : '';
+  }
+
+  function resolvePoolKey(meta) {
+    if (M && typeof M.resolvePoolKey === 'function') return M.resolvePoolKey(meta || {});
+    meta = meta || {};
+    return normalizePoolKey(meta.lineItemPropsPoolKey)
+      || normalizePoolKey(meta.selectedPoolKey)
+      || normalizePoolKey(meta.productPoolKey)
+      || normalizePoolKey(meta.domPoolKey)
+      || null;
+  }
+
   function debugLog() {
     if (!isDebug()) return;
     var args = Array.prototype.slice.call(arguments);
@@ -254,15 +269,20 @@
     safeText(hintEl, text);
   }
 
-  function syncHiddenProps(form, state) {
+  function syncHiddenProps(form, state, defaultPoolKey) {
     if (!form || !state) return;
     var preferredMode = M.normalizeMode(state.mode) === M.CFG.modePreferredLabel;
     var collectionVal = preferredMode ? (state.collection || '') : '';
     var modeKey = preferredMode ? 'preferred' : 'random';
+    var poolKey = resolvePoolKey({
+      selectedPoolKey: preferredMode ? collectionVal : '',
+      productPoolKey: defaultPoolKey
+    });
     upsertHidden(form, M.CFG.propPreferredCollection, collectionVal);
     upsertHidden(form, '_bl_mode', modeKey);
     upsertHidden(form, '_bl_locked_collection', collectionVal);
     upsertHidden(form, '_bl_requested_rarity', state.rarity || ANY_KEY);
+    if (poolKey) upsertHidden(form, '_bl_pool_key', poolKey);
   }
 
   function capitalize(str) {
@@ -365,6 +385,7 @@
 
     var availability = findVariantAvailability(root);
     var collectionMap = {};
+    var defaultPoolKey = normalizePoolKey(root.getAttribute('data-bl-default-pool-key') || (root.dataset && root.dataset.blDefaultPoolKey) || '');
     var state = {
       mode: M.CFG.modeRandomLabel,
       rarity: ANY_KEY,
@@ -456,7 +477,7 @@
       updateModeButtons();
       markRarityActive(rarityEntries, state.rarity);
       updateHelper();
-      syncHiddenProps(form, state);
+      syncHiddenProps(form, state, defaultPoolKey);
       syncVariant();
     }
 
@@ -529,7 +550,10 @@
         if (isDebug()) {
           try { console.log('[BL Mystery][debug] preferred-dropdown-populated', { count: collections.length }); } catch (e) {}
         }
-        if (collections.length && !collectionMap[state.collection]) {
+        if (defaultPoolKey && collectionMap[defaultPoolKey]) {
+          state.collection = defaultPoolKey;
+          dropdown.value = defaultPoolKey;
+        } else if (collections.length && !collectionMap[state.collection]) {
           state.collection = collections[0].handle;
           dropdown.value = state.collection;
         }

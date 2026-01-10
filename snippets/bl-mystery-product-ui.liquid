@@ -1,6 +1,7 @@
 <div
   data-bl-mystery-ui
   data-product-handle="{{ product.handle }}"
+  data-bl-default-pool-key="{{ product.metafields.custom.pool_key | strip | downcase }}"
   data-collections='{% capture bl_collections_json %}[
     {%- assign is_first = true -%}
     {%- for link in linklists['all-collections'].links -%}
