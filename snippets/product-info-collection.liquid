@@ -19,6 +19,14 @@
   else
     assign pool_title = 'Unknown'
   endif
+
+  assign real_name = product.metafields.custom.real_collection | strip
+  assign real_handle = ''
+  assign real_col = ''
+  if real_name != blank
+    assign real_handle = real_name | handleize
+    assign real_col = collections[real_handle]
+  endif
 -%}
 
 <p
@@ -37,7 +45,17 @@
     </span>
   {%- endif -%}
 
-  {%- if s.show_link and pool_collection != blank -%}
+  {%- if real_name != blank -%}
+    {%- if s.show_link and real_col != blank -%}
+      <a class="product-collection__link" href="{{ real_col.url }}">
+        {{ real_col.title | default: real_name }}
+      </a>
+    {%- else -%}
+      <span class="product-collection__link">
+        {{ real_col.title | default: real_name }}
+      </span>
+    {%- endif -%}
+  {%- elsif s.show_link and pool_collection != blank -%}
     <a class="product-collection__link" href="{{ pool_collection.url }}">
       {{ pool_title }}
     </a>
