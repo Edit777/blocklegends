@@ -8,17 +8,20 @@
   assign addon_handle = 'mystery-add-on'
   assign addon_product = all_products[addon_handle]
 
-  # Primary collection for current product (lock add-on to this)
-  assign bl_primary_collection = ''
-  for c in current_product.collections
-    unless c.handle == 'all' or c.handle == 'frontpage'
-      assign bl_primary_collection = c.handle
-      break
-    endunless
-  endfor
+  # Pool key for current product (lock add-on to this)
+  assign bl_pool_key = current_product.metafields.custom.pool_key | strip | downcase
+  assign bl_pool_collection = collections[bl_pool_key]
+  assign bl_pool_title = ''
+  if bl_pool_collection != blank
+    assign bl_pool_title = bl_pool_collection.title
+  elsif bl_pool_key != blank
+    assign bl_pool_title = bl_pool_key
+  else
+    assign bl_pool_title = 'Unknown'
+  endif
 
   assign bl_addon_enabled = false
-  if addon_product != blank and bl_primary_collection != blank
+  if addon_product != blank and bl_pool_key != blank
     assign bl_addon_enabled = true
   endif
 
@@ -97,6 +100,13 @@
   data-product-handle="{{ current_product.handle }}"
   {{ block.shopify_attributes }}
 >
+  {% if type == 'product-info' and bl_addon_enabled %}
+    <div
+      id="blPoolContext"
+      data-bl-pool-key="{{ bl_pool_key }}"
+      data-bl-pool-title="{{ bl_pool_title }}"
+    ></div>
+  {% endif %}
   {% if display_count == 0 %}
     <h4 class='center'>Assign upsell products in block settings or choose a collection.</h4>
   {% endif %}
@@ -472,7 +482,8 @@
   current_product: current_product,
   addon_product: addon_product,
   addon_display: addon_display,
-  bl_primary_collection: bl_primary_collection,
+  bl_pool_key: bl_pool_key,
+  bl_pool_title: bl_pool_title,
   bl_is_slider: bl_is_slider
 %}
 

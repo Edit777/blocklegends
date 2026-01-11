@@ -2,7 +2,7 @@
   Block Legends — Mystery Add-On card (rendered separately)
   Required render params:
     type, block, section, current_product, addon_product,
-    addon_display, bl_primary_collection, bl_is_slider
+    addon_display, bl_pool_key, bl_pool_title, bl_is_slider
 {%- endcomment -%}
 
 {%- if addon_product == blank or addon_display == false -%}
@@ -25,13 +25,7 @@
 
   assign addon_form_id = type | append: 'upsell' | append: block.id | append: 'addon'
 
-  assign bl_locked_collection_title = ''
-  assign bl_locked_collection_obj = collections[bl_primary_collection]
-  if bl_locked_collection_obj != blank
-    assign bl_locked_collection_title = bl_locked_collection_obj.title
-  elsif bl_primary_collection != blank
-    assign bl_locked_collection_title = bl_primary_collection | replace: '-', ' ' | replace: '_', ' ' | capitalize
-  endif
+  assign bl_locked_collection_title = bl_pool_title
 
 -%}
 
@@ -66,7 +60,7 @@
     data-skip-unavailable="{{ block.settings.skip_unavailable }}"
     data-upsell-addon="true"
     data-parent-handle="{{ current_product.handle }}"
-    data-locked-collection="{{ bl_primary_collection }}"
+    data-locked-collection="{{ bl_pool_key }}"
     data-locked-collection-name="{{ bl_locked_collection_title }}"
     data-money-format="{{ shop.money_format }}"
     data-currency="{{ localization.country.currency.iso_code | default: cart.currency.iso_code | default: shop.currency }}"
@@ -211,7 +205,7 @@
 
           <input type="hidden" name="properties[_bl_is_addon]" value="1">
           <input type="hidden" name="properties[_bl_parent_handle]" value="{{ current_product.handle }}">
-          <input type="hidden" name="properties[_bl_locked_collection]" value="{{ bl_primary_collection }}">
+          <input type="hidden" name="properties[_bl_locked_collection]" value="{{ bl_pool_key }}">
           <input type="hidden" name="properties[_bl_parent_uid]" value="">
 
           <button type='submit' class='hidden'>+</button>

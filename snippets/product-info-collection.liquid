@@ -5,36 +5,43 @@
 
 {%- assign s = block.settings -%}
 
-{%- comment %}
-  Choose which collection to show:
-  1) If product is viewed inside a collection page, use that.
-  2) Otherwise fall back to the first collection the product belongs to.
+{%- comment -%}
+  Display collection name from product metafield pool_key.
 {%- endcomment -%}
-{%- assign primary_collection = collection | default: product.collections.first -%}
+{%- liquid
+  assign pool_key = product.metafields.custom.pool_key | strip | downcase
+  assign pool_collection = collections[pool_key]
+  assign pool_title = ''
+  if pool_collection != blank
+    assign pool_title = pool_collection.title
+  elsif pool_key != blank
+    assign pool_title = pool_key
+  else
+    assign pool_title = 'Unknown'
+  endif
+-%}
 
-{%- if primary_collection -%}
-  <p
-    class="product-collection"
-    style="
-      --pc-mt: {{ s.margin_top | default: 0 }}px;
-      --pc-mb: {{ s.margin_bottom | default: 8 }}px;
-      --pc-fs: {{ s.font_size | default: 14 }}px;
-    "
-  >
-    {%- if s.label != blank -%}
-      <span class="product-collection__label">
-        {{ s.label }}
-      </span>
-    {%- endif -%}
+<p
+  class="product-collection"
+  style="
+    --pc-mt: {{ s.margin_top | default: 0 }}px;
+    --pc-mb: {{ s.margin_bottom | default: 8 }}px;
+    --pc-fs: {{ s.font_size | default: 14 }}px;
+  "
+>
+  {%- if s.label != blank -%}
+    <span class="product-collection__label">
+      {{ s.label }}
+    </span>
+  {%- endif -%}
 
-    {%- if s.show_link -%}
-      <a class="product-collection__link" href="{{ primary_collection.url }}">
-        {{ primary_collection.title }}
-      </a>
-    {%- else -%}
-      <span class="product-collection__link">
-        {{ primary_collection.title }}
-      </span>
-    {%- endif -%}
-  </p>
-{%- endif -%}
+  {%- if s.show_link and pool_collection != blank -%}
+    <a class="product-collection__link" href="{{ pool_collection.url }}">
+      {{ pool_title }}
+    </a>
+  {%- else -%}
+    <span class="product-collection__link">
+      {{ pool_title }}
+    </span>
+  {%- endif -%}
+</p>
