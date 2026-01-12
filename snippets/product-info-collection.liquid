@@ -21,11 +21,20 @@
   endif
 
   assign real_name = product.metafields.custom.real_collection | strip
-  assign real_handle = ''
+  assign real_handle = product.metafields.custom.real_collection_handle | strip
   assign real_col = ''
-  if real_name != blank
-    assign real_handle = real_name | handleize
+  if real_handle != blank
     assign real_col = collections[real_handle]
+  endif
+
+  assign fallback_collection = ''
+  if real_handle == blank
+    for product_collection in product.collections
+      unless product_collection.handle == 'all' or product_collection.handle == 'catalog'
+        assign fallback_collection = product_collection
+        break
+      endunless
+    endfor
   endif
 -%}
 
@@ -45,23 +54,28 @@
     </span>
   {%- endif -%}
 
-  {%- if real_name != blank -%}
-    {%- if s.show_link and real_col != blank -%}
+  {%- if real_handle != blank -%}
+    {%- assign real_label = real_name | default: real_handle -%}
+    {%- if real_col != blank -%}
       <a class="product-collection__link" href="{{ real_col.url }}">
-        {{ real_col.title | default: real_name }}
+        {{ real_name | default: real_col.title }}
       </a>
     {%- else -%}
-      <span class="product-collection__link">
-        {{ real_col.title | default: real_name }}
-      </span>
+      <a class="product-collection__link" href="/collections/{{ real_handle }}">
+        {{ real_label }}
+      </a>
     {%- endif -%}
   {%- elsif s.show_link and pool_collection != blank -%}
     <a class="product-collection__link" href="{{ pool_collection.url }}">
       {{ pool_title }}
     </a>
+  {%- elsif s.show_link and fallback_collection != blank -%}
+    <a class="product-collection__link" href="{{ fallback_collection.url }}">
+      {{ fallback_collection.title }}
+    </a>
   {%- else -%}
     <span class="product-collection__link">
-      {{ pool_title }}
+      {{ pool_title | default: fallback_collection.title }}
     </span>
   {%- endif -%}
 </p>
