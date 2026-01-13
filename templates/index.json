@@ -521,8 +521,8 @@
         "avatar_left": 16,
         "glow_color": "#000000",
         "glow_alpha": 8,
-        "edge_fade": 36,
-        "pad_y": 18
+        "edge_fade": 120,
+        "pad_y": 26
       }
     },
     "reviews_infinite_ztc8ch": {
@@ -596,9 +596,9 @@
         "avatar_size": 42,
         "avatar_left": 16,
         "glow_color": "#000000",
-        "glow_alpha": 8,
-        "edge_fade": 36,
-        "pad_y": 18
+        "glow_alpha": 10,
+        "edge_fade": 120,
+        "pad_y": 12
       }
     }
   },
