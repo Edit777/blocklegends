@@ -110,7 +110,7 @@
         "mobile_full_media_width": false,
         "mobile_direction": "normal",
         "mobile_content_alignment": "center",
-        "padding_top": 20,
+        "padding_top": 32,
         "padding_bottom": 0,
         "custom_colors_background": "#2e2a39",
         "custom_gradient_background": "",
