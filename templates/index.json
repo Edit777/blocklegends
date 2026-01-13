@@ -598,7 +598,7 @@
         "glow_color": "#000000",
         "glow_alpha": 10,
         "edge_fade": 120,
-        "pad_y": 12
+        "pad_y": 14
       }
     }
   },
