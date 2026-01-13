@@ -18,58 +18,6 @@
         "color_scheme": "background-1"
       }
     },
-    "multirow_MQ4Ufw": {
-      "type": "multirow",
-      "blocks": {
-        "row_enFwDV": {
-          "type": "row",
-          "settings": {
-            "image": "shopify://shop_images/ComfyUI_00153.png",
-            "video_muted_autoplay": true,
-            "caption": "",
-            "title": "Clash Heroes",
-            "title_highlight_color": "#6d388b",
-            "text": "<p>Enter an arena kingdom where every duel is decided by timing, tactics, and a surge of elixir. Build your deck, deploy troops and spells, defend your towers, and outsmart rivals in fast battles that feel like a final round.</p>",
-            "button_label": "",
-            "button_link": "",
-            "atc_button_label": "",
-            "atc_product": "",
-            "atc_skip_cart": false
-          }
-        }
-      },
-      "block_order": [
-        "row_enFwDV"
-      ],
-      "name": "t:sections.multirow.presets.name",
-      "settings": {
-        "display_id": false,
-        "visibility": "mobile-hidden",
-        "image_height": "adapt",
-        "desktop_image_width": "medium",
-        "heading_size": "h1",
-        "text_style": "body",
-        "button_style": "secondary",
-        "desktop_content_position": "middle",
-        "desktop_content_alignment": "left",
-        "image_layout": "alternate-left",
-        "row_color_scheme": "background-1",
-        "section_color_scheme": "background-1",
-        "mobile_full_media_width": false,
-        "mobile_direction": "normal",
-        "mobile_content_alignment": "center",
-        "padding_top": 0,
-        "padding_bottom": 0,
-        "custom_colors_background": "#2e2a39",
-        "custom_gradient_background": "",
-        "custom_colors_text": "#ffffff",
-        "custom_colors_solid_button_background": "#dd1d1d",
-        "custom_colors_solid_button_text": "#ffffff",
-        "custom_colors_outline_button": "#dd1d1d",
-        "custom_section_colors_background": "#ffffff",
-        "custom_section_gradient_background": "linear-gradient(251deg, rgba(254, 217, 81, 1) 11%, rgba(255, 70, 199, 1) 81%)"
-      }
-    },
     "multirow_VXnpKb": {
       "type": "multirow",
       "blocks": {
@@ -487,7 +435,6 @@
   },
   "order": [
     "main-collection-banner",
-    "multirow_MQ4Ufw",
     "multirow_VXnpKb",
     "main-collection-product-grid",
     "collage",
