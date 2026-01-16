@@ -92,7 +92,7 @@
         "inventory_dtBgQD": {
           "type": "inventory",
           "settings": {
-            "enable_limited_stock": false,
+            "enable_limited_stock": true,
             "force_limited_stock": false,
             "inventory_threshold": 10,
             "bulb_in_stock": "#3ed660",
