@@ -1,4 +1,13 @@
-<div class="rating-stars" style='--rating:{{ block.settings.rating }};--visible-stars:{{ block.settings.rating | ceil }};--star-color:{{ block.settings.star_color }};--bg-star-color:{{ block.settings.bg_star_color }};--font-size:{{ block.settings.size | divided_by: 10.0 }}rem;--alignment:{{ block.settings.alignment }};{% if margins %}--margin-top: {{ block.settings.margin_top | divided_by: 10.0 }}rem;--margin-bottom: {{ block.settings.margin_bottom | divided_by: 10.0 }}rem;{% endif %}' {% if block_attributes %}{{ block.shopify_attributes }}{% endif %}>
+{% assign rating_setting = block.settings.rating %}
+{% assign rating_value = rating_setting %}
+{% assign review_count_value = blank %}
+{% if product != blank %}
+  {% assign rating_value = product.metafields.custom.rating_value.value | default: rating_setting %}
+  {% assign review_count_value = product.metafields.custom.review_count.value %}
+{% endif %}
+{% assign rating_value = rating_value | plus: 0 | at_least: 0 | at_most: 5 %}
+{% assign visible_stars = rating_value | ceil %}
+<div class="rating-stars" style='--rating:{{ rating_value }};--visible-stars:{{ visible_stars }};--star-color:{{ block.settings.star_color }};--bg-star-color:{{ block.settings.bg_star_color }};--font-size:{{ block.settings.size | divided_by: 10.0 }}rem;--alignment:{{ block.settings.alignment }};{% if margins %}--margin-top: {{ block.settings.margin_top | divided_by: 10.0 }}rem;--margin-bottom: {{ block.settings.margin_bottom | divided_by: 10.0 }}rem;{% endif %}' {% if block_attributes %}{{ block.shopify_attributes }}{% endif %}>
   {% if block.settings.scroll_id != blank %}<a href="{{ block.settings.scroll_id }}">{% endif %}
     <div class='rating-stars-and-text font-size--desktop-auto flex-center'>
       <div class='rating-stars__container rating-stars__container--underlay'>
@@ -23,7 +32,13 @@
           {% endfor %}
         </div>
       </div>
-      <span class="rating-stars__label">&nbsp;{{ block.settings.label }}</span>
+      <span class="rating-stars__label">&nbsp;
+        {% if review_count_value != blank %}
+          <strong><em>{{ review_count_value }}+ Positive reviews</em></strong>
+        {% else %}
+          {{ block.settings.label }}
+        {% endif %}
+      </span>
     </div>
   {% if block.settings.scroll_id != blank %}</a>{% endif %}
 </div>
